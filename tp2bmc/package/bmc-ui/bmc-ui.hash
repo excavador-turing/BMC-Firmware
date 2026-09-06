@@ -1,0 +1,7 @@
+# bmc-ui-v3.3.6.tar.gz is a GitHub RELEASE ASSET, not a tag archive: the
+# maintainers can re-upload a file under the same name, and GitHub exposes
+# no digest for this one. Pinned on purpose -- if the asset ever changes,
+# the build fails here instead of silently shipping a different UI.
+# Verified 2026-09-07: 912530 bytes, asset last updated 2025-01-03T10:45:47Z.
+# Locally computed:
+sha256  7c5355694b515640c208d658af42e447ca2d136020f57ea89a1cfb65372aaf28  bmc-ui-v3.3.6.tar.gz
