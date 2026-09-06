@@ -78,9 +78,37 @@ jobs:
         run: |
           mv dist artifacts
 
+      - name: checksums
+        run: cd artifacts && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
       - name: archive artifacts
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
           name: tp2-${{ env.BUILD_VERSION }}
           path: artifacts/*
+
+      # Upstream stops at upload-artifact, which expires after 90 days. That
+      # matters here: v2.1.0 was never mirrored to firmware.turingpi.com, so
+      # the only published build of the firmware this estate runs exists as
+      # assets on one GitHub release page, from a project whose owners have
+      # gone quiet. Releases do not expire.
+      - name: release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          fail_on_unmatched_files: true
+          body: |
+            Turing Pi 2 BMC firmware, built from the `hive` branch.
+
+            **Not a Turing Pi release.** Upstream is dormant: last release
+            v2.1.0 (2025-02-05), last commit 2025-08-28, and the lead
+            maintainer stated on 2026-06-16 that he has moved on.
+
+            Includes the unmerged versioning fix (upstream PR #242), so
+            `/etc/os-release` reports the actual firmware version instead of
+            Buildroot's, and bmcd moves v2.3.4 -> v2.3.7.
+
+            `.tpu` is the OTA package, `.img` the recovery SD image.
+            Verify with `sha256sum -c SHA256SUMS`.
