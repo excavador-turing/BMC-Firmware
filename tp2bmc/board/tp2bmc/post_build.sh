@@ -35,7 +35,10 @@ overwrite_os_release() {
         fi
     fi
 
-    os_release_file="/etc/os-release"
+    # ${TARGET_DIR}, not the build host: with the absolute path this function
+    # rewrote the CI container's own /etc/os-release and shipped Buildroot's
+    # (VERSION=2024.05.1), so `tpi info` on hive.1 reported the wrong version.
+    os_release_file="${TARGET_DIR}/etc/os-release"
 
     echo "NAME=turingpi" > "$os_release_file"
     echo "PRETTY_NAME=Turing Pi ${build_version%%-*}" >> "$os_release_file"
