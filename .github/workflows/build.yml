@@ -78,8 +78,19 @@ jobs:
         run: |
           mv dist artifacts
 
+      # `dist` is created INSIDE the build container as root, so after
+      # `mv dist artifacts` the runner user cannot write into it:
+      #   SHA256SUMS: Permission denied
+      # Take ownership first. Checksum only the two images -- build.sh
+      # already emits a per-file .sha256 next to each, and hashing those
+      # would be hashing hashes.
       - name: checksums
-        run: cd artifacts && sha256sum * > SHA256SUMS && cat SHA256SUMS
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" artifacts
+          cd artifacts
+          ls -la
+          sha256sum *.tpu *.img > SHA256SUMS
+          cat SHA256SUMS
 
       - name: archive artifacts
         uses: actions/upload-artifact@v4
