@@ -52,6 +52,19 @@ jobs:
             exit 1
           fi
 
+          # COMMIT COUNT IS NOT THE SIGNAL. Upstream rebases: the first real
+          # run of this job reported talos-rpi5/u-boot "2 commits ahead",
+          # and the two trees were byte-identical -- rewritten history, no
+          # new work. An alert like that is noise, and noise is how a watch
+          # gets ignored. So compare CONTENT, and let the commit count be
+          # context rather than the trigger.
+          if git diff --quiet "${BASE}" "${UPSTREAM_HEAD_REF}" 2>/dev/null; then
+            content_changed=0
+          else
+            content_changed=1
+          fi
+          echo "content_changed=$content_changed" >> "$GITHUB_OUTPUT"
+
           echo "new_commits=$new_commits"       >> "$GITHUB_OUTPUT"
           echo "newest_tag=$newest_tag"         >> "$GITHUB_OUTPUT"
           echo "base_tag=$base_tag"             >> "$GITHUB_OUTPUT"
@@ -62,10 +75,11 @@ jobs:
             echo "- our base: \`${base_tag}\`"
             echo "- newest tag visible: \`${newest_tag}\`"
             echo "- commits upstream is ahead of our base: **${new_commits}**"
+            echo "- content actually differs: **${content_changed}** (0 = rebase only)"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: open an issue when upstream has moved
-        if: steps.cmp.outputs.new_commits != '0'
+        if: steps.cmp.outputs.content_changed == '1'
         env:
           GH_TOKEN: ${{ github.token }}
           N: ${{ steps.cmp.outputs.new_commits }}
