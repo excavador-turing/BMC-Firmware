@@ -20,26 +20,43 @@ on:
         type: string
 
   pull_request:
-    branches: ["master"]
+    branches: ["hive"]
+
+  # `branches: ["*"]` built every push to every slash-less branch, and a tag
+  # pushed right after its commit ran a SECOND identical two-hour build of
+  # the same tree (runs 34062201851 and 34062204130, 2026-09-06). Build the
+  # integration branch and release tags; a topic branch gets its build from
+  # a pull request or workflow_dispatch.
   push:
-    branches:
-      - "*"
-    tags:
-      - "*"
+    branches: ["hive"]
+    tags: ["v*"]
+
+# One build per commit: group by SHA, and let a tag run replace a branch run
+# that is already building the same tree.
+concurrency:
+  group: build-${{ github.sha }}
+  cancel-in-progress: ${{ github.ref_type == 'tag' }}
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # the release step; nothing else writes
     env:
       RUST_LOG: ${{ inputs.logLevel }}
 
+    # Actions are pinned by commit (the moving tag is in the comment):
+    # a retagged action cannot change what runs with `contents: write`.
+    #
+    # "Maximize build space" is gone: it spent 58-65 s deleting Android
+    # SDKs to free 11 GB on a runner that already had 86 GB free. The whole
+    # build -- output, dl, ccache, image -- needs about 15 GB, and the
+    # report step prints df so a shrinking runner gets noticed.
     steps:
-      - name: Maximize build space
-        uses: AdityaGarg8/remove-unwanted-software@v4.1
-        with:
-          remove-android: "true"
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: "0"
           fetch-tags: "true"
@@ -53,8 +70,35 @@ jobs:
         run: |
           sed -ir 's#^BMCD_VERSION.*#BMCD_VERSION=${{ inputs.bmcd_version }}#g' ${{ github.workspace }}/tp2bmc/package/bmcd/bmcd.mk
 
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      # Buildroot's dl/ tree (~0.8 GB): every source tarball plus the
+      # cargo-vendored crates of bmcd, tpi and bmc_installer. Keyed on what
+      # decides WHAT gets downloaded; restore-keys reuse the newest older
+      # cache, so a new package costs only its own download.
+      - name: restore Buildroot downloads
+        id: dl
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: dl
+          key: br-dl-${{ hashFiles('scripts/configure.sh', 'buildroot_patches/*', 'tp2bmc/configs/tp2bmc_defconfig', 'tp2bmc/package/**') }}
+          restore-keys: |
+            br-dl-
+
+      # ccache. BR2_CCACHE=y has been in the defconfig all along, but the
+      # cache lived in the container's /root and died with it, so every run
+      # compiled gcc, glibc and the kernel from nothing. The key is unique
+      # per run so the post-build save always happens; restore-keys pick up
+      # the newest one. CCACHE_MAXSIZE keeps it well inside the repository's
+      # 10 GB cache quota (the docker layers take ~0.4 GB of it).
+      - name: restore ccache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .ccache
+          key: br-ccache-${{ github.run_id }}
+          restore-keys: |
+            br-ccache-
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           tags: buildroot_local:latest
@@ -65,14 +109,82 @@ jobs:
         env:
           DOCKER_BUILD_SUMMARY: false
 
+      # BR2_DL_DIR and BR2_CCACHE_DIR are the two Buildroot knobs that take
+      # the ENVIRONMENT over .config (Makefile: "set this before including
+      # .config"), so the defconfig stays exactly what developers use.
+      # ccache stats are printed even when the build fails -- that is when
+      # you want them.
       - name: build firmware
-        uses: addnab/docker-run-action@v3
+        uses: addnab/docker-run-action@4f65fabd2431ebc8d299f8e5a018d79a769ae185 # v3
         with:
           image: buildroot_local:latest
-          options: -v ${{ github.workspace }}:/work
+          options: >-
+            -v ${{ github.workspace }}:/work
+            -e BR2_DL_DIR=/work/dl
+            -e BR2_CCACHE_DIR=/work/.ccache
+            -e CCACHE_MAXSIZE=2G
+            -e BUILD_VERSION=${{ env.BUILD_VERSION }}
           run: |
+            set -e
             /work/scripts/configure.sh
-            /work/scripts/build.sh --release ${{ env.BUILD_VERSION }}
+            rc=0
+            /work/scripts/build.sh --release "${BUILD_VERSION}" || rc=$?
+            BR_CACHE_DIR=/work/.ccache /work/buildroot/output/host/bin/ccache -s \
+              > /work/ccache-stats.txt 2>&1 || true
+            exit $rc
+
+      # Save both caches even when the build failed: the three failed runs
+      # of 2026-09-06 each re-downloaded 0.7 GB and rebuilt the toolchain.
+      - name: save Buildroot downloads
+        if: always() && steps.dl.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: dl
+          key: ${{ steps.dl.outputs.cache-primary-key }}
+
+      - name: save ccache
+        if: always()
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .ccache
+          key: br-ccache-${{ github.run_id }}
+
+      # Where the time went. build-time.log is what `make graph-build`
+      # reads; its top in the step summary turns the next slow build into
+      # a ten-second diagnosis instead of a 47 MB log download.
+      - name: build report
+        if: always()
+        run: |
+          {
+            echo "### Build report"
+            echo
+            echo '```'
+            df -h / | sed -n '1,2p'
+            echo '```'
+            log=buildroot/output/build/build-time.log
+            if [ -f "$log" ]; then
+              echo
+              echo "Top 20 packages by wall time (seconds):"
+              echo
+              echo '```'
+              # epoch:start|end:step: pkg  (fields are space-padded)
+              awk -F: '
+                { gsub(/ /, "", $2); gsub(/ /, "", $3); sub(/^ +/, "", $4) }
+                $2 == "start" { s[$4 ":" $3] = $1 }
+                $2 == "end"   { t[$4] += $1 - s[$4 ":" $3] }
+                END { for (p in t) printf "%8.0f  %s\n", t[p], p }
+              ' "$log" | sort -rn | head -20
+              echo '```'
+            fi
+            if [ -s ccache-stats.txt ]; then
+              echo
+              echo 'ccache:'
+              echo
+              echo '```'
+              cat ccache-stats.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: stamp images
         run: |
@@ -93,7 +205,7 @@ jobs:
           cat SHA256SUMS
 
       - name: archive artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           if-no-files-found: error
           name: tp2-${{ env.BUILD_VERSION }}
@@ -104,12 +216,22 @@ jobs:
       # the only published build of the firmware this estate runs exists as
       # assets on one GitHub release page, from a project whose owners have
       # gone quiet. Releases do not expire.
+      #
+      # overwrite_files: false -- a re-run of a tag must not silently swap
+      # the binary people already flashed (the build is not reproducible:
+      # no BR2_REPRODUCIBLE, so timestamps and the root password salt
+      # differ per build). To republish, delete the release first, on
+      # purpose. A `-` in the tag (v2.2.0-unstable-hive.3) marks a
+      # prerelease, so an unstable build is never "Latest".
       - name: release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: artifacts/*
           fail_on_unmatched_files: true
+          overwrite_files: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
           body: |
             Turing Pi 2 BMC firmware, built from the `hive` branch.
 

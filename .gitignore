@@ -5,3 +5,6 @@ buildroot-*
 dist
 wip
 tmp
+dl
+.ccache
+ccache-stats.txt
