@@ -223,13 +223,22 @@ jobs:
       # differ per build). To republish, delete the release first, on
       # purpose. A `-` in the tag (v2.2.0-unstable-hive.3) marks a
       # prerelease, so an unstable build is never "Latest".
-      - name: release
+      #
+      # draft: true, then publish in a separate step. With GitHub's
+      # immutable releases enabled, assets are locked the moment a release
+      # is published; softprops uploads before publishing for standard
+      # releases but leaves PRERELEASES published first (its README says
+      # so), and every hive.N tag is a prerelease. A draft accepts assets,
+      # and `gh release edit --draft=false` publishes it once they are all
+      # there -- also atomic from a downloader's point of view.
+      - name: release (draft, with assets)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: artifacts/*
           fail_on_unmatched_files: true
           overwrite_files: false
+          draft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}
           body: |
@@ -245,3 +254,10 @@ jobs:
 
             `.tpu` is the OTA package, `.img` the recovery SD image.
             Verify with `sha256sum -c SHA256SUMS`.
+
+      - name: publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false
