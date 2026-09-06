@@ -1,23 +1,26 @@
 From f2cd287bc49fee60b1c8f2c537b2e5c71ca7c348 Mon Sep 17 00:00:00 2001
 From: Sven Rademakers <sven.rademakers@gmail.com>
 Date: Wed, 13 Mar 2024 15:55:30 +0000
-Subject: [PATCH] bump rust to 1.85
+Subject: [PATCH] bump rust to 1.85 and pin its download hashes
+
+Upstream's version of this patch DELETED rust-bin.hash and rust.hash,
+so the Rust toolchain -- ~200 MB fetched from static.rust-lang.org on
+every clean build -- was the one download Buildroot did not verify.
+This revision rewrites the two files instead, with the sums from the
+official .sha256 files for the artefacts this tree downloads (x86_64
+and aarch64 hosts, armv7-unknown-linux-gnueabi std, rustc source).
 
 ---
- buildroot/package/rust-bin/rust-bin.hash | 111 ---------------------------------
- buildroot/package/rust-bin/rust-bin.mk   |   2 +-
- buildroot/package/rust/rust.hash         |   6 --
- buildroot/package/rust/rust.mk           |   2 +-
- 4 files changed, 2 insertions(+), 119 deletions(-)
- delete mode 100644 buildroot/package/rust-bin/rust-bin.hash
- delete mode 100644 buildroot/package/rust/rust.hash
+ package/rust-bin/rust-bin.hash | 111 ++-----------------------------
+ package/rust-bin/rust-bin.mk   |   2 +-
+ package/rust/rust.hash         |   6 +-
+ package/rust/rust.mk           |   2 +-
+ 4 files changed, 12 insertions(+), 109 deletions(-)
 
 diff --git a/package/rust-bin/rust-bin.hash b/package/rust-bin/rust-bin.hash
-deleted file mode 100644
-index d44cb2cb67..0000000000
 --- a/package/rust-bin/rust-bin.hash
-+++ /dev/null
-@@ -1,111 +0,0 @@
++++ b/package/rust-bin/rust-bin.hash
+@@ -1,111 +1,13 @@
 -# From https://static.rust-lang.org/dist/rust-1.74.1-aarch64-unknown-linux-gnu.tar.xz.sha256
 -# Verified using https://static.rust-lang.org/dist/rust-1.74.1-aarch64-unknown-linux-gnu.tar.xz.asc
 -sha256  88d0cd0407ca5bb73b5d72956d85e31e057657c7ec09a58ca634cf36bd5cf626  rust-1.74.1-aarch64-unknown-linux-gnu.tar.xz
@@ -127,14 +130,24 @@ index d44cb2cb67..0000000000
 -# Verified using https://static.rust-lang.org/dist/rust-std-1.74.1-x86_64-unknown-linux-musl.tar.xz.asc
 -sha256  98f190039c7e7922838f9716443b7ddfec2aa3dc229f5b1813a26591c557997e  rust-std-1.74.1-x86_64-unknown-linux-musl.tar.xz
 -# Locally  generated
--sha256  62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a  LICENSE-APACHE
--sha256  23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3  LICENSE-MIT
++# Only the artefacts this tree can download: x86_64 and aarch64 hosts, and
++# the armv7 soft-float-ABI target (BR2_ARM_EABI). Any other host/target
++# combination is refused by Buildroot ("No hash found") rather than
++# accepted unverified -- add its line from the matching .sha256 file.
++# From https://static.rust-lang.org/dist/rust-1.85.0-x86_64-unknown-linux-gnu.tar.xz.sha256
++sha256  6f8b323ed2a34ccf0031631b85d79e1133da662094566bc910432da9bd3a5b42  rust-1.85.0-x86_64-unknown-linux-gnu.tar.xz
++# From https://static.rust-lang.org/dist/rust-1.85.0-aarch64-unknown-linux-gnu.tar.xz.sha256
++sha256  024918027c349bd237617a8a1207d7c4462f70549a31e8bf6c14b0601cfd489e  rust-1.85.0-aarch64-unknown-linux-gnu.tar.xz
++# From https://static.rust-lang.org/dist/rust-std-1.85.0-armv7-unknown-linux-gnueabi.tar.xz.sha256
++sha256  29159e7958f1cb071ead33b84bd37042e6f92a962bfe5cfe5d4ac2d008b7dbd3  rust-std-1.85.0-armv7-unknown-linux-gnueabi.tar.xz
++# Locally generated
+ sha256  62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a  LICENSE-APACHE
+ sha256  23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3  LICENSE-MIT
 diff --git a/package/rust-bin/rust-bin.mk b/package/rust-bin/rust-bin.mk
-index ca35d27d1c..6cee57ece9 100644
 --- a/package/rust-bin/rust-bin.mk
 +++ b/package/rust-bin/rust-bin.mk
 @@ -6,7 +6,7 @@
-
+ 
  # When updating this version, check whether support/download/cargo-post-process
  # still generates the same archives.
 -RUST_BIN_VERSION = 1.74.1
@@ -143,23 +156,22 @@ index ca35d27d1c..6cee57ece9 100644
  RUST_BIN_LICENSE = Apache-2.0 or MIT
  RUST_BIN_LICENSE_FILES = LICENSE-APACHE LICENSE-MIT
 diff --git a/package/rust/rust.hash b/package/rust/rust.hash
-deleted file mode 100644
-index 175fa71baf..0000000000
 --- a/package/rust/rust.hash
-+++ /dev/null
-@@ -1,6 +0,0 @@
++++ b/package/rust/rust.hash
+@@ -1,6 +1,5 @@
 -# From https://static.rust-lang.org/dist/rustc-1.74.1-src.tar.xz.sha256
 -# Verified using https://static.rust-lang.org/dist/rustc-1.74.1-src.tar.xz.asc
 -sha256  b98c09d968529212fb29eec7d6d3e9bdaa869810679b7fb86a1ca69469d75f5e  rustc-1.74.1-src.tar.xz
--# Locally generated
--sha256  62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a  LICENSE-APACHE
--sha256  23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3  LICENSE-MIT
++# From https://static.rust-lang.org/dist/rustc-1.85.0-src.tar.xz.sha256
++sha256  d542c397217b5ba5bac7eb274f5ca62d031f61842c3ba4cc5328c709c38ea1e7  rustc-1.85.0-src.tar.xz
+ # Locally generated
+ sha256  62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a  LICENSE-APACHE
+ sha256  23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3  LICENSE-MIT
 diff --git a/package/rust/rust.mk b/package/rust/rust.mk
-index c544582c99..23e46fca2c 100644
 --- a/package/rust/rust.mk
 +++ b/package/rust/rust.mk
 @@ -6,7 +6,7 @@
-
+ 
  # When updating this version, check whether support/download/cargo-post-process
  # still generates the same archives.
 -RUST_VERSION = 1.74.1
@@ -167,6 +179,6 @@ index c544582c99..23e46fca2c 100644
  RUST_SOURCE = rustc-$(RUST_VERSION)-src.tar.xz
  RUST_SITE = https://static.rust-lang.org/dist
  RUST_LICENSE = Apache-2.0 or MIT
---
+-- 
 2.44.0
 
