@@ -22,7 +22,10 @@ fi
 # tries to retrieve the official firmware version and print it into
 # /etc/os-release
 overwrite_os_release() {
-    if [[ -n "$BUILD_VERSION" ]]; then
+    # ${VAR:-} not $VAR: this file runs under `set -u`, so an unset
+    # BUILD_VERSION is a hard error rather than falling through to the
+    # git-describe branch three lines down that exists to handle exactly that.
+    if [[ -n "${BUILD_VERSION:-}" ]]; then
         build_version="$BUILD_VERSION"
     else
         build_version=$(git describe --tags)

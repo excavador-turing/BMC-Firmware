@@ -55,6 +55,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# EXPORT the version so it reaches post_build.sh.
+#
+# Upstream PR #242 adds an overwrite_os_release() hook to
+# tp2bmc/board/tp2bmc/post_build.sh that reads $BUILD_VERSION from the
+# ENVIRONMENT. Nothing sets it: this script parses --release into the local
+# `release` and uses it only for output filenames, and the CI workflow passes
+# it as a CLI argument, not an env var. post_build.sh runs under
+# `set -euo pipefail`, so the unset variable is fatal:
+#
+#   post_build.sh: line 25: BUILD_VERSION: unbound variable
+#   make: *** [Makefile:755: target-finalize] Error 1
+#
+# at target-finalize -- after ~100 minutes of building. Exporting here makes
+# the value flow through make to the hook by every invocation path, while
+# still honouring a BUILD_VERSION set by the caller.
+export BUILD_VERSION="${BUILD_VERSION:-$release}"
+
 # Jump to build directory
 cd "${build_root}" || exit 1
 
