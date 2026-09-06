@@ -17,6 +17,14 @@ BR2_SVN="svn"
 BR2_CCACHE=y
 BR2_RELRO_NONE=y
 
+# Downloads. On 2026-09-06 ftpmirror.gnu.org answered "504 Gateway Time-out"
+# after ~60 s, and wget retries three times (BR2_WGET="wget -nd -t 3"), so
+# fifteen GNU tarballs cost 2020 s of a 6772 s CI build before Buildroot fell
+# back to sources.buildroot.net -- which serves every hashed tarball from a
+# CDN. Ask that mirror first (it is tried as <site>/<pkg>/<file>); a miss
+# there still falls through to the package's own site.
+BR2_PRIMARY_SITE="https://sources.buildroot.net"
+
 # Kernel
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux"

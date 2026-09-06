@@ -67,7 +67,8 @@ printf '  Target Directory:  %s\n' "$buildroot_target"
 
 pushd "$download_dir"
     wget "$buildroot_url"
-    tar -xvf "$buildroot"
+    # No -v: the listing is ~20k lines of noise in every CI log.
+    tar -xf "$buildroot"
 popd
 
 if [ -z "$install_dir" ]; then
