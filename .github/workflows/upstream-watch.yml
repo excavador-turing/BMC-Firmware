@@ -72,9 +72,13 @@ jobs:
           UP: ${{ steps.cmp.outputs.upstream }}
           BASE: ${{ steps.cmp.outputs.base_tag }}
           NEWEST: ${{ steps.cmp.outputs.newest_tag }}
+        # --repo is NOT optional here. gh resolves issue commands against a
+        # fork's PARENT by default, so without it these run against
+        # upstream: the label lookup fails there, and if it ever succeeded
+        # we would be filing issues on someone else's project.
         run: |
           title="upstream ${UP} has moved (${N} commits ahead of ${BASE})"
-          existing="$(gh issue list --label upstream-watch --state open \
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --label upstream-watch --state open \
                         --json number,title --jq '.[0].number' || true)"
           body="$(printf '%s\n' \
             "\`${UP}\` is **${N} commits** ahead of our base \`${BASE}\`." \
@@ -89,7 +93,7 @@ jobs:
             "" \
             "_Opened by upstream-watch._")"
           if [ -n "$existing" ]; then
-            gh issue edit "$existing" --title "$title" --body "$body"
+            gh issue edit "$existing" --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
           else
-            gh issue create --title "$title" --body "$body" --label upstream-watch
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" --label upstream-watch
           fi
