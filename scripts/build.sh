@@ -131,6 +131,16 @@ if "${cmd[@]}"; then
     printf 'Summary\n\n'
 
     printf "%s\n\n" "$(du -h "${dist}/${OTA_FILENAME}" "${dist}/${SDCARD_FILENAME}")"
+else
+    # A FAILING BUILD MUST FAIL THE SCRIPT. `if make; then ... fi` with no else
+    # swallows make's exit code: this script returns 0, CI marks the build step
+    # green, and the only symptom is `mv: cannot stat 'dist'` two steps later --
+    # a confusing error a long way from its cause.
+    #
+    # That is exactly how the 2026-09-06 bmcd v2.3.7 virtual-manifest failure
+    # presented: 115 minutes of building, a green step, and no artifacts.
+    printf '\n\nBUILD FAILED -- make exited non-zero; no images were produced.\n' >&2
+    exit 1
 fi
 
 # Restore current directory

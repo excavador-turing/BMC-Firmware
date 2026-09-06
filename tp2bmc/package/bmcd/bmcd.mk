@@ -11,7 +11,19 @@ BMCD_DEPENDENCIES += libopenssl
 BMCD_CARGO_ENV := PKG_CONFIG_ALLOW_CROSS=1
 BMCD_CARGO_ENV += CC_armv7_unknown_linux_gnueabi="arm-linux-gcc"
 
-# A copy of default build commands but with --path amended, since we have a virtual manifest.
+# A copy of the default build commands with --path amended, because bmcd's
+# root Cargo.toml is a VIRTUAL manifest from v2.3.5 onward: `feat: split
+# board_info into seperate package` turned the repo into a workspace of
+# {bmcd, board_info}, and `cargo install --path ./` on a workspace root
+# fails with
+#
+#   error: found a virtual manifest at .../Cargo.toml instead of a package manifest
+#
+# Upstream master carries this same comment while still pinning v2.3.4, which
+# has a real package manifest -- so `--path ./` works there and the comment is
+# aspirational. Upstream PR #242 bumps the version to v2.3.7 WITHOUT amending
+# the path, which is why it does not build. Plausibly why it has sat unmerged
+# since 2025-02-23.
 define BMCD_INSTALL_TARGET_CMDS
 	cd $(BMCD_SRCDIR) && \
 	$(TARGET_MAKE_ENV) \
@@ -21,7 +33,7 @@ define BMCD_INSTALL_TARGET_CMDS
 			--offline \
 			--root $(TARGET_DIR)/usr/ \
 			--bins \
-			--path ./ \
+			--path ./bmcd \
 			--force \
 			--locked \
 			-Z target-applies-to-host \
