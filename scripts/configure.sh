@@ -15,6 +15,8 @@ set -eo pipefail
 
 # Buildroot Version
 BUILDROOT_VER="2024.05.1"
+# From the signed https://buildroot.org/downloads/buildroot-2024.05.1.tar.gz.sign
+BUILDROOT_SHA256="4a77e996948a4c81a2991a1147798eb692f1caf581959caee1fbe43cf2b89349"
 
 # Save current directory
 CWD=$(pwd)
@@ -67,6 +69,7 @@ printf '  Target Directory:  %s\n' "$buildroot_target"
 
 pushd "$download_dir"
     wget "$buildroot_url"
+    echo "${BUILDROOT_SHA256}  ${buildroot}" | sha256sum -c -
     # No -v: the listing is ~20k lines of noise in every CI log.
     tar -xf "$buildroot"
 popd

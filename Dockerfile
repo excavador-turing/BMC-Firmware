@@ -1,4 +1,8 @@
-FROM mcr.microsoft.com/devcontainers/base:ubuntu24.04
+# Pinned by digest: this is the image the 2026-09-06 CI runs resolved
+# (run 34054948922, step "Run docker/build-push-action"). The tag moves;
+# the digest does not, so two builds of the same commit get the same host
+# compiler and the ccache stays valid across runs.
+FROM mcr.microsoft.com/devcontainers/base:ubuntu24.04@sha256:456e33716a8570448b7deca1ffd98fc337adc7b446aceeadb8beaf8d660345b4
 
 # cmake and lzip: Buildroot builds its own host-cmake (526 s of the 2026-09-06
 # CI build, and ccache is a cmake package so it is always needed) and
