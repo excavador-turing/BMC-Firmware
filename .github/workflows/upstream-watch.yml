@@ -1,0 +1,90 @@
+# Notice when upstream moves.
+#
+# WHY THIS EXISTS. turing-machines/BMC-Firmware is dormant -- last release
+# 2025-02-05, last commit 2025-08-28, and the lead maintainer said on
+# 2026-06-16 that he has moved on while the owners stayed silent. If it ever
+# wakes up, our patches should go upstream rather than be carried forever.
+#
+# The runbook used to say "somebody has to notice the fork moving". That is
+# a promise, not a mechanism, and it is the kind of promise that quietly
+# stops being kept. This job is the mechanism: it opens an issue, which is
+# a thing that nags, rather than a dashboard nobody opens.
+name: upstream-watch
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # Mondays, 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: compare against upstream
+        id: cmp
+        env:
+          UPSTREAM: turing-machines/BMC-Firmware
+          BASE: upstream/master
+        run: |
+          git remote add upstream "https://github.com/${UPSTREAM}.git"
+          git fetch -q --tags upstream
+          UPSTREAM_HEAD_REF="$(git rev-parse --abbrev-ref upstream/HEAD 2>/dev/null || echo "upstream/master")"
+          new_commits="$(git rev-list --count "${BASE}..${UPSTREAM_HEAD_REF}" 2>/dev/null || echo 0)"
+          newest_tag="$(git tag --list --sort=-creatordate | head -1)"
+          base_tag="${BASE}"
+
+          # A watch that cannot report is worse than none: if the comparison
+          # itself failed, say so loudly instead of reporting "no change".
+          if [ -z "$new_commits" ]; then
+            echo "could not compare against ${UPSTREAM}" >&2
+            exit 1
+          fi
+
+          echo "new_commits=$new_commits"       >> "$GITHUB_OUTPUT"
+          echo "newest_tag=$newest_tag"         >> "$GITHUB_OUTPUT"
+          echo "base_tag=$base_tag"             >> "$GITHUB_OUTPUT"
+          echo "upstream=$UPSTREAM"             >> "$GITHUB_OUTPUT"
+          {
+            echo "### upstream: \`${UPSTREAM}\`"
+            echo
+            echo "- our base: \`${base_tag}\`"
+            echo "- newest tag visible: \`${newest_tag}\`"
+            echo "- commits upstream is ahead of our base: **${new_commits}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: open an issue when upstream has moved
+        if: steps.cmp.outputs.new_commits != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          N: ${{ steps.cmp.outputs.new_commits }}
+          UP: ${{ steps.cmp.outputs.upstream }}
+          BASE: ${{ steps.cmp.outputs.base_tag }}
+          NEWEST: ${{ steps.cmp.outputs.newest_tag }}
+        run: |
+          title="upstream ${UP} has moved (${N} commits ahead of ${BASE})"
+          existing="$(gh issue list --label upstream-watch --state open \
+                        --json number,title --jq '.[0].number' || true)"
+          body="$(printf '%s\n' \
+            "\`${UP}\` is **${N} commits** ahead of our base \`${BASE}\`." \
+            "" \
+            "Newest tag visible from here: \`${NEWEST}\`" \
+            "" \
+            "This fork exists because upstream was dormant. If it has genuinely" \
+            "woken up, the right move may be to rebase our \`hive\` patches onto" \
+            "the new base and submit them, rather than carrying them forever." \
+            "" \
+            "Rebase, re-tag, and let the build job publish a new release." \
+            "" \
+            "_Opened by upstream-watch._")"
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --title "$title" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --label upstream-watch
+          fi
