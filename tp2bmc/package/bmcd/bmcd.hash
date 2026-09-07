@@ -1,12 +1,12 @@
 # bmcd is a cargo package: Buildroot fetches the GitHub archive, runs
 # `cargo vendor`, and stores the re-packed archive (the "-cargo2" suffix)
 # -- so the sum covers the vendored crates too, exactly as Buildroot does
-# for its own cargo packages. Computed with rust-bin 1.85.0 in the pinned
-# container on 2026-09-07; a Rust bump can legitimately change it.
+# for its own cargo packages. Computed with rust-bin 1.98.1 in the pinned
+# container on 2026-09-08; a Rust bump can legitimately change it.
 # The version is a commit on excavador/bmcd branch `hive` (v2.3.7 plus
 # the preserve-power-state change from SQU-114, the About-page fields and
 # off-the-RAM-disk staging from SQU-124, and the switch-state endpoint,
 # board serial and power_on_time fix from SQU-127), not an upstream tag.
 # Locally computed:
-sha256  89355f85d13fe540d24f0f90e4f863b20c583bd037e4509ac7937051406c3286  bmcd-99b32494d58994e789ee5f79438edc7293df1127-cargo2.tar.gz
+sha256  45e43ea649d021975b2556cbf11d8d29df51acc6cfcb1dfe3f73bf753bbf0ddc  bmcd-99b32494d58994e789ee5f79438edc7293df1127-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

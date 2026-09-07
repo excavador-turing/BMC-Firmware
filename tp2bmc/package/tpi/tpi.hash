@@ -1,5 +1,5 @@
 # Cargo package: the sum is of Buildroot's vendored, re-packed archive
-# (see bmcd.hash). Computed with rust-bin 1.85.0 on 2026-09-07.
+# (see bmcd.hash). Computed with rust-bin 1.98.1 on 2026-09-08.
 # Locally computed:
-sha256  7b7354dd5ec0df9a842ac59fbe3ca11fbdd48c3a486aeafe4e53ff833dd8817f  tpi-f9a5d58f42428f861693bdeac5acc0171872d807-cargo2.tar.gz
+sha256  ad5a684622df5cc0d87be03087f18a4193045ea5d4c37f5980b74e517dfe354d  tpi-f9a5d58f42428f861693bdeac5acc0171872d807-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE
