@@ -133,6 +133,15 @@ jobs:
               > /work/ccache-stats.txt 2>&1 || true
             exit $rc
 
+      # The build runs as root inside the container, so dl/ and .ccache come
+      # out root-owned; actions/cache tars them as the runner user and the
+      # first cold run (34063520991) saved NOTHING for dl/ -- `tar: Cannot
+      # open: Permission denied` on dl/br-cargo-home/... -- while reporting
+      # the step green. Hand both trees back before saving.
+      - name: make the caches readable by the runner
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" dl .ccache 2>/dev/null || true
+
       # Save both caches even when the build failed: the three failed runs
       # of 2026-09-06 each re-downloaded 0.7 GB and rebuilt the toolchain.
       - name: save Buildroot downloads
