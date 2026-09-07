@@ -1,7 +1,7 @@
 From f2cd287bc49fee60b1c8f2c537b2e5c71ca7c348 Mon Sep 17 00:00:00 2001
 From: Sven Rademakers <sven.rademakers@gmail.com>
 Date: Wed, 13 Mar 2024 15:55:30 +0000
-Subject: [PATCH] bump rust to 1.85 and pin its download hashes
+Subject: [PATCH] bump rust to 1.98.1 and pin its download hashes
 
 Upstream's version of this patch DELETED rust-bin.hash and rust.hash,
 so the Rust toolchain -- ~200 MB fetched from static.rust-lang.org on
@@ -10,16 +10,26 @@ This revision rewrites the two files instead, with the sums from the
 official .sha256 files for the artefacts this tree downloads (x86_64
 and aarch64 hosts, armv7-unknown-linux-gnueabi std, rustc source).
 
-Rebased onto Buildroot 2025.02.17, which ships Rust 1.82.0 (2024.05.1
-shipped 1.74.1). The four 1.85.0 sums are unchanged and were re-checked
-against static.rust-lang.org on 2026-09-07.
+Buildroot 2025.02.17 ships Rust 1.82.0; this pins 1.98.1, the current
+stable. The pin it replaces, 1.85.0, sits below the rustc 1.88 floor
+that bmcd's dependencies have reached -- the `time` 0.3.47 advisory
+fix, actix-web 4.15, serde_with 3.22 and the icu_* family all declare
+it -- so the toolchain pin had started deciding which crates bmcd was
+allowed to carry. Each of the four sums below was read from that
+artefact's own .sha256 file on static.rust-lang.org on 2026-09-08.
+
+LICENSE-MIT moves with them: 1.98.1 prepends "Copyright (c) The Rust
+Project Contributors" to a file that carried no copyright line through
+1.85.0, so the sum Buildroot checks at legal-info is a different one.
+Both the binary and the source tarball ship the new text, and both
+agree on b71bd43a. LICENSE-APACHE is byte-identical and untouched.
 
 ---
- package/rust-bin/rust-bin.hash | 76 ++++------------------------------
+ package/rust-bin/rust-bin.hash | 81 +++++++-----------------------------------
  package/rust-bin/rust-bin.mk   |  2 +-
- package/rust/rust.hash         |  9 ++---
+ package/rust/rust.hash         | 10 +++---
  package/rust/rust.mk           |  2 +-
- 4 files changed, 14 insertions(+), 75 deletions(-)
+ 4 files changed, 19 insertions(+), 76 deletions(-)
 
 --- a/package/rust-bin/rust-bin.hash
 +++ b/package/rust-bin/rust-bin.hash
@@ -97,15 +107,16 @@ against static.rust-lang.org on 2026-09-07.
 +# soft-float-ABI target that BR2_ARM_EABI selects. Any other combination
 +# is refused by Buildroot ("No hash found") instead of being accepted
 +# unverified; add its line from the matching .sha256 file if you need it.
-+# From https://static.rust-lang.org/dist/rust-1.85.0-x86_64-unknown-linux-gnu.tar.xz.sha256
-+sha256  6f8b323ed2a34ccf0031631b85d79e1133da662094566bc910432da9bd3a5b42  rust-1.85.0-x86_64-unknown-linux-gnu.tar.xz
-+# From https://static.rust-lang.org/dist/rust-1.85.0-aarch64-unknown-linux-gnu.tar.xz.sha256
-+sha256  024918027c349bd237617a8a1207d7c4462f70549a31e8bf6c14b0601cfd489e  rust-1.85.0-aarch64-unknown-linux-gnu.tar.xz
-+# From https://static.rust-lang.org/dist/rust-std-1.85.0-armv7-unknown-linux-gnueabi.tar.xz.sha256
-+sha256  29159e7958f1cb071ead33b84bd37042e6f92a962bfe5cfe5d4ac2d008b7dbd3  rust-std-1.85.0-armv7-unknown-linux-gnueabi.tar.xz
++# From https://static.rust-lang.org/dist/rust-1.98.1-x86_64-unknown-linux-gnu.tar.xz.sha256
++sha256  5326b36c53de11d148c8f8dab6553a3d1006c2cfd32123683073fad3c302605b  rust-1.98.1-x86_64-unknown-linux-gnu.tar.xz
++# From https://static.rust-lang.org/dist/rust-1.98.1-aarch64-unknown-linux-gnu.tar.xz.sha256
++sha256  0b514a8cc1cbcd939bff0f151661fe58b6ea5c7a7f645a5098c69e32e8c1e0a2  rust-1.98.1-aarch64-unknown-linux-gnu.tar.xz
++# From https://static.rust-lang.org/dist/rust-std-1.98.1-armv7-unknown-linux-gnueabi.tar.xz.sha256
++sha256  95bc80c6257ae135bdc3606629807f21ee53f6cfa18911ceb1d486cd82b4a13a  rust-std-1.98.1-armv7-unknown-linux-gnueabi.tar.xz
  # Locally generated
  sha256  62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a  LICENSE-APACHE
- sha256  23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3  LICENSE-MIT
+-sha256  23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3  LICENSE-MIT
++sha256  b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1  LICENSE-MIT
 --- a/package/rust-bin/rust-bin.mk
 +++ b/package/rust-bin/rust-bin.mk
 @@ -6,7 +6,7 @@
@@ -113,7 +124,7 @@ against static.rust-lang.org on 2026-09-07.
  # When updating this version, check whether support/download/cargo-post-process
  # still generates the same archives.
 -RUST_BIN_VERSION = 1.82.0
-+RUST_BIN_VERSION = 1.85.0
++RUST_BIN_VERSION = 1.98.1
  RUST_BIN_SITE = https://static.rust-lang.org/dist
  RUST_BIN_LICENSE = Apache-2.0 or MIT
  RUST_BIN_LICENSE_FILES = LICENSE-APACHE LICENSE-MIT
@@ -126,11 +137,12 @@ against static.rust-lang.org on 2026-09-07.
 -# From https://static.rust-lang.org/dist/rustc-1.82.0-src.tar.xz.sha256
 -sha256  1276a0bb8fa12288ba6fa96597d28b40e74c44257c051d3bc02c2b049bb38210  rustc-1.82.0-src.tar.xz
 +# NOT generated with utils/update-rust -- see rust-bin.hash.
-+# From https://static.rust-lang.org/dist/rustc-1.85.0-src.tar.xz.sha256
-+sha256  d542c397217b5ba5bac7eb274f5ca62d031f61842c3ba4cc5328c709c38ea1e7  rustc-1.85.0-src.tar.xz
++# From https://static.rust-lang.org/dist/rustc-1.98.1-src.tar.xz.sha256
++sha256  be1816e7f6c40abb90245ad6e024bed2a7e88d7dda4561e4d5470207df616b9f  rustc-1.98.1-src.tar.xz
  # Locally generated
  sha256  62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a  LICENSE-APACHE
- sha256  23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3  LICENSE-MIT
+-sha256  23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3  LICENSE-MIT
++sha256  b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1  LICENSE-MIT
 --- a/package/rust/rust.mk
 +++ b/package/rust/rust.mk
 @@ -6,7 +6,7 @@
@@ -138,7 +150,7 @@ against static.rust-lang.org on 2026-09-07.
  # When updating this version, check whether support/download/cargo-post-process
  # still generates the same archives.
 -RUST_VERSION = 1.82.0
-+RUST_VERSION = 1.85.0
++RUST_VERSION = 1.98.1
  RUST_SOURCE = rustc-$(RUST_VERSION)-src.tar.xz
  RUST_SITE = https://static.rust-lang.org/dist
  RUST_LICENSE = Apache-2.0 or MIT
