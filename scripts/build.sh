@@ -78,7 +78,10 @@ cd "${build_root}" || exit 1
 # Prepare buildroot
 make BR2_EXTERNAL=../tp2bmc tp2bmc_defconfig
 
-cmd=(make)
+# Top-level parallel build: with BR2_PER_PACKAGE_DIRECTORIES=y in the
+# defconfig, independent packages build concurrently; without -j here that
+# option buys nothing. Per-package -j stays at Buildroot's default (nproc+1).
+cmd=(make -j"$(nproc)")
 if [[ -n "$package" ]]; then
     echo "Building Package: $package"
     cmd+=("$package")

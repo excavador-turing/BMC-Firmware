@@ -25,6 +25,13 @@ BR2_RELRO_NONE=y
 # there still falls through to the package's own site.
 BR2_PRIMARY_SITE="https://sources.buildroot.net"
 
+# Top-level parallel build (SQU-104 phase 2): every package gets its own
+# host/target staging so independent packages build at the same time instead
+# of strictly in sequence. Requires `make -j` from scripts/build.sh; a
+# package with an undeclared dependency shows up as a build failure here
+# rather than working by accident.
+BR2_PER_PACKAGE_DIRECTORIES=y
+
 # Kernel
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux"
