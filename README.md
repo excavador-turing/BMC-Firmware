@@ -9,14 +9,20 @@
 > anything newer. This fork exists to have a firmware that builds, releases and
 > installs from a pipeline we can see.
 
-## Running now: `v2.2.0-unstable-hive.5`
+## Running now: `v2.2.0-unstable-hive.6`
 
-Flashed 2026-09-07 14:51, **over the air, with all four compute modules
+Flashed 2026-09-07 17:02, **over the air, with all four compute modules
 running**. Everything in this section was measured on the board after that
 flash, not inferred from a build.
 
 | verified | evidence |
 |---|---|
+| **A bad image undoes itself.** Promotion waits until bmcd answers on `https://127.0.0.1/` and every compute node's switch port exists; otherwise the board reboots, which lands on the previous image because nothing was renamed and `nextboot` is one-shot | Its own log on the first real flash: `bmcd answered after 3s`, `switch ports present: node1 node2 node3 node4`, then promoted — root volume `rootfs`, hive.5 kept as `rootfs_prev`. Six branches were exercised beforehand against a stubbed copy on the board's own busybox, including both failure paths |
+| **The rollback note survives the rollback.** The gate writes to `/mnt/overlay/postupdate.log` | `/var/log` is a symlink into a tmpfs; `/mnt/overlay` is the UBI volume *both* images mount. Read back off the board after the flash |
+| **The image records which Buildroot built it** | `BUILDROOT_VERSION=2025.02.17` in `/etc/os-release`. Buildroot writes its own release into that file and `post_build.sh` used to overwrite all of it |
+| **The About page stops lying.** `build_version` is sent, and `buildroot` carries the Buildroot release rather than the firmware name | The live payload: `"build_version":"2.3.7"`, `"buildroot":"2025.02.17"`. It rendered `vundefined` and `Turing Pi v2.2.0` before |
+| **The board can update itself** — `tpi-selfupdate` fetches a release, verifies it against `SHA256SUMS`, checks it fits the UBI slot, stages it | On the board: `--check --channel edge` resolves hive.6, reports it current, exits 2. Refuses anything not newer without `--allow-downgrade`, which matters because GitHub's "Latest" here is hive.2 |
+| **Firmware uploads are staged on disk, not in a 58 MB RAM disk** | `bmcd` picks the first of `/mnt/sdcard`, `/mnt/overlay`, `/tmp` that is a real mount with room. Built and running; the upload path itself is still to be re-tested (SQU-123) |
 | **Linux 6.12.104 LTS on Buildroot 2025.02.17 LTS**, both pinned explicitly, five out-of-tree patches re-ported | `uname -r` on the board. Upstream builds on Buildroot 2024.05.1 (EOL) and whatever kernel it defaults to — 6.8, never a longterm release |
 | **The RTL8370MB-CG switch works on the new kernel**, with its I2C transport added as a *third* interface beside SMI and MDIO rather than replacing upstream's SMI driver | `rtl8365mb-i2c 0-005c: found an RTL8370MB-CG switch`, then all four node ports and `ge0` at `Link is Up - 1Gbps/Full`; `br0` bridges all six |
 | **A firmware update no longer touches running nodes.** bmcd reads the live rail state on start and adopts it, instead of re-applying the value persisted in `bmcd.bin`; a cold boot still restores the persisted state | Two flashes and a daemon restart with four nodes powered: every rail stayed on, every `/proc/uptime` monotonic, no node dropped a ping. Fixes upstream [bmcd#90](https://github.com/turing-machines/bmcd/issues/90); built from our [bmcd fork](https://github.com/excavador/bmcd) |
@@ -28,26 +34,35 @@ flash, not inferred from a build.
 
 ### Known, on this version
 
-- The web UI prints the daemon version as **`vv2.2.0-unstable-hive.5`** — it
-  prepends a `v` to a string that already has one.
-- **`tpi firmware` stages the whole image in `/tmp`**, a 58 MB RAM disk on a
-  board with 116 MB of RAM, before writing it to flash. It failed there once
-  with a 38 MiB image and four nodes powered, and succeeded with smaller ones.
-  The failure is safe — the update script runs under `sh -eu`, so `nextboot` is
-  never armed — and the manual path works: `ubiupdatevol`, verify the volume's
-  sha256 against the `.tpu`, then `fw_setenv nextboot`.
-- **The A/B rollback needs a *hard* reboot.** A tentative image that hangs sits
-  there until someone cuts power.
+- **There is no temperature anywhere**, and the reason is the device tree.
+  `CONFIG_SUN8I_THERMAL=y` is set and the driver registers — but
+  `/sys/bus/platform/drivers/sun8i-thermal/` has no device bound to it,
+  `/proc/device-tree` contains no thermal-sensor node, `/sys/class/thermal`
+  holds only `cooling_device0` (the fan, an actuator, not a sensor), and
+  dmesg has zero thermal lines. So the driver never probes, the daemon has
+  nothing to report, and the interface has nothing to draw. Fixing it means
+  adding the THS node to the board DTS, not changing the daemon or the UI.
+- **The fan runs at 100 % with nothing to regulate against**, which follows
+  from the above.
+- The web UI still prints a doubled `v` on version fields — `daemon
+  vv2.2.0-unstable-hive.6`, `board revision (vv2.5.2)`. Fixed in [our UI
+  fork](https://github.com/excavador/BMC-UI), not yet built into an image.
+- The About page renders the board model with its **trailing NUL padding**
+  (`TuringPi2` followed by seven `\u0000`), which the daemon sends verbatim.
+- **`power_on_time` is wrong for three nodes out of four after a BMC reboot.**
+  Measured after the hive.6 flash: the daemon reported node 1 at 52418 s,
+  matching the module's own uptime, and nodes 2–4 at 172 s — the time since
+  the BMC restarted, not since the modules were powered. The modules had in
+  fact been up ~52 300–52 500 s and never reset.
+- **An image that hangs *before* `S99postupdate` runs is still not covered.**
+  The gate only helps an image that boots far enough to be judged; anything
+  earlier still needs power cut, which hard-cuts the compute modules.
+- The kernel is **6.12.104** while 6.12.109 is current — five LTS point
+  releases behind.
+- The Rust toolchain is pinned at **1.85.0**, which is now holding back
+  dependency updates in bmcd, including one that fixes an advisory.
 - The login page is served with an **RSA self-signed certificate** minted at
   boot, so every browser calls it insecure.
-- The About page shows **Build version: `vundefined`**. It reads a field named
-  `build_version` that the daemon has never sent; the daemon sends the same
-  value as `bmcd_version`.
-- The About page shows **Buildroot release: `Turing Pi v2.2.0`**, which is
-  neither a Buildroot release nor the running version. Nothing on the image
-  recorded the Buildroot version, so the daemon reported `PRETTY_NAME`.
-- **Promotion of a new image is unconditional.** Reaching the promotion script
-  only proves the kernel booted and init got that far.
 
 ## Plan
 
@@ -55,10 +70,8 @@ Nothing in this section is running on the board.
 
 ### Written and tested, waiting on a build and a flash
 
-Committed, linted and exercised — on the board where the board was needed,
-with the state-changing calls stubbed — but not yet built into a `.tpu` and
-not yet flashed. Until that happens it is no more real than the rest of this
-section.
+*Nothing is currently in this state — everything that was here shipped in
+hive.6 and moved up to "Running now" with its evidence.*
 
 | change | where | what it does |
 |---|---|---|
