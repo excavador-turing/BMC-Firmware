@@ -32,7 +32,26 @@ BR2_PRIMARY_SITE="https://sources.buildroot.net"
 BR2_PER_PACKAGE_DIRECTORIES=y
 
 # Kernel
+#
+# Pin the version. Without BR2_LINUX_KERNEL_CUSTOM_VERSION the kernel
+# follows Buildroot's "latest" default, so the board's kernel changed
+# silently with every Buildroot bump -- that is how it ended up on
+# 6.8.12, which is not an LTS series and is out of support. Name the
+# version here so a Buildroot upgrade and a kernel upgrade are two
+# separate, reviewable changes.
 BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_VERSION=y
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.8.12"
+# The headers series must be named too. BR2_TOOLCHAIN_HEADERS_AT_LEAST_*
+# is selected by BR2_LINUX_KERNEL_LATEST_VERSION, NOT by a custom version
+# (linux/Config.in), so with BR2_KERNEL_HEADERS_AS_KERNEL a custom version
+# alone leaves the series to a kconfig default. On 2024.05.1 that default
+# happens to land on 6.8; on a newer Buildroot it does not, and the failure
+# is silent -- headers fall back to "2.6", which makes glibc unselectable,
+# so the toolchain quietly becomes uclibc without wchar or locale and eight
+# packages (dosfstools, f2fs-tools, iproute2, libgpiod, parted, ...) vanish
+# from the image. Name the series so the pin is a pin.
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_8=y
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/linux_defconfig"
