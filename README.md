@@ -59,8 +59,9 @@ flash, not inferred from a build.
   earlier still needs power cut, which hard-cuts the compute modules.
 - The kernel is **6.12.104** while 6.12.109 is current — five LTS point
   releases behind.
-- The Rust toolchain is pinned at **1.85.0**, which is now holding back
-  dependency updates in bmcd, including one that fixes an advisory.
+- This image was built with Rust **1.85.0**, which was holding back dependency
+  updates in bmcd, including one that fixes an advisory. The tree is on 1.98.1
+  now; the board gets it at the next flash.
 - The login page is served with an **RSA self-signed certificate** minted at
   boot, so every browser calls it insecure.
 
