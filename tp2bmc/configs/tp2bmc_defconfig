@@ -39,9 +39,13 @@ BR2_PER_PACKAGE_DIRECTORIES=y
 # 6.8.12, which is not an LTS series and is out of support. Name the
 # version here so a Buildroot upgrade and a kernel upgrade are two
 # separate, reviewable changes.
+#
+# 6.12 is a longterm series (maintained to Dec 2026 at least); .104 is
+# the point release Buildroot 2025.02.17 defaults to, so we track the
+# LTS without diverging from what this Buildroot is tested against.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.8.12"
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.104"
 # The headers series must be named too. BR2_TOOLCHAIN_HEADERS_AT_LEAST_*
 # is selected by BR2_LINUX_KERNEL_LATEST_VERSION, NOT by a custom version
 # (linux/Config.in), so with BR2_KERNEL_HEADERS_AS_KERNEL a custom version
@@ -51,7 +55,7 @@ BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.8.12"
 # so the toolchain quietly becomes uclibc without wchar or locale and eight
 # packages (dosfstools, f2fs-tools, iproute2, libgpiod, parted, ...) vanish
 # from the image. Name the series so the pin is a pin.
-BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_8=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12=y
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/linux_defconfig"
