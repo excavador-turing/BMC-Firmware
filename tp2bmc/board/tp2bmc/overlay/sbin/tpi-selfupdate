@@ -1,0 +1,252 @@
+#!/bin/sh -eu
+
+# Fetch a firmware release from GitHub, verify it, and stage it for the next
+# boot. The board can reach the internet and carries a CA bundle, so this
+# removes the workstation from the update path entirely.
+#
+# This is only safe because /etc/init.d/S99postupdate now gates promotion on a
+# health check: an image that boots but cannot serve, or that loses the switch
+# and islands the compute nodes, is rejected and the board reboots back onto
+# the image it came from. Without that gate, pulling firmware unattended over
+# the internet would be a way to brick the board from the comfort of a script.
+#
+# Deliberately does NOT reboot unless asked. Staging is reversible right up to
+# the reboot -- `fw_setenv nextboot` alone puts everything back.
+
+REPO="excavador/tp2-bmc-firmware"
+CHANNEL="stable"
+TAG=""
+CHECK_ONLY=0
+ALLOW_DOWNGRADE=0
+DO_REBOOT=0
+KEEP_IMAGE=0
+
+# The rootfs UBI volume osupdate writes into: 370 LEBs of 126976 bytes. An
+# image larger than this fails halfway through ubiupdatevol, after the old
+# volume has already been removed, which is the one moment in the whole update
+# where there is nothing to fall back to. Checked here so the download is
+# thrown away instead.
+SLOT_BYTES=46981120
+
+# Same preference order as bmcd's staging: the SD card costs no NAND wear and
+# has room to spare, the overlay is what a card-less board has, and the tmpfs
+# is a 58MB RAM disk on a board with 116MB of RAM and only a last resort.
+STAGING_DIRS="/mnt/sdcard /mnt/overlay /tmp"
+
+usage() {
+	cat <<EOF
+Usage: tpi-selfupdate [options]
+
+  --channel stable|edge  which release to follow (default: stable)
+                         stable = the release GitHub marks "Latest", which
+                                  excludes pre-releases
+                         edge   = the most recently published release,
+                                  pre-releases included
+  --tag TAG              install this exact tag, ignoring --channel
+  --repo OWNER/REPO      release repository (default: $REPO)
+  --check                report what would happen and exit; downloads nothing
+  --allow-downgrade      install a tag that is not newer than the running one
+  --reboot               reboot once the image is staged
+  --keep                 keep the downloaded image instead of deleting it
+  -h, --help             this text
+
+Exit status is 0 when an update was staged, 1 on error, and 2 when the board
+is already up to date.
+EOF
+}
+
+log() { echo "tpi-selfupdate: $*" >&2; }
+die() { log "$*"; exit 1; }
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--channel) CHANNEL="${2:-}"; shift 2 ;;
+		--tag) TAG="${2:-}"; shift 2 ;;
+		--repo) REPO="${2:-}"; shift 2 ;;
+		--check) CHECK_ONLY=1; shift ;;
+		--allow-downgrade) ALLOW_DOWNGRADE=1; shift ;;
+		--reboot) DO_REBOOT=1; shift ;;
+		--keep) KEEP_IMAGE=1; shift ;;
+		-h|--help) usage; exit 0 ;;
+		*) usage >&2; die "unknown argument: $1" ;;
+	esac
+done
+
+case "$CHANNEL" in
+	stable|edge) ;;
+	*) die "--channel must be stable or edge, not '$CHANNEL'" ;;
+esac
+
+#
+# running_version
+#
+# The tag this board is running, from the VERSION key post_build.sh writes.
+#
+running_version() {
+	sed -n 's/^VERSION=//p' /etc/os-release | tr -d '"' | head -1
+}
+
+#
+# update_pending
+#
+# True when an update is already staged for the next boot. Staging a second one
+# on top would remove the rootfs_new volume the first one wrote and leave
+# nextboot pointing at a volume that is being rebuilt.
+#
+update_pending() {
+	[ -n "$(fw_printenv -n nextboot 2>/dev/null || true)" ]
+}
+
+#
+# resolve_tag
+#
+# Ask GitHub which release to install. Only the tag is taken from the API; the
+# download URLs are constructed, so a change in the API's asset shape cannot
+# send this script somewhere unexpected.
+#
+# The distinction matters here more than it usually would: every release in
+# this repository so far is a pre-release, so GitHub's "Latest" is an OLD tag
+# and following it blindly would walk the board backwards.
+#
+resolve_tag() {
+	if [ "$CHANNEL" = "stable" ]; then
+		api="https://api.github.com/repos/$REPO/releases/latest"
+	else
+		api="https://api.github.com/repos/$REPO/releases?per_page=1"
+	fi
+
+	body=$(curl -sSfL --max-time 30 "$api") \
+		|| die "cannot reach the GitHub API at $api"
+
+	tag=$(printf '%s' "$body" \
+		| sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+		| head -1)
+
+	[ -n "$tag" ] || die "no release found on the $CHANNEL channel of $REPO"
+	printf '%s' "$tag"
+}
+
+#
+# is_newer CANDIDATE RUNNING
+#
+# True when CANDIDATE sorts after RUNNING. `sort -V` is not semantic version
+# comparison, but it orders this repository's tags correctly, including
+# hive.10 after hive.9, which a plain lexical sort does not.
+#
+is_newer() {
+	[ "$1" != "$2" ] || return 1
+	newest=$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)
+	[ "$newest" = "$1" ]
+}
+
+#
+# staging_dir BYTES
+#
+# The first of $STAGING_DIRS that is a mount of its own and has room. The mount
+# test matters: /mnt/sdcard exists as an empty directory when no card is in the
+# slot, and writing there would silently fill the root filesystem instead.
+#
+staging_dir() {
+	need=$1
+	for dir in $STAGING_DIRS; do
+		awk -v p="$dir" '$2 == p { f = 1 } END { exit !f }' /proc/mounts \
+			|| continue
+		free=$(df -kP "$dir" 2>/dev/null | awk 'NR == 2 { print $4 * 1024 }')
+		[ -n "$free" ] || continue
+		[ "$free" -ge "$need" ] || continue
+		printf '%s' "$dir"
+		return 0
+	done
+	return 1
+}
+
+running=$(running_version)
+[ -n "$running" ] || die "cannot read VERSION from /etc/os-release"
+
+if [ -n "$TAG" ]; then
+	target="$TAG"
+	log "target $target (given explicitly)"
+else
+	target=$(resolve_tag)
+	log "target $target (newest on the $CHANNEL channel of $REPO)"
+fi
+
+log "running $running"
+
+if [ "$target" = "$running" ]; then
+	log "already running $target"
+	[ "$ALLOW_DOWNGRADE" -eq 1 ] || exit 2
+	log "reinstalling it anyway, because --allow-downgrade was given"
+elif ! is_newer "$target" "$running"; then
+	if [ "$ALLOW_DOWNGRADE" -eq 1 ]; then
+		log "installing an older release, because --allow-downgrade was given"
+	elif [ "$CHECK_ONLY" -eq 1 ]; then
+		# --check reports; it does not fail just because there is nothing to do.
+		log "$target is not newer than $running; nothing to do"
+		exit 2
+	else
+		die "$target is not newer than $running; pass --allow-downgrade to install it anyway"
+	fi
+fi
+
+base="https://github.com/$REPO/releases/download/$target"
+image="tp2-bmc-firmware-ota-$target.tpu"
+
+# The per-file .sha256 assets record the absolute path they were generated
+# from on the build machine, so `sha256sum -c` on one of them fails to open a
+# file rather than reporting a mismatch. SHA256SUMS lists bare basenames.
+sums=$(curl -sSfL --max-time 30 "$base/SHA256SUMS") \
+	|| die "cannot fetch SHA256SUMS for $target"
+expected=$(printf '%s\n' "$sums" | awk -v f="$image" '$2 == f { print $1 }' | head -1)
+[ -n "$expected" ] || die "SHA256SUMS for $target does not list $image"
+
+if [ "$CHECK_ONLY" -eq 1 ]; then
+	log "would install $image"
+	log "  from     $base/$image"
+	log "  sha256   $expected"
+	log "nothing downloaded or changed"
+	exit 0
+fi
+
+if update_pending; then
+	die "an update is already staged for the next boot; reboot first, or clear it with 'fw_setenv nextboot'"
+fi
+
+dir=$(staging_dir "$SLOT_BYTES") \
+	|| die "no writable mount among $STAGING_DIRS has room for the image"
+log "staging in $dir"
+path="$dir/$image"
+
+curl -sSfL --max-time 900 --retry 3 -o "$path" "$base/$image" \
+	|| die "download failed: $base/$image"
+
+actual=$(sha256sum "$path" | cut -d' ' -f1)
+if [ "$actual" != "$expected" ]; then
+	rm -f "$path"
+	die "checksum mismatch for $image; downloaded copy deleted"
+fi
+log "checksum verified: $expected"
+
+size=$(wc -c < "$path")
+if [ "$size" -gt "$SLOT_BYTES" ]; then
+	rm -f "$path"
+	die "image is $size bytes and the rootfs volume holds $SLOT_BYTES; refusing to start an update that cannot finish"
+fi
+log "image is $size bytes, $((size * 100 / SLOT_BYTES))% of the rootfs volume"
+
+log "writing the image; do not cut power until this returns"
+/sbin/osupdate "$path"
+
+[ "$KEEP_IMAGE" -eq 1 ] || rm -f "$path"
+
+log "staged $target for the next boot"
+log "the next boot is tentative: if bmcd does not answer or the switch does not"
+log "come up, S99postupdate rejects it and reboots back onto $running"
+
+if [ "$DO_REBOOT" -eq 1 ]; then
+	log "rebooting"
+	sync
+	reboot
+else
+	log "reboot when ready, or run 'fw_setenv nextboot' to cancel"
+fi
