@@ -115,6 +115,24 @@ if "${cmd[@]}"; then
     if [[ -d "${build_root}/output/images" ]]; then
         # Check for OTA Image
         if [[ -f "${build_root}/output/images/rootfs.erofs" ]]; then
+            # The rootfs is written verbatim into a fixed-size static UBI
+            # volume by `osupdate` (370 LEBs of 126976 B; genimage.cfg calls
+            # the same thing 45880K). Nothing upstream warns before it stops
+            # fitting -- `ubiupdatevol` just fails on the board, after the
+            # download, with the old slot already cleaned away. So measure it
+            # here, print it every run, and fail the build at 90 %.
+            rootfs_bytes=$(stat -c%s "${build_root}/output/images/rootfs.erofs")
+            slot_bytes=$((370 * 126976))
+            slot_pct=$((rootfs_bytes * 100 / slot_bytes))
+            printf 'rootfs: %s bytes, %s%% of the %s byte UBI slot\n' \
+                "${rootfs_bytes}" "${slot_pct}" "${slot_bytes}"
+            if [[ "${slot_pct}" -ge 90 ]]; then
+                echo "Error: rootfs is ${slot_pct}% of the UBI slot (limit 90%)." >&2
+                echo "       Drop something from tp2bmc_defconfig, or raise the" >&2
+                echo "       slot in genimage.cfg AND osupdate's NEWVOL_LEBS." >&2
+                exit 1
+            fi
+
             # OTA image exists, copy it to dist
             echo "Copying OTA image"
             cp -v "${build_root}/output/images/rootfs.erofs" "${dist}/${OTA_FILENAME}"
