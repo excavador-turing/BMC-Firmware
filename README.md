@@ -104,6 +104,26 @@ Two things are built but **not exercised on hardware**: flashing a module over
 USB (the `rockusb` module loads; the operation is untested on this kernel) and
 switch port isolation beyond every port being up.
 
+### A trap when a package's file set shrinks
+
+Buildroot's target directory is not cleaned between incremental builds, so a
+package that stops shipping files leaves the old ones behind. Repointing
+`bmc-ui` at our fork — which drops 21 `.woff` files and fifteen non-Latin
+`.woff2` subsets — produced a local image carrying **48 font files instead of
+6**: upstream's 42 plus ours. The rootfs read 81 % of the slot rather than the
+real 78 %.
+
+CI is unaffected because it builds from an empty tree, and that is exactly why
+it is worth writing down: the contaminated build is the one you get locally,
+so a local size figure can be quietly wrong in the direction that matters.
+
+```sh
+rm -rf buildroot/output/target/srv/bmcd/www \
+       buildroot/output/per-package/bmc-ui/target/srv/bmcd/www
+just build     # NOT a bare `make`: post_build.sh needs BUILD_VERSION, and
+               # without it target-finalize dies on `git describe`
+```
+
 ## Updating a board
 
 Upstream's "Install firmware" section below the fold points at
