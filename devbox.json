@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.3/.schema/devbox.schema.json",
+  "packages": [
+    "gh@latest",
+    "git@latest",
+    "just@latest",
+    "shellcheck@latest",
+    "erofs-utils@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      "echo 'tp2-bmc-firmware: just --list for the build loop; the build itself runs in Docker (just image)'"
+    ]
+  }
+}
