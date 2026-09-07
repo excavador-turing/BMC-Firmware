@@ -7,7 +7,9 @@ BMCD_VERSION = v2.3.7
 BMCD_SITE = $(call github,turing-machines,bmcd,$(BMCD_VERSION))
 BMCD_LICENSE = Apache-2.0
 BMCD_LICENSE_FILES = LICENSE
-BMCD_DEPENDENCIES += libopenssl
+# host-pkgconf explicitly: with per-package directories only declared
+# dependencies' host tools are visible to this package's build.
+BMCD_DEPENDENCIES += host-pkgconf libopenssl
 BMCD_CARGO_ENV := PKG_CONFIG_ALLOW_CROSS=1
 BMCD_CARGO_ENV += CC_armv7_unknown_linux_gnueabi="arm-linux-gcc"
 
