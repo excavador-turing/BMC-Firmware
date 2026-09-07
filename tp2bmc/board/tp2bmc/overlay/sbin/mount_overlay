@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 set -euo pipefail
 
@@ -11,8 +11,8 @@ UBI_SIZE2_5=$((126976*1250)) # 1250 LEB
 # returns the maximum allowed size of the user overlay (defined in LEB's)
 overlay_size() {
     local ubi_partition=$(grep -l 'ubi' /sys/class/mtd/*/name | xargs dirname)
-    local mtd_size=$(<"$ubi_partition/size")
-    if [[ "$mtd_size"  -le 133169152 ]]; then
+    local mtd_size=$(cat "$ubi_partition/size")
+    if [ "$mtd_size" -le 133169152 ]; then
         echo "$UBI_SIZE2_4"
     else
         echo "$UBI_SIZE2_5"
