@@ -10,9 +10,9 @@
 # BMC_UI_LICENSE_FILES = LICENSE -- shipped no LICENSE at all, which for a
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
-# Verified 2026-09-07: 463923 bytes, built by GitHub Actions from tag
-# v3.3.7-hive.2, checked against the release's own SHA256SUMS. hive.2 adds
-# the switch-port panel, the board serial, and the doubled-"v" fix at the
-# two sites hive.1 missed -- the header and the board revision.
-# Locally computed:
-sha256  500331a67f8ef0ce50fa3b8f077d219f84436de74a0486864c76933f629b89ff  bmc-ui-v3.3.7-hive.2.tar.gz
+# Verified 2026-09-07: 566343 bytes, built by GitHub Actions from tag
+# v3.3.7-hive.3, checked against the release's own SHA256SUMS. hive.3 adds a
+# serial console for each module (xterm in a lazy chunk the main bundle never
+# touches), the A/B firmware slot panel, board health, per-node liveness, and
+# the fan's real duty read from the board's own device tree.
+sha256  5fee4d1b3e8026da757dc1d99c40fc3ddadfe1d21212db95a10af06eba2c967a  bmc-ui-v3.3.7-hive.3.tar.gz

@@ -8,5 +8,5 @@
 # off-the-RAM-disk staging from SQU-124, and the switch-state endpoint,
 # board serial and power_on_time fix from SQU-127), not an upstream tag.
 # Locally computed:
-sha256  4b26400d2edb277a9d4531a0fa471f20fb911eca3a8d238e460590a3a7a1be52  bmcd-4d0aa5187fe6f8a7e5440ef80e6c8c498aa70c1a-cargo2.tar.gz
+sha256  f0372f7773e0e1b491f78250119524cda7ee838e22439a7ba5cebe36c78cf35c  bmcd-e4e5eee53c4b5da7267990a3ad163a420320e779-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
