@@ -141,12 +141,57 @@
 
 / {
 	thermal-zones {
-		bmc-thermal {
+		bmc_thermal: bmc-thermal {
 			polling-delay-passive = <1000>;
 			polling-delay = <5000>;
 			thermal-sensors = <&ths>;
 
 			trips {
+				/*
+				 * Fan trips. The cooling-maps that act on
+				 * these live in the per-board .dts, because
+				 * v2.4 has no fan at all -- trips without a
+				 * map simply do nothing, which is the correct
+				 * behaviour there.
+				 *
+				 * READ THIS BEFORE LOWERING ANY OF THEM. The
+				 * sensor is the BMC's own SoC, and the SoC is
+				 * not what the fan is cooling: the compute
+				 * modules are, and they are the heat source.
+				 * The SoC only tracks chassis air, so it is a
+				 * lagging proxy. Measured with the fan at
+				 * full: BMC 52 C, modules 51/55/54/51 C, so
+				 * the proxy is in the right region but it is
+				 * still a proxy.
+				 *
+				 * fan_min exists so the fan never stops while
+				 * the board is warm at all. Without it,
+				 * step_wise drops the fan to 0 below the
+				 * lowest trip, and a BMC that has not warmed
+				 * up yet would idle the fan over modules that
+				 * have. 20 C is below anything this board
+				 * reaches in service.
+				 */
+				fan_min: fan-min {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				fan_low: fan-low {
+					temperature = <45000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				fan_mid: fan-mid {
+					temperature = <60000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				fan_high: fan-high {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
 				/*
 				 * "hot" only raises a notification. There is
 				 * deliberately no "critical" trip: that would

@@ -159,7 +159,7 @@
 	};
 
 #ifndef IS_UBOOT
-	system-fan {
+	fan: system-fan {
 		compatible = "pwm-fan";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pwm5_pd_pin>;
@@ -167,8 +167,49 @@
 		#cooling-cells = <2>;
 		cooling-levels = <0 16 32 64 102 170 254>;
 	};
+
 #endif
 };
+
+#ifndef IS_UBOOT
+/*
+ * Hand the fan to the kernel. Until the thermal sensor was described there
+ * was nothing to regulate against, so the fan ran at cooling-levels[6] --
+ * full duty, permanently, whatever the board was doing.
+ *
+ * cooling-levels above is <0 16 32 64 102 170 254>, so state 3 is 64/254,
+ * about a quarter duty. That is the floor, and it is deliberate: the fan
+ * cools the compute modules, not the BMC SoC that is being measured, and a
+ * stopped fan over four loaded modules is a worse failure than a noisy one.
+ * The loop still closes -- module heat warms the chassis, the chassis warms
+ * the SoC, the fan ramps -- just indirectly.
+ *
+ * Conservative on purpose. With the fan at full the modules sat at 51-55 C
+ * against an RK3588 throttle point around 85 C, so there is headroom, but
+ * that was at idle. Verify module temperatures under load before lowering
+ * anything here.
+ */
+&bmc_thermal {
+	cooling-maps {
+		map-min {
+			trip = <&fan_min>;
+			cooling-device = <&fan 3 3>;
+		};
+		map-low {
+			trip = <&fan_low>;
+			cooling-device = <&fan 4 4>;
+		};
+		map-mid {
+			trip = <&fan_mid>;
+			cooling-device = <&fan 5 5>;
+		};
+		map-high {
+			trip = <&fan_high>;
+			cooling-device = <&fan 6 6>;
+		};
+	};
+};
+#endif
 
 &ehci1 {
 	#address-cells = <1>;
