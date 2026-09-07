@@ -91,6 +91,89 @@ Two things are built but **not exercised on hardware**: flashing a module over
 USB (the `rockusb` module loads; the operation is untested on this kernel) and
 switch port isolation beyond every port being up.
 
+## Updating a board
+
+Upstream's "Install firmware" section below the fold points at
+`firmware.turingpi.com`, which stops at v2.0.5. Following it downgrades any
+board running this fork. Use one of these instead.
+
+**From the board itself**, once it is running hive.6 or later:
+
+```sh
+tpi-selfupdate --check --channel edge   # what would happen, downloads nothing
+tpi-selfupdate --channel edge           # fetch, verify, stage
+reboot
+```
+
+`stable` follows the release GitHub marks "Latest"; `edge` follows the most
+recently published release, pre-releases included. **Every release in this
+repository so far is a pre-release**, so `stable` currently resolves to an
+older tag than the board is running and refuses to install it. That refusal is
+the feature: a target that does not sort after the running version needs
+`--allow-downgrade`.
+
+**Over the network**, with the image already on the workstation:
+
+```sh
+scp firmware.tpu root@BMC:/mnt/sdcard/
+ssh root@BMC "tpi firmware --file /mnt/sdcard/firmware.tpu --sha256 HASH"
+```
+
+**By hand**, which is what to use when the daemon is the thing you distrust —
+for example when installing a version whose *purpose* is to fix the upload
+path:
+
+```sh
+ssh root@BMC "/sbin/osupdate /mnt/sdcard/firmware.tpu"   # writes, arms nextboot
+ssh root@BMC reboot
+```
+
+Verify a downloaded image against `SHA256SUMS` from the release, not against
+the per-file `.sha256` asset: the latter records the absolute path it was
+generated from inside the build container, so `sha256sum -c` on it fails to
+*open* a file rather than reporting a mismatch — an error that reads like a
+pass to anything grepping for `FAILED`.
+
+### What happens on the next boot
+
+The first boot after an update is **tentative**. `S99postupdate` checks that
+bmcd answers on `https://127.0.0.1/` and that every compute node's switch port
+exists, and only then renames the UBI volumes to make the new image permanent.
+
+If the check fails the board reboots, and that alone is the rollback: u-boot
+boots the volume named `rootfs`, which is still the previous image because
+nothing has been renamed, and the `nextboot` variable that steered the
+tentative boot is one-shot and already consumed. The boot after that carries no
+`postupdate` in its command line, so the script does nothing and there is no
+loop.
+
+Either way it leaves its reasoning in `/mnt/overlay/postupdate.log`. That path
+is deliberate: `/var/log` is a symlink into a tmpfs, while `/mnt/overlay` is
+the UBI volume **both** images mount, so the note explaining a rollback
+survives the reboot that performed it.
+
+```sh
+ssh root@BMC "cat /mnt/overlay/postupdate.log"
+ssh root@BMC "sed -n 's/^VERSION=//p' /etc/os-release"   # what is running now
+```
+
+To cancel a staged update before rebooting, clear the pending boot:
+
+```sh
+ssh root@BMC "fw_setenv nextboot"
+```
+
+### When the board is genuinely stuck
+
+A tentative image that *hangs* before reaching `S99postupdate` is not covered
+by the gate — that is what the watchdog in the Plan section is for. Cut power:
+promotion never happened, so the board comes back on the previous image. Note
+that this hard-cuts the compute modules, which a normal firmware update does
+not.
+
+Failing that, write a released `-sdcard-*.img` to an SD card, insert it,
+power-cycle to let it reinstall, then remove the card and power-cycle again.
+
 The Turing Pi is a compact AI & edge computing cluster purposed to run cloud
 stacks and AI inference at the edge. Find out more on our
 [website](https://turingpi.com).
