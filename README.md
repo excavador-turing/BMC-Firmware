@@ -40,16 +40,40 @@ flash, not inferred from a build.
   there until someone cuts power.
 - The login page is served with an **RSA self-signed certificate** minted at
   boot, so every browser calls it insecure.
+- The About page shows **Build version: `vundefined`**. It reads a field named
+  `build_version` that the daemon has never sent; the daemon sends the same
+  value as `bmcd_version`.
+- The About page shows **Buildroot release: `Turing Pi v2.2.0`**, which is
+  neither a Buildroot release nor the running version. Nothing on the image
+  recorded the Buildroot version, so the daemon reported `PRETTY_NAME`.
+- **Promotion of a new image is unconditional.** Reaching the promotion script
+  only proves the kernel booted and init got that far.
 
 ## Plan
 
-Not implemented, or implemented but not yet exercised on hardware. Nothing here
-is running on the board.
+Nothing in this section is running on the board.
+
+### Written and tested, waiting on a build and a flash
+
+Committed, linted and exercised — on the board where the board was needed,
+with the state-changing calls stubbed — but not yet built into a `.tpu` and
+not yet flashed. Until that happens it is no more real than the rest of this
+section.
+
+| change | where | what it does |
+|---|---|---|
+| **Health-gated promotion** | firmware, `etc/init.d/S99postupdate` | A tentative image is promoted only if bmcd answers on `https://127.0.0.1/` and every compute node's switch port exists. Otherwise the board reboots, which lands on the previous image by itself: `nextboot` is one-shot and u-boot has already consumed it. Covers the two ways this fork has actually produced a broken image — a daemon that will not link, and a switch driver that silently leaves the kernel config — the second of which leaves the BMC reachable and all four nodes islanded. Exercised against six cases including both failures |
+| **`BUILDROOT_VERSION` in `/etc/os-release`** | firmware, `board/tp2bmc/post_build.sh` | Buildroot writes its release into that file and this fork overwrote the whole of it, so no image recorded which Buildroot built it. Buildroot exports `BR2_VERSION` to post-build scripts, so it costs one line |
+| **`tpi-selfupdate`** | firmware, `sbin/tpi-selfupdate` | Pulls a release from this repository's GitHub releases, verifies it against `SHA256SUMS`, checks it fits the UBI slot, and stages it. Two channels, because every release here is a pre-release and GitHub's "Latest" is hive.2 — following it would walk the board backwards. Refuses anything not newer without `--allow-downgrade`, and never reboots unless asked |
+| **Staging off the RAM disk** | [bmcd fork](https://github.com/excavador/bmcd) | Prefers `/mnt/sdcard`, then `/mnt/overlay`, then `/tmp`, choosing the first that is a real mount with room. Removes the failure in the list above as a class |
+| **`build_version` on the About page** | bmcd fork | Sends the field the web interface has always read, so it stops rendering `vundefined` |
+| **Buildroot release reported honestly** | bmcd fork | Reads the new `BUILDROOT_VERSION` key, falling back to `PRETTY_NAME` so older images report exactly what they do today |
+
+### Not implemented
 
 | planned | why |
 |---|---|
-| **Stage firmware updates on disk, not in a RAM disk** — prefer `/mnt/sdcard`, else `/mnt/overlay`, else `/tmp` | Removes the failure above as a class instead of tuning around it. About twenty lines in `upgrade_worker.rs`; worth sending upstream |
-| **Hardware watchdog + boot counter** so a tentative image that hangs rolls back by itself | Today one bad image means a trip to the rack. Must be proven from an SD boot with a console before it ships in a `.tpu` |
+| **Hardware watchdog + boot counter** so a tentative image that *hangs* rolls back by itself | The health gate above only helps an image that boots far enough to run it. An image that hangs earlier still means a trip to the rack. Must be proven from an SD boot with a console before it ships in a `.tpu` |
 | **Node-aware USB flashing** | `tpi flash -n N` writes to whichever module enumerates first; with more than one in maskrom it reports success while writing nothing, or writes the wrong module |
 | **A `/metrics` endpoint** — node power and uptime, fan, SoC temperature, switch per-port counters | The board is the only thing in this estate that reports nothing, and the data already exists in the firmware |
 | **Remote syslog and an audit line per mutating API call** | Logs live in tmpfs and die at reboot, and a power-off from the web UI, from `tpi`, and over the API all look identical |
@@ -60,7 +84,7 @@ is running on the board.
 | **Persistent per-node serial capture**, and honour `uart_baud` | A module that panics at 03:00 leaves nothing behind: the daemon keeps a 16 KiB RAM ring that dies with it |
 | **Node heartbeat with opt-in power-cycle** | Nothing recovers a module that wedges below the OS |
 | **Upstream the switch driver's I2C transport** | The interface split above makes this a series that could go to netdev, so each future kernel bump shrinks the patch instead of repeating it |
-| **Repoint the UI's update check** at this fork's releases | It reads a mirror that stops at v2.0.5, so followed literally it would downgrade the board |
+| **Repoint the UI's update check** at this fork's releases | It reads a mirror that stops at v2.0.5, so followed literally it would downgrade the board. `tpi-selfupdate` covers the command line; the web interface still points at the mirror |
 | **Hardware-less contract tests** against the stubbed HAL, and reproducible builds | CI builds an image and never exercises the API |
 
 Two things are built but **not exercised on hardware**: flashing a module over
