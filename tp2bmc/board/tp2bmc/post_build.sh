@@ -40,10 +40,21 @@ overwrite_os_release() {
     # (VERSION=2024.05.1), so `tpi info` on hive.1 reported the wrong version.
     os_release_file="${TARGET_DIR}/etc/os-release"
 
-    echo "NAME=turingpi" > "$os_release_file"
-    echo "PRETTY_NAME=Turing Pi ${build_version%%-*}" >> "$os_release_file"
-    echo "VERSION=${build_version}" >> "$os_release_file"
-    echo "Firmware version set to ${build_version}"
+    # Buildroot generates this same file with its own release in it, and this
+    # block overwrites the lot -- so on a finished image nothing recorded which
+    # Buildroot the firmware was built from. bmcd reported PRETTY_NAME as the
+    # "Buildroot release" on the web interface's About page instead, which is
+    # why a board built on 2025.02.17 claimed to be running "Turing Pi v2.2.0".
+    # Buildroot's own Makefile exports BR2_VERSION to every recipe, post-build
+    # scripts included, so BUILDROOT_VERSION puts it back under its own key.
+    {
+        echo "NAME=turingpi"
+        echo "PRETTY_NAME=Turing Pi ${build_version%%-*}"
+        echo "VERSION=${build_version}"
+        echo "BUILDROOT_VERSION=${BR2_VERSION:-unknown}"
+    } > "$os_release_file"
+
+    echo "Firmware version set to ${build_version}, built on Buildroot ${BR2_VERSION:-unknown}"
 }
 
 overwrite_os_release
