@@ -100,6 +100,72 @@
 	};
 };
 
+/*
+ * The SoC's thermal sensor. Mainline describes every other T113s peripheral
+ * but not this one: sun8i-t113s.dtsi and the shared sunxi-d1*-t113 dtsis
+ * contain no ths node and no thermal-zones, so CONFIG_SUN8I_THERMAL builds a
+ * driver that never binds to anything. The result on a running board is
+ * /sys/class/thermal holding only the fan's cooling_device0 -- an actuator,
+ * with nothing to actuate against -- which is why the fan sits at full speed
+ * and why nothing anywhere can report the board's temperature.
+ *
+ * Everything the driver needs is already present:
+ *   - drivers/thermal/sun8i_thermal.c matches "allwinner,sun20i-d1-ths"
+ *   - CLK_BUS_THS and RST_BUS_THS are defined for the D1/T113 CCU, and
+ *     ccu-sun20i-d1.c implements bus_ths_clk
+ * so this is a device tree gap, not a driver one.
+ *
+ * Register base: gpadc sits at 0x2009000 with length 0x400, and the THS block
+ * follows it immediately. Interrupt 58 is free and falls between gpadc (57)
+ * and the timers (59), matching the D1 peripheral ordering.
+ *
+ * Calibration is deliberately NOT wired up. The driver treats the nvmem cell
+ * as optional and says so: "Even if the external calibration data stored in
+ * sid is not accessible, the THS hardware can still work, although the data
+ * won't be so accurate." An absent cell degrades accuracy; a cell pointed at
+ * the wrong efuse offset would silently skew every reading instead, which is
+ * worse. Get a sensor reporting first, then refine it against a known
+ * reference.
+ */
+&{/soc} {
+	ths: thermal-sensor@2009400 {
+		compatible = "allwinner,sun20i-d1-ths";
+		reg = <0x2009400 0x400>;
+		interrupts = <SOC_PERIPHERAL_IRQ(58) IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&ccu CLK_BUS_THS>;
+		clock-names = "bus";
+		resets = <&ccu RST_BUS_THS>;
+		#thermal-sensor-cells = <0>;
+	};
+};
+
+/ {
+	thermal-zones {
+		bmc-thermal {
+			polling-delay-passive = <1000>;
+			polling-delay = <5000>;
+			thermal-sensors = <&ths>;
+
+			trips {
+				/*
+				 * "hot" only raises a notification. There is
+				 * deliberately no "critical" trip: that would
+				 * hand an UNCALIBRATED sensor the power to
+				 * shut the board down, and a BMC that powers
+				 * itself off is a service call. Add one once
+				 * the readings have been checked against a
+				 * reference.
+				 */
+				bmc_hot: bmc-hot {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "hot";
+				};
+			};
+		};
+	};
+};
+
 &dcxo {
 	clock-frequency = <24000000>;
 };
