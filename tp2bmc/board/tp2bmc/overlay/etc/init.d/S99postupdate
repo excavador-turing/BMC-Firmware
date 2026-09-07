@@ -3,17 +3,147 @@
 # This script implements the post-reboot half of the OTA update procedure. For
 # the pre-reboot half, see `/sbin/osupdate`
 #
-# This script is pretty simple; it runs late in the boot process (where we can
-# be pretty confident that the rootfs is good) and looks for "postupdate" in
-# the kernel args, indicating this boot is a "tentative" boot on the new image.
+# This script runs late in the boot process and looks for "postupdate" in the
+# kernel args, indicating this boot is a "tentative" boot on the new image.
 # If found, it makes the new boot permanent:
 # 1) Rename the currently-mounted UBI root volume to "rootfs"
 # 2) If the latter already exists, rename it to "rootfs_prev" first
 # 3) If THAT already exists, remove it
+#
+# CHANGED IN THIS FORK: upstream promotes unconditionally. Reaching this script
+# only proves that the kernel booted and that init got this far -- it says
+# nothing about whether the machine is usable. Two images we built would have
+# passed that bar while being broken: one where bmcd could not link and the web
+# interface never came up, and one where the DSA switch driver silently dropped
+# out of the kernel config, which leaves the BMC perfectly reachable and all
+# four compute nodes cut off from the network. Once promoted, recovering from
+# either needs physical access to the board.
+#
+# So promotion is now gated on health_ok(). If the check fails we simply reboot.
+# That is all a rollback takes: u-boot boots the volume named "rootfs", which is
+# still the previous image because we have not renamed anything yet, and the
+# "nextboot" variable that steered this boot is one-shot and has already been
+# consumed by u-boot. The next boot therefore has no "postupdate" in its command
+# line and this script does nothing, so there is no reboot loop.
+#
+# A false rollback costs one extra BMC reboot. That does not power-cycle the
+# compute nodes, so the cost of being wrong is small and the direction is safe.
 
 UBIDEV=/dev/ubi0
 ROOTFS_PRIMARY=rootfs
 ROOTFS_SECONDARY=rootfs_prev
+
+# Where to record what happened. /var/log is a symlink into a tmpfs on this
+# board, so a note written there would be gone by the time anyone could read
+# it. /mnt/overlay is the UBI volume that BOTH the old and the new image mount,
+# so a note written here survives the rollback reboot -- which is the only time
+# anyone will want to read it.
+LOGFILE=/mnt/overlay/postupdate.log
+
+# How long to give bmcd to answer. It is started by S94bmcd, five scripts
+# earlier, and on a first boot it may still be generating a self-signed
+# certificate before it binds.
+HEALTH_TIMEOUT=120
+HEALTH_INTERVAL=3
+
+# The network interfaces the DSA switch driver creates, one per compute node.
+# If the driver fails to probe, these do not appear at all.
+SWITCH_PORTS="node1 node2 node3 node4"
+
+#
+# log MESSAGE
+#
+# To the boot console, and to a file that survives a rollback.
+#
+log() {
+	info="postupdate: $*"
+	echo "$info"
+	{ echo "$(date 2>/dev/null) $info" >>"$LOGFILE"; } 2>/dev/null || true
+}
+
+#
+# bmcd_answers
+#
+# True when the management daemon is serving. Any HTTP status counts: a
+# rejected request still proves the daemon is up and handling connections.
+# Falls back to reading the listening socket out of /proc if curl is ever
+# dropped from the image, so that trimming the rootfs cannot turn this gate
+# into a machine that rolls back every good update. 01BB is port 443 and 0A
+# is TCP_LISTEN.
+#
+bmcd_answers() {
+	if [ -x /usr/bin/curl ]; then
+		curl -sk -o /dev/null --max-time 5 https://127.0.0.1/ 2>/dev/null
+		return $?
+	fi
+
+	awk '$2 ~ /:01BB$/ && $4 == "0A" { f = 1 } END { exit !f }' \
+		/proc/net/tcp /proc/net/tcp6 2>/dev/null
+}
+
+#
+# switch_ports_present
+#
+# True when every compute node's switch port exists. Deliberately does not
+# look at operstate: a port is legitimately down when its node is powered off,
+# but it is missing only when the switch driver did not probe.
+#
+switch_ports_present() {
+	for port in $SWITCH_PORTS; do
+		if [ ! -d "/sys/class/net/$port" ]; then
+			log "FAILED: switch port $port does not exist"
+			return 1
+		fi
+	done
+
+	return 0
+}
+
+#
+# health_ok
+#
+# The gate. Waits for the daemon, then checks the switch.
+#
+health_ok() {
+	waited=0
+	answered=0
+
+	while [ "$waited" -lt "$HEALTH_TIMEOUT" ]; do
+		if bmcd_answers; then
+			answered=1
+			break
+		fi
+		sleep "$HEALTH_INTERVAL"
+		waited=$((waited + HEALTH_INTERVAL))
+	done
+
+	if [ "$answered" -ne 1 ]; then
+		log "FAILED: bmcd did not answer within ${HEALTH_TIMEOUT}s"
+		return 1
+	fi
+	log "bmcd answered after ${waited}s"
+
+	if ! switch_ports_present; then
+		return 1
+	fi
+	log "switch ports present: $SWITCH_PORTS"
+
+	return 0
+}
+
+#
+# rollback
+#
+# Undo nothing and reboot; see the note at the top of this file.
+#
+rollback() {
+	log "rolling back to the volume named $ROOTFS_PRIMARY by rebooting"
+	sync
+	reboot
+	# reboot(8) returns as soon as it has signalled init. Block here so that
+	# the caller cannot fall through and promote the image we just rejected.
+	sleep "$HEALTH_TIMEOUT"
+}
 
 #
 # ubi_block_name
@@ -70,9 +200,31 @@ postupdate() {
 }
 
 start() {
-	if grep -q 'postupdate' /proc/cmdline; then
-		postupdate
+	if ! grep -q 'postupdate' /proc/cmdline; then
+		return 0
 	fi
+
+	# Nothing to promote: this boot is already on the primary volume.
+	if [ "$(ubi_block_name)" = "$ROOTFS_PRIMARY" ]; then
+		return 0
+	fi
+
+	log "tentative boot; checking this image before making it permanent"
+	if health_ok; then
+		postupdate
+		return 0
+	fi
+
+	# With no primary volume there is nothing for u-boot to fall back to, so
+	# rebooting would leave the board with no image at all. A broken image we
+	# can still reach beats none.
+	if ! ubi_exists "$ROOTFS_PRIMARY"; then
+		log "no $ROOTFS_PRIMARY volume to fall back to; promoting anyway"
+		postupdate
+		return 0
+	fi
+
+	rollback
 }
 
 case "$1" in
