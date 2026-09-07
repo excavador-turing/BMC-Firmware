@@ -1,7 +1,39 @@
-# Official Turing Pi BMC firmware
+# Turing Pi BMC firmware — `excavador` fork
 
-![GitHub Workflow
-Status](https://img.shields.io/github/actions/workflow/status/turing-machines/BMC-firmware/build.yml?branch=master&style=for-the-badge)
+> **This is a fork of [turing-machines/BMC-Firmware](https://github.com/turing-machines/BMC-Firmware).**
+> `main` tracks upstream. **`hive` is the branch that gets built and flashed**;
+> everything below the fold is upstream's own README, unchanged.
+>
+> Upstream is dormant and its mirror `firmware.turingpi.com` stops at v2.0.5,
+> so following the documented update path would *downgrade* a board that runs
+> anything newer. This fork exists to have a firmware that builds, releases and
+> installs from a pipeline we can see.
+
+## What this fork changes
+
+Releases are tagged `v2.2.0-unstable-hive.<n>` and built by GitHub Actions into
+a GitHub Release. Newest first.
+
+| area | change | why |
+|---|---|---|
+| **node power** | bmcd reads the **live** rail state on start and adopts it, instead of re-applying the value persisted in `bmcd.bin`. Cold boot (all rails off) still restores the persisted state. Built from our [bmcd fork](https://github.com/excavador/bmcd), pinned by commit and hash. | Upstream [bmcd#90](https://github.com/turing-machines/bmcd/issues/90): a firmware upgrade or a daemon restart could power running nodes off. Proven on the board: a `tpi reboot` with four nodes running left every rail on and every node's uptime monotonic. |
+| **kernel + Buildroot** | Buildroot **2025.02.17** LTS and Linux **6.12.104** LTS, both pinned explicitly; the five out-of-tree patches re-ported. The RTL8370MB-CG I2C transport is now a **third interface** beside SMI and MDIO rather than a wholesale replacement of upstream's SMI driver. | Upstream builds on Buildroot 2024.05.1 (EOL) and whatever kernel it defaults to — 6.8, not an LTS. The interface split is what makes the switch driver upstreamable instead of a fork-local rewrite carried forever. |
+| **image size** | collectd, avahi, i2c-tools, nano, htop, tree, evtest and bash dropped; the two overlay scripts rewritten in POSIX sh; no C++ in the toolchain. The build now **prints the rootfs size every run and fails at 90 % of the UBI slot**. | The image was 85 % of a fixed 370-LEB slot with nothing warning before it stopped fitting: `osupdate` removes the old slot *before* the write, so an overflow is discovered on the board, after the download. Now 79 % with the new kernel. |
+| **build pipeline** | Downloads from `sources.buildroot.net`; `dl/` and `.ccache` persisted across runs; every package pinned by sha256 (`bmcd`, `tpi`, `bmc_installer`, `bmc-ui`, the Rust toolchain); every action pinned by commit and on the current Node runtime; releases are draft-then-publish and immutable; one build per commit. | A release build took **1 h 55 min**, mostly gateway timeouts against a GNU mirror and a cold toolchain, and every tag built twice. It now takes **~23 min**, and an unpinned download can no longer change what a tag produces. |
+| **local builds** | `just container / configure / build / kernel / size / biggest`, running the same image CI uses. `devbox` brings the host tools. | The build was containerised but nothing said you could run that container yourself, so every experiment cost a CI round trip. A full build is ~13 min on a workstation, and the kernel-patch loop is minutes. |
+| **version string** | `tpi info` reports the release tag. | It used to report the Buildroot version, so a flashed board could not tell you what was on it. |
+
+Two upstream behaviours worth knowing before you flash, both documented rather
+than fixed:
+
+- **`tpi firmware` copies the whole image into `/tmp`**, a 58 MB RAM disk on a
+  board with 116 MB of RAM, before writing it to flash. It has failed there
+  with the nodes powered. The failure is safe — the update script runs under
+  `sh -eu`, so `nextboot` is never armed — and the manual path
+  (`ubiupdatevol`, verify the volume's sha256, `fw_setenv nextboot`) works.
+- **The A/B rollback needs a *hard* reboot.** A tentative image that hangs sits
+  there until someone cuts power. A watchdog and boot counter are planned; until
+  then, do not flash a kernel change without a serial console attached.
 
 The Turing Pi is a compact AI & edge computing cluster purposed to run cloud
 stacks and AI inference at the edge. Find out more on our
