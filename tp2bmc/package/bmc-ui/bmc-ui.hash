@@ -10,7 +10,9 @@
 # BMC_UI_LICENSE_FILES = LICENSE -- shipped no LICENSE at all, which for a
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
-# Verified 2026-09-07: 460709 bytes, built by GitHub Actions from tag
-# v3.3.7-hive.1, checked against the release's own SHA256SUMS.
+# Verified 2026-09-07: 463923 bytes, built by GitHub Actions from tag
+# v3.3.7-hive.2, checked against the release's own SHA256SUMS. hive.2 adds
+# the switch-port panel, the board serial, and the doubled-"v" fix at the
+# two sites hive.1 missed -- the header and the board revision.
 # Locally computed:
-sha256  c61bc43665103b24614cc99db992a3b54f55e9f662e8ee4b9e442f09751e5bb7  bmc-ui-v3.3.7-hive.1.tar.gz
+sha256  500331a67f8ef0ce50fa3b8f077d219f84436de74a0486864c76933f629b89ff  bmc-ui-v3.3.7-hive.2.tar.gz
