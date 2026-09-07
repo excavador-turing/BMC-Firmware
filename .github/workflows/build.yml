@@ -76,7 +76,7 @@ jobs:
       # cache, so a new package costs only its own download.
       - name: restore Buildroot downloads
         id: dl
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: dl
           key: br-dl-${{ hashFiles('scripts/configure.sh', 'buildroot_patches/*', 'tp2bmc/configs/tp2bmc_defconfig', 'tp2bmc/package/**') }}
@@ -90,7 +90,7 @@ jobs:
       # the newest one. CCACHE_MAXSIZE keeps it well inside the repository's
       # 10 GB cache quota (the docker layers take ~0.4 GB of it).
       - name: restore ccache
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .ccache
           key: br-ccache-${{ github.run_id }}
@@ -146,14 +146,14 @@ jobs:
       # of 2026-09-06 each re-downloaded 0.7 GB and rebuilt the toolchain.
       - name: save Buildroot downloads
         if: always() && steps.dl.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: dl
           key: ${{ steps.dl.outputs.cache-primary-key }}
 
       - name: save ccache
         if: always()
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .ccache
           key: br-ccache-${{ github.run_id }}
