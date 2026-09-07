@@ -3,7 +3,7 @@
 # bmc-ui
 ###########################################################
 
-BMC_UI_VERSION = v3.3.7-hive.3
+BMC_UI_VERSION = v3.3.7-hive.4
 BMC_UI_SITE = https://github.com/excavador/BMC-UI/releases/download/$(BMC_UI_VERSION)
 BMC_UI_LICENSE = GPL-2.0
 BMC_UI_LICENSE_FILES = LICENSE

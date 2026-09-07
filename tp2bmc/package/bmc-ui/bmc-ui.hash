@@ -15,4 +15,4 @@
 # serial console for each module (xterm in a lazy chunk the main bundle never
 # touches), the A/B firmware slot panel, board health, per-node liveness, and
 # the fan's real duty read from the board's own device tree.
-sha256  5fee4d1b3e8026da757dc1d99c40fc3ddadfe1d21212db95a10af06eba2c967a  bmc-ui-v3.3.7-hive.3.tar.gz
+sha256  8d54afccda9a14343967e0aed050fafb80e07f3c27b9b2cf9ffee6737529ec7e  bmc-ui-v3.3.7-hive.4.tar.gz
