@@ -112,15 +112,30 @@ resolve_tag() {
 	if [ "$CHANNEL" = "stable" ]; then
 		api="https://api.github.com/repos/$REPO/releases/latest"
 	else
-		api="https://api.github.com/repos/$REPO/releases?per_page=1"
+		# NOT ?per_page=1. GitHub orders /releases by created_at, which is
+		# when the TAG was made, not when the release was published. A tag
+		# pushed first but built slower therefore sorts ahead of one already
+		# on the board: during the hive.10 flash this endpoint returned
+		# hive.9 as "newest" while hive.10 was being installed, because
+		# hive.10's release did not exist yet when its own tag did. Take a
+		# page and pick the highest version, which is what "newest" means
+		# here and is the same ordering the downgrade guard already uses.
+		api="https://api.github.com/repos/$REPO/releases?per_page=30"
 	fi
 
 	body=$(curl -sSfL --max-time 30 "$api") \
 		|| die "cannot reach the GitHub API at $api"
 
-	tag=$(printf '%s' "$body" \
-		| sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-		| head -1)
+	if [ "$CHANNEL" = "stable" ]; then
+		tag=$(printf '%s' "$body" \
+			| sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+			| head -1)
+	else
+		tag=$(printf '%s' "$body" \
+			| tr ',' '\n' \
+			| sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+			| sort -V | tail -1)
+	fi
 
 	[ -n "$tag" ] || die "no release found on the $CHANNEL channel of $REPO"
 	printf '%s' "$tag"
