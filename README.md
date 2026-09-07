@@ -9,31 +9,63 @@
 > anything newer. This fork exists to have a firmware that builds, releases and
 > installs from a pipeline we can see.
 
-## What this fork changes
+## Running now: `v2.2.0-unstable-hive.5`
 
-Releases are tagged `v2.2.0-unstable-hive.<n>` and built by GitHub Actions into
-a GitHub Release. Newest first.
+Flashed 2026-09-07 14:51, **over the air, with all four compute modules
+running**. Everything in this section was measured on the board after that
+flash, not inferred from a build.
 
-| area | change | why |
-|---|---|---|
-| **node power** | bmcd reads the **live** rail state on start and adopts it, instead of re-applying the value persisted in `bmcd.bin`. Cold boot (all rails off) still restores the persisted state. Built from our [bmcd fork](https://github.com/excavador/bmcd), pinned by commit and hash. | Upstream [bmcd#90](https://github.com/turing-machines/bmcd/issues/90): a firmware upgrade or a daemon restart could power running nodes off. Proven on the board: a `tpi reboot` with four nodes running left every rail on and every node's uptime monotonic. |
-| **kernel + Buildroot** | Buildroot **2025.02.17** LTS and Linux **6.12.104** LTS, both pinned explicitly; the five out-of-tree patches re-ported. The RTL8370MB-CG I2C transport is now a **third interface** beside SMI and MDIO rather than a wholesale replacement of upstream's SMI driver. | Upstream builds on Buildroot 2024.05.1 (EOL) and whatever kernel it defaults to — 6.8, not an LTS. The interface split is what makes the switch driver upstreamable instead of a fork-local rewrite carried forever. |
-| **image size** | collectd, avahi, i2c-tools, nano, htop, tree, evtest and bash dropped; the two overlay scripts rewritten in POSIX sh; no C++ in the toolchain. The build now **prints the rootfs size every run and fails at 90 % of the UBI slot**. | The image was 85 % of a fixed 370-LEB slot with nothing warning before it stopped fitting: `osupdate` removes the old slot *before* the write, so an overflow is discovered on the board, after the download. Now 79 % with the new kernel. |
-| **build pipeline** | Downloads from `sources.buildroot.net`; `dl/` and `.ccache` persisted across runs; every package pinned by sha256 (`bmcd`, `tpi`, `bmc_installer`, `bmc-ui`, the Rust toolchain); every action pinned by commit and on the current Node runtime; releases are draft-then-publish and immutable; one build per commit. | A release build took **1 h 55 min**, mostly gateway timeouts against a GNU mirror and a cold toolchain, and every tag built twice. It now takes **~23 min**, and an unpinned download can no longer change what a tag produces. |
-| **local builds** | `just container / configure / build / kernel / size / biggest`, running the same image CI uses. `devbox` brings the host tools. | The build was containerised but nothing said you could run that container yourself, so every experiment cost a CI round trip. A full build is ~13 min on a workstation, and the kernel-patch loop is minutes. |
-| **version string** | `tpi info` reports the release tag. | It used to report the Buildroot version, so a flashed board could not tell you what was on it. |
+| verified | evidence |
+|---|---|
+| **Linux 6.12.104 LTS on Buildroot 2025.02.17 LTS**, both pinned explicitly, five out-of-tree patches re-ported | `uname -r` on the board. Upstream builds on Buildroot 2024.05.1 (EOL) and whatever kernel it defaults to — 6.8, never a longterm release |
+| **The RTL8370MB-CG switch works on the new kernel**, with its I2C transport added as a *third* interface beside SMI and MDIO rather than replacing upstream's SMI driver | `rtl8365mb-i2c 0-005c: found an RTL8370MB-CG switch`, then all four node ports and `ge0` at `Link is Up - 1Gbps/Full`; `br0` bridges all six |
+| **A firmware update no longer touches running nodes.** bmcd reads the live rail state on start and adopts it, instead of re-applying the value persisted in `bmcd.bin`; a cold boot still restores the persisted state | Two flashes and a daemon restart with four nodes powered: every rail stayed on, every `/proc/uptime` monotonic, no node dropped a ping. Fixes upstream [bmcd#90](https://github.com/turing-machines/bmcd/issues/90); built from our [bmcd fork](https://github.com/excavador/bmcd) |
+| **Fan, serial and USB survived the kernel bump** | `pwmchip0` + `pwmfan` (the PWM patch rewritten onto 6.11's chip-ownership API), `/dev/ttyS0`–`ttyS4`, `tpi usb status` reports host/device routing |
+| **The image is 79 % of its UBI slot**, down from 85 %, and the build **fails at 90 %** | collectd, avahi, i2c-tools, nano, htop, tree, evtest, bash and the unused C++ runtime dropped; both overlay scripts rewritten in POSIX sh; every build prints `rootfs: N bytes, P% of the … slot` |
+| **A tagged release builds in ~23 minutes**, from 1 h 55 m, with every input pinned by sha256 (bmcd, tpi, bmc_installer, bmc-ui, the Rust toolchain) and every action pinned by commit | Release history in this repo |
+| **The same container builds it on a workstation in ~13 minutes** — `just container / configure / build / kernel / size / biggest` | The build was always containerised; nothing said you could run that container yourself |
+| **`tpi info` reports the release tag** | It used to report the Buildroot version, so a flashed board could not tell you what was on it |
 
-Two upstream behaviours worth knowing before you flash, both documented rather
-than fixed:
+### Known, on this version
 
-- **`tpi firmware` copies the whole image into `/tmp`**, a 58 MB RAM disk on a
-  board with 116 MB of RAM, before writing it to flash. It has failed there
-  with the nodes powered. The failure is safe — the update script runs under
-  `sh -eu`, so `nextboot` is never armed — and the manual path
-  (`ubiupdatevol`, verify the volume's sha256, `fw_setenv nextboot`) works.
+- The web UI prints the daemon version as **`vv2.2.0-unstable-hive.5`** — it
+  prepends a `v` to a string that already has one.
+- **`tpi firmware` stages the whole image in `/tmp`**, a 58 MB RAM disk on a
+  board with 116 MB of RAM, before writing it to flash. It failed there once
+  with a 38 MiB image and four nodes powered, and succeeded with smaller ones.
+  The failure is safe — the update script runs under `sh -eu`, so `nextboot` is
+  never armed — and the manual path works: `ubiupdatevol`, verify the volume's
+  sha256 against the `.tpu`, then `fw_setenv nextboot`.
 - **The A/B rollback needs a *hard* reboot.** A tentative image that hangs sits
-  there until someone cuts power. A watchdog and boot counter are planned; until
-  then, do not flash a kernel change without a serial console attached.
+  there until someone cuts power.
+- The login page is served with an **RSA self-signed certificate** minted at
+  boot, so every browser calls it insecure.
+
+## Plan
+
+Not implemented, or implemented but not yet exercised on hardware. Nothing here
+is running on the board.
+
+| planned | why |
+|---|---|
+| **Stage firmware updates on disk, not in a RAM disk** — prefer `/mnt/sdcard`, else `/mnt/overlay`, else `/tmp` | Removes the failure above as a class instead of tuning around it. About twenty lines in `upgrade_worker.rs`; worth sending upstream |
+| **Hardware watchdog + boot counter** so a tentative image that hangs rolls back by itself | Today one bad image means a trip to the rack. Must be proven from an SD boot with a console before it ships in a `.tpu` |
+| **Node-aware USB flashing** | `tpi flash -n N` writes to whichever module enumerates first; with more than one in maskrom it reports success while writing nothing, or writes the wrong module |
+| **A `/metrics` endpoint** — node power and uptime, fan, SoC temperature, switch per-port counters | The board is the only thing in this estate that reports nothing, and the data already exists in the firmware |
+| **Remote syslog and an audit line per mutating API call** | Logs live in tmpfs and die at reboot, and a power-off from the web UI, from `tpi`, and over the API all look identical |
+| **Key-only SSH and a forced password change** | The board ships with a vendor default password and password authentication enabled |
+| **An EC P-384 certificate for bmcd, and a way to install a trusted one** | The current one is RSA-4096, minted at every boot, and there is no path to install a real certificate except `scp` and a restart |
+| **VLAN filtering and STP on the switch** | `br0` bridges all six ports flat: the management plane shares layer 2 with node traffic, and plugging both uplinks into a switch would loop |
+| **Temperature-driven fan curve** | The fan is a fixed persisted speed with no trip point that reflects module heat |
+| **Persistent per-node serial capture**, and honour `uart_baud` | A module that panics at 03:00 leaves nothing behind: the daemon keeps a 16 KiB RAM ring that dies with it |
+| **Node heartbeat with opt-in power-cycle** | Nothing recovers a module that wedges below the OS |
+| **Upstream the switch driver's I2C transport** | The interface split above makes this a series that could go to netdev, so each future kernel bump shrinks the patch instead of repeating it |
+| **Repoint the UI's update check** at this fork's releases | It reads a mirror that stops at v2.0.5, so followed literally it would downgrade the board |
+| **Hardware-less contract tests** against the stubbed HAL, and reproducible builds | CI builds an image and never exercises the API |
+
+Two things are built but **not exercised on hardware**: flashing a module over
+USB (the `rockusb` module loads; the operation is untested on this kernel) and
+switch port isolation beyond every port being up.
 
 The Turing Pi is a compact AI & edge computing cluster purposed to run cloud
 stacks and AI inference at the edge. Find out more on our
