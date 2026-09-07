@@ -3,17 +3,18 @@ From: Sam Edwards <CFSworks@gmail.com>
 Date: Fri, 28 Jul 2023 15:31:29 -0600
 Subject: [PATCH] buildroot: HACK; don't overwrite .cargo/config!
 
+Rebased onto Buildroot 2025.02.17: the surrounding block gained a
+quoted "${manifest}" variable, so the old hunk only landed with fuzz.
+
 ---
- buildroot/support/download/cargo-post-process | 2 +-
+ support/download/cargo-post-process | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/support/download/cargo-post-process b/support/download/cargo-post-process
-index 3f4666c0..747845e5 100755
 --- a/support/download/cargo-post-process
 +++ b/support/download/cargo-post-process
-@@ -30,7 +30,7 @@ flock "${CARGO_HOME}"/.br-lock \
+@@ -38,7 +38,7 @@
  cargo vendor \
-     --manifest-path ${BR_CARGO_MANIFEST_PATH-Cargo.toml} \
+     --manifest-path "${manifest}" \
      --locked VENDOR \
 -    > .cargo/config
 +    >> .cargo/config
@@ -22,4 +23,3 @@ index 3f4666c0..747845e5 100755
  # to the project's .cargo/config.toml, data that it outputs on stdout.
 -- 
 2.43.0
-

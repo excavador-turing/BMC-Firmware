@@ -13,10 +13,15 @@
 # Configure shell
 set -eo pipefail
 
-# Buildroot Version
-BUILDROOT_VER="2024.05.1"
-# From the signed https://buildroot.org/downloads/buildroot-2024.05.1.tar.gz.sign
-BUILDROOT_SHA256="4a77e996948a4c81a2991a1147798eb692f1caf581959caee1fbe43cf2b89349"
+# Buildroot Version.
+#
+# 2025.02.x is the current long-term-support series (Buildroot maintains one
+# LTS a year for ~12 months past the next release); 2024.05.1 stopped getting
+# fixes in 2024 and its toolchain and package set have been unmaintained
+# since. .17 is the newest point release of the series.
+BUILDROOT_VER="2025.02.17"
+# From the signed https://buildroot.org/downloads/buildroot-2025.02.17.tar.gz.sign
+BUILDROOT_SHA256="622d32d9f277f3c4681f046dda425057db61552db65957c0990d258ecad3b2c1"
 
 # Save current directory
 CWD=$(pwd)
