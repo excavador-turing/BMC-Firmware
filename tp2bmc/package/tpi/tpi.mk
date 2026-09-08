@@ -1,8 +1,8 @@
 ###########################################################
 # turing pi CLI
 ###########################################################
-TPI_VERSION:= f9a5d58f42428f861693bdeac5acc0171872d807
-TPI_SITE = $(call github,turing-machines,tpi,$(TPI_VERSION))
+TPI_VERSION:= fc1814e9cdc60a3c5fd17422d61720066fb05ae1
+TPI_SITE = $(call github,excavador-turing,tpi,$(TPI_VERSION))
 TPI_LICENSE = Apache-2.0
 TPI_LICENSE_FILES = LICENSE
 # native-tls means openssl-sys, which links the target libopenssl through
