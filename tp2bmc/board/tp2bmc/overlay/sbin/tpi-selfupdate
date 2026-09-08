@@ -17,6 +17,7 @@ REPO="excavador/tp2-bmc-firmware"
 CHANNEL="stable"
 TAG=""
 CHECK_ONLY=0
+JSON=0
 ALLOW_DOWNGRADE=0
 DO_REBOOT=0
 KEEP_IMAGE=0
@@ -45,6 +46,12 @@ Usage: tpi-selfupdate [options]
   --tag TAG              install this exact tag, ignoring --channel
   --repo OWNER/REPO      release repository (default: $REPO)
   --check                report what would happen and exit; downloads nothing
+  --json                 print one JSON object on STDOUT describing what the
+                         channel resolves to. Every log line already goes to
+                         stderr, so stdout carries the object and nothing
+                         else. Meant for bmcd, which reports it to the web
+                         interface rather than reimplementing release
+                         resolution in the daemon.
   --allow-downgrade      install a tag that is not newer than the running one
   --reboot               reboot once the image is staged
   --keep                 keep the downloaded image instead of deleting it
@@ -64,6 +71,7 @@ while [ $# -gt 0 ]; do
 		--tag) TAG="${2:-}"; shift 2 ;;
 		--repo) REPO="${2:-}"; shift 2 ;;
 		--check) CHECK_ONLY=1; shift ;;
+		--json) JSON=1; shift ;;
 		--allow-downgrade) ALLOW_DOWNGRADE=1; shift ;;
 		--reboot) DO_REBOOT=1; shift ;;
 		--keep) KEEP_IMAGE=1; shift ;;
@@ -191,6 +199,28 @@ else
 fi
 
 log "running $running"
+
+# --json reports the resolution and stops there when asked only to check.
+# It is emitted HERE, after both ends of the comparison are known and
+# before any of the download work, so a caller asking "is there an update"
+# never pays for one. The values are release tags and an owner/repo, so
+# they need no JSON escaping -- and `resolve_target` has already refused
+# anything that does not look like a tag.
+if [ "$JSON" -eq 1 ]; then
+	if [ "$target" = "$running" ]; then
+		available=false
+	elif is_newer "$target" "$running"; then
+		available=true
+	else
+		available=false
+	fi
+	printf '{"channel":"%s","repo":"%s","running":"%s","target":"%s","update_available":%s}\n' \
+		"$CHANNEL" "$REPO" "$running" "$target" "$available"
+	# Exit 0 rather than 2: the JSON says whether an update exists, so the
+	# exit status does not have to, and a caller parsing stdout should not
+	# also have to special-case a non-zero status for "no news".
+	[ "$CHECK_ONLY" -eq 1 ] && exit 0
+fi
 
 if [ "$target" = "$running" ]; then
 	log "already running $target"
