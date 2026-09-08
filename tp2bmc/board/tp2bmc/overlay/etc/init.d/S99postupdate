@@ -39,6 +39,12 @@ ROOTFS_SECONDARY=rootfs_prev
 # so a note written here survives the rollback reboot -- which is the only time
 # anyone will want to read it.
 LOGFILE=/mnt/overlay/postupdate.log
+# What tpi-selfupdate (or the daemon's upgrade worker) wrote to say WHICH
+# image it staged. bmcd reports it so the web interface can name the pending
+# version. It describes an image whose fate is decided here, so this script
+# owns removing it: left behind, it would keep naming a version that is
+# already running, or one that was rejected.
+STAGED_NOTE=/mnt/overlay/staged-firmware
 
 # How long to give bmcd to answer. It is started by S94bmcd, five scripts
 # earlier, and on a first boot it may still be generating a self-signed
@@ -136,8 +142,17 @@ health_ok() {
 #
 # Undo nothing and reboot; see the note at the top of this file.
 #
+# The staged note has served its purpose the moment this script decides.
+# Never fatal: a board that cannot remove it is still a board that just
+# promoted or rejected an image, and that outcome matters more.
+clear_staged_note() {
+	rm -f "$STAGED_NOTE" 2>/dev/null || true
+}
+
 rollback() {
 	log "rolling back to the volume named $ROOTFS_PRIMARY by rebooting"
+	# Drop it before the reboot: the image it names is the one being rejected.
+	clear_staged_note
 	sync
 	reboot
 	# reboot(8) returns as soon as it has signalled init. Block here so that
@@ -197,6 +212,8 @@ postupdate() {
 	fi
 	ubirename "$UBIDEV" $renames
 	echo "postupdate: Volumes renamed: $renames"
+	# Promoted: what the note describes is now what is running.
+	clear_staged_note
 }
 
 start() {

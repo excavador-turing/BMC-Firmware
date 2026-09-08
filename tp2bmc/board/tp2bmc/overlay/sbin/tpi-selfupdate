@@ -89,6 +89,10 @@ running_version() {
 #
 # update_pending
 #
+# Where the staged version is recorded for bmcd to read. S99postupdate removes
+# it once the image it describes has been promoted or rejected.
+STAGED_NOTE=/mnt/overlay/staged-firmware
+
 # True when an update is already staged for the next boot. Staging a second one
 # on top would remove the rootfs_new volume the first one wrote and leave
 # nextboot pointing at a volume that is being rebuilt.
@@ -253,6 +257,29 @@ log "writing the image; do not cut power until this returns"
 /sbin/osupdate "$path"
 
 [ "$KEEP_IMAGE" -eq 1 ] || rm -f "$path"
+
+# Record WHICH image is staged, for bmcd to report and the web interface to
+# show. The staging volume is static and never mounted, so nothing can read a
+# version out of it from a running system -- the same reason the rollback slot
+# has none. So the stager, which knows the tag, leaves it here.
+#
+# The overlay, because both images mount it: the note has to survive the
+# reboot it describes. postupdate.log is next to it for the same reason, and
+# S99postupdate removes this file once it has decided.
+#
+# Written AFTER osupdate returns. `set -eu` at the top means a failed write
+# ends the script, so a note can never claim an image that was not staged --
+# but a board with no overlay mounted should still be able to update, which
+# is why the directory is checked rather than assumed.
+if [ -d "$(dirname "$STAGED_NOTE")" ]; then
+	{
+		printf 'VERSION=%s\n' "$target"
+		printf 'SHA256=%s\n' "$expected"
+		printf 'STAGED_AT=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+		printf 'SIZE_BYTES=%s\n' "$size"
+		printf 'SOURCE=tpi-selfupdate\n'
+	} > "$STAGED_NOTE" || log "warning: could not record the staged version in $STAGED_NOTE"
+fi
 
 log "staged $target for the next boot"
 log "the next boot is tentative: if bmcd does not answer or the switch does not"
