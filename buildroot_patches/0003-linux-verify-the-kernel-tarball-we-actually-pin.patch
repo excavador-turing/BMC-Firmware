@@ -1,0 +1,78 @@
+Subject: [PATCH] linux: verify the kernel tarball we actually pin
+
+The kernel is the one download in this build that Buildroot does not
+insist on verifying, and until now it was verified only by luck.
+
+linux/linux.hash carries one entry per maintained series -- for 6.12,
+the point release the Buildroot tarball was cut against, .104 on
+2025.02.17. That happened to be the version we pinned, so the sum was
+found and checked. Move the pin one point release along and the entry no
+longer matches, and the interesting part is what does NOT happen: the
+build does not stop. linux.mk has
+
+  ifeq ($(BR2_LINUX_KERNEL)$(BR2_LINUX_KERNEL_LATEST_VERSION),y)
+  BR_NO_CHECK_HASH_FOR += $(LINUX_SOURCE)
+
+which reads as "the latest-version kernel is exempt" and means the
+opposite: with BR2_LINUX_KERNEL=y and LATEST_VERSION unset -- that is,
+with a custom version, which is exactly our configuration -- the two
+expand to "y" and the tarball goes on the exemption list. Buildroot says
+so itself:
+
+  $ make printvars VARS=BR_NO_CHECK_HASH_FOR | tr ' ' '\n' | grep linux
+  linux-6.12.109.tar.xz
+
+support/download/check-hash consults that list only when it found no sum
+to check against, so the exemption is invisible while a sum exists and
+silently disables verification the moment one does not. A 148 MB kernel
+would be fetched over the network and unpacked with nothing checking it,
+and the build would go green.
+
+So name our version's sum. It goes at the end of the file, after the
+license hashes, rather than beside Buildroot's own 6.12 entry: that
+entry moves with every Buildroot point release, and a hunk anchored on
+it would either stop applying or -- worse, because scripts/configure.sh
+runs a plain `patch` at its default fuzz of 2 -- land somewhere
+plausible and wrong. The three license hashes have not moved in years
+and make a duller, safer anchor.
+
+The sum is from the PGP-signed sha256sums.asc kernel.org publishes for
+v6.x, not read off a mirror and not copied out of a build log. Proven by
+setting it wrong first, so the check had to object --
+
+  ERROR: while checking hashes from linux/linux.hash
+  ERROR: linux-6.12.109.tar.xz has wrong sha256 hash:
+  ERROR: expected: 0000e552a334e15019f4aeba89e5b58f04651cf2f4e24e04de9f152f1c38e3fa
+  ERROR: got     : 5484e552a334e15019f4aeba89e5b58f04651cf2f4e24e04de9f152f1c38e3fa
+  ERROR: Incomplete download, or man-in-the-middle (MITM) attack
+
+-- which is also an independent confirmation: that "got" line is
+Buildroot's own sha256 of the tarball it pulled from cdn.kernel.org, and
+it is the value in the signed file. With the real sum in place:
+
+  linux-6.12.109.tar.xz: OK (sha256: 5484e552a334e15019f4aeba89e5b58f04651cf2f4e24e04de9f152f1c38e3fa)
+
+Not fixed here: BR2_DOWNLOAD_FORCE_CHECK_HASHES empties the exemption
+list globally and would turn every unverified download into an error.
+It would also break this tree today, because the five git-sourced
+packages (bmcd, tpi, bmc_installer, bmc-ui, u-boot) have no hash files
+and rely on the same exemption. Worth doing; a separate change.
+
+---
+ linux/linux.hash | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+--- a/linux/linux.hash
++++ b/linux/linux.hash
+@@ -14,3 +14,11 @@
+ sha256  fb5a425bd3b3cd6071a3a9aff9909a859e7c1158d54d32e07658398cd67eb6a0  COPYING
+ sha256  f6b78c087c3ebdf0f3c13415070dd480a3f35d8fc76f3d02180a407c1c812f79  LICENSES/preferred/GPL-2.0
+ sha256  8e378ab93586eb55135d3bc119cce787f7324f48394777d00c34fa3d0be3303f  LICENSES/exceptions/Linux-syscall-note
++
++# The version this board pins (BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE in
++# tp2bmc_defconfig). Buildroot lists only the point release it defaults
++# to, and linux.mk puts a custom-version tarball in BR_NO_CHECK_HASH_FOR
++# -- so with no line here the kernel is downloaded and NOT verified, and
++# nothing says so. Name it and the check runs.
++# From https://www.kernel.org/pub/linux/kernel/v6.x/sha256sums.asc
++sha256  5484e552a334e15019f4aeba89e5b58f04651cf2f4e24e04de9f152f1c38e3fa  linux-6.12.109.tar.xz
