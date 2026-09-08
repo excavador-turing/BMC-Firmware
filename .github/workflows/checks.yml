@@ -35,20 +35,26 @@ jobs:
       - name: install shells
         run: sudo apt-get update -qq && sudo apt-get install -y -qq dash busybox
 
-      - name: gate contract tests (dash)
-        run: dash tests/gate.sh
+      - name: contract tests (dash)
+        run: |
+          dash tests/gate.sh
+          dash tests/version.sh
 
-      - name: gate contract tests (busybox ash, as on the board)
-        run: busybox ash tests/gate.sh
+      - name: contract tests (busybox ash, as on the board)
+        run: |
+          busybox ash tests/gate.sh
+          busybox ash tests/version.sh
 
       # The gate is only as good as its ability to say no. If a mutation that
       # removes a rejection still passes the suite, the suite is decorative.
-      - name: the suite must catch a gate that cannot reject
+      - name: the suites must catch a gate that cannot reject
         run: |
           set -eu
           gate=tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate
+          updater=tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate
           cp "$gate" /tmp/gate.orig
-          trap 'cp /tmp/gate.orig "$gate"' EXIT
+          cp "$updater" /tmp/updater.orig
+          trap 'cp /tmp/gate.orig "$gate"; cp /tmp/updater.orig "$updater"' EXIT
 
           fails=0
           mutate() {
@@ -66,6 +72,19 @@ jobs:
                  'a version mismatch is never rejected'
           mutate 's|\t\t\*bmcd_build_info\*)|\t\t*)|' \
                  'any metrics body is accepted'
+
+          # And the ordering. Dropping this one guard is exactly the old
+          # behaviour: a release candidate compares as newer than its own
+          # release, which is how the bug got in.
+          cp /tmp/updater.orig "$updater"
+          sed -i '/\[ -n "$run_pre" \] || return 1/d' "$updater"
+          if dash tests/version.sh >/dev/null 2>&1; then
+            echo "NOT CAUGHT: a candidate ranks above its own release"
+            fails=$((fails + 1))
+          else
+            echo "caught: a candidate ranks above its own release"
+          fi
+          cp /tmp/updater.orig "$updater"
 
           [ "$fails" -eq 0 ]
 

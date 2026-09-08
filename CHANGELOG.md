@@ -29,6 +29,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **A release candidate no longer outranks its own release** (SQU-169).
+  `is_newer` in `tpi-selfupdate` used GNU `sort -V` alone, which puts
+  `v2.8.1-rc1` *after* `v2.8.1` — so a board on the finished release was
+  offered its own candidate as an upgrade, and `--check` would have exited 10
+  for ever. It now compares the numeric part first and only then the suffix,
+  where carrying one loses to carrying none. `v2.2.0-unstable-hive.12` is
+  likewise work towards v2.2.0 rather than after it.
+- `tests/version.sh` covers that ordering — eighteen cases including the tenth
+  minor release, which a lexical compare gets wrong — and CI mutates the
+  function back to the old behaviour and requires the suite to notice.
+- `tpi-selfupdate` can be sourced with `TPI_SELFUPDATE_LIB=1` to get its
+  functions without running the update. That is what makes the above testable
+  without a network or a board.
 - `S99postupdate` takes the path to `curl` from `CURL_BIN` rather than a
   literal, so the harness can exercise the `-x` check and the argument handling
   instead of bypassing them.
@@ -52,7 +65,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   finds the board. Port 443 rather than the port-80 redirect: advertising the
   redirect costs a client two round trips to reach a page that was always going
   to be served over TLS.
-
 - **The promotion gate checks that the image is the one that was staged, and
   that it serves metrics** (SQU-140). The two existing checks prove the image
   is *alive* — the daemon answers, the switch ports exist — and neither proves

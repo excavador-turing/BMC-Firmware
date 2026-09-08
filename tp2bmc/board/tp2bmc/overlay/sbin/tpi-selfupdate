@@ -173,14 +173,40 @@ resolve_tag() {
 #
 # is_newer CANDIDATE RUNNING
 #
-# True when CANDIDATE sorts after RUNNING. `sort -V` is not semantic version
-# comparison, but it orders this repository's tags correctly, including
-# hive.10 after hive.9, which a plain lexical sort does not.
+# True when CANDIDATE is a later release than RUNNING.
+#
+# `sort -V` alone is not enough, and the way it fails is the dangerous
+# direction. It orders hive.10 after hive.9, which a lexical sort does not,
+# and it puts v2.8.1-rc1 after v2.8.0, which is right. But it also puts
+# v2.8.1-rc1 after v2.8.1 -- so a board on the finished release is offered
+# its own release candidate as an upgrade, and `--check` exits 10 forever.
+#
+# A prerelease belongs BEFORE the release it is a candidate for. So: compare
+# the numeric part with sort -V, and only when those are equal decide on the
+# suffix, where having one loses to having none.
 #
 is_newer() {
 	[ "$1" != "$2" ] || return 1
-	newest=$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)
-	[ "$newest" = "$1" ]
+
+	cand_rel=${1%%-*}
+	run_rel=${2%%-*}
+	if [ "$cand_rel" != "$run_rel" ]; then
+		newest=$(printf '%s\n%s\n' "$cand_rel" "$run_rel" | sort -V | tail -1)
+		[ "$newest" = "$cand_rel" ]
+		return
+	fi
+
+	# Same release number. Whichever carries a prerelease suffix is the older.
+	cand_pre=""
+	run_pre=""
+	case "$1" in *-*) cand_pre=${1#*-} ;; esac
+	case "$2" in *-*) run_pre=${2#*-} ;; esac
+
+	[ -n "$cand_pre" ] || return 0   # candidate is the release itself
+	[ -n "$run_pre" ] || return 1    # running is the release; a candidate is older
+
+	newest=$(printf '%s\n%s\n' "$cand_pre" "$run_pre" | sort -V | tail -1)
+	[ "$newest" = "$cand_pre" ]
 }
 
 #
@@ -351,6 +377,15 @@ list_releases() {
 		done \
 		| sort -V -r -k1,1
 }
+
+# Everything above is definitions; everything below acts. tests/version.sh
+# sources this file with TPI_SELFUPDATE_LIB=1 to exercise the ordering
+# functions without a network, a board, or a staged image. `return` outside a
+# sourced file is an error, hence the fallback.
+if [ "${TPI_SELFUPDATE_LIB:-0}" = "1" ]; then
+	return 0 2>/dev/null || exit 0
+fi
+
 
 running=$(running_version)
 [ -n "$running" ] || die "cannot read VERSION from /etc/os-release"
