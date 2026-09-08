@@ -184,6 +184,27 @@ is_newer() {
 }
 
 #
+# is_versioned STRING
+#
+# Whether a string is version-shaped at all: optional `v`, then digits and
+# dots, then anything (so v2.2.0-unstable-hive.12 counts).
+#
+# This exists because `sort -V` will happily order ANY two strings, including
+# ones that carry no version. A board built by `just build` reports
+# VERSION=local, and sorting `local` against real tags puts it first -- so
+# every release, including genuinely older code, came out marked "newer".
+# Measured on the board 2026-09-08: running `local`, v2.3.0 was offered as an
+# upgrade. An unversioned build must report an UNKNOWN relation rather than a
+# wrong one; the caller can then say so instead of implying an order.
+#
+is_versioned() {
+	case "$1" in
+		v[0-9]*|[0-9]*) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+#
 # staging_dir BYTES
 #
 # The first of $STAGING_DIRS that is a mount of its own and has room. The mount
@@ -202,6 +223,25 @@ staging_dir() {
 		return 0
 	done
 	return 1
+}
+
+#
+# relation_to CANDIDATE RUNNING
+#
+# One of: current, newer, older, unknown. `unknown` when either side is not
+# version-shaped -- which is the honest answer for a locally built image, and
+# the reason this is not just `is_newer`.
+#
+relation_to() {
+	if [ "$1" = "$2" ]; then
+		printf 'current'
+	elif ! is_versioned "$1" || ! is_versioned "$2"; then
+		printf 'unknown'
+	elif is_newer "$1" "$2"; then
+		printf 'newer'
+	else
+		printf 'older'
+	fi
 }
 
 #
@@ -320,19 +360,18 @@ if [ "$LIST_ONLY" -eq 1 ] && [ -n "$SOURCE_URL" ]; then
 	first=1
 	http_versions | while IFS= read -r tag; do
 		[ -n "$tag" ] || continue
-		if [ "$tag" = "$running" ]; then
-			newer=false; current=true
-		elif is_newer "$tag" "$running"; then
-			newer=true; current=false
-		else
-			newer=false; current=false
-		fi
+		relation=$(relation_to "$tag" "$running")
+		case "$relation" in
+			newer) newer=true; current=false ;;
+			current) newer=false; current=true ;;
+			*) newer=false; current=false ;;
+		esac
 		[ "$first" -eq 1 ] || printf ','
 		first=0
 		# prerelease has no meaning for a directory listing; false, not absent,
 		# so the shape matches the GitHub form and one consumer reads both.
-		printf '{"tag":"%s","prerelease":false,"newer":%s,"current":%s}' \
-			"$tag" "$newer" "$current"
+		printf '{"tag":"%s","prerelease":false,"newer":%s,"current":%s,"relation":"%s"}' \
+			"$tag" "$newer" "$current" "$relation"
 	done
 	printf ']}\n'
 	exit 0
@@ -343,17 +382,16 @@ if [ "$LIST_ONLY" -eq 1 ]; then
 	first=1
 	list_releases | while IFS="$(printf '\t')" read -r tag pre; do
 		[ -n "$tag" ] || continue
-		if [ "$tag" = "$running" ]; then
-			newer=false; current=true
-		elif is_newer "$tag" "$running"; then
-			newer=true; current=false
-		else
-			newer=false; current=false
-		fi
+		relation=$(relation_to "$tag" "$running")
+		case "$relation" in
+			newer) newer=true; current=false ;;
+			current) newer=false; current=true ;;
+			*) newer=false; current=false ;;
+		esac
 		[ "$first" -eq 1 ] || printf ','
 		first=0
-		printf '{"tag":"%s","prerelease":%s,"newer":%s,"current":%s}' \
-			"$tag" "$pre" "$newer" "$current"
+		printf '{"tag":"%s","prerelease":%s,"newer":%s,"current":%s,"relation":"%s"}' \
+			"$tag" "$pre" "$newer" "$current" "$relation"
 	done
 	printf ']}\n'
 	exit 0
