@@ -1,0 +1,105 @@
+name: checks
+
+# The image build takes two hours. These do not, and they guard the two things
+# in this repository that can brick a board without the compiler noticing: the
+# promotion gate, and the shell around it.
+#
+# Deliberately a separate workflow from build.yml so a change to a shell script
+# gets an answer in under a minute instead of waiting on Buildroot.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: ["hive"]
+  push:
+    branches: ["hive"]
+    tags: ["v*"]
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: promotion gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The board runs busybox ash, not bash. A construct that works in the
+      # runner's shell and not on the board would pass here and fail where it
+      # matters, so run the suite under both: dash for POSIX strictness,
+      # busybox ash for the actual target.
+      - name: install shells
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq dash busybox
+
+      - name: gate contract tests (dash)
+        run: dash tests/gate.sh
+
+      - name: gate contract tests (busybox ash, as on the board)
+        run: busybox ash tests/gate.sh
+
+      # The gate is only as good as its ability to say no. If a mutation that
+      # removes a rejection still passes the suite, the suite is decorative.
+      - name: the suite must catch a gate that cannot reject
+        run: |
+          set -eu
+          gate=tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate
+          cp "$gate" /tmp/gate.orig
+          trap 'cp /tmp/gate.orig "$gate"' EXIT
+
+          fails=0
+          mutate() {
+            cp /tmp/gate.orig "$gate"
+            sed -i "$1" "$gate"
+            if dash tests/gate.sh >/dev/null 2>&1; then
+              echo "NOT CAUGHT: $2"
+              fails=$((fails + 1))
+            else
+              echo "caught: $2"
+            fi
+          }
+
+          mutate 's|elif \[ "$staged" != "$running" \]; then|elif false; then|' \
+                 'a version mismatch is never rejected'
+          mutate 's|\t\t\*bmcd_build_info\*)|\t\t*)|' \
+                 'any metrics body is accepted'
+
+          [ "$fails" -eq 0 ]
+
+  shell:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    env:
+      # Pinned, and fetched rather than apt-installed: the distro package
+      # lags, and `--shell=busybox` (below) needs a recent shellcheck.
+      SHELLCHECK_VERSION: v0.11.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: install shellcheck
+        run: |
+          set -eu
+          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL "$url" | tar -xJ -C /tmp
+          echo "/tmp/shellcheck-${SHELLCHECK_VERSION}" >> "$GITHUB_PATH"
+
+      # --shell=busybox, not dash. The board's shell is busybox ash built with
+      # bash compat, so `${blockdev//block/}` in ubi_block_name is legal there
+      # and has worked on every board this firmware has run on. Checked against
+      # dash, that line is an error and the whole job would be red for a
+      # construct that is correct on the target.
+      #
+      # Only the scripts this fork owns: the Buildroot tree carries thousands
+      # of upstream scripts, and linting those reports other people's style
+      # forever.
+      - name: shellcheck the fork's scripts
+        run: |
+          set -eu
+          shellcheck --shell=busybox --severity=warning \
+            tests/gate.sh \
+            tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate \
+            tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate \
+            tp2bmc/board/tp2bmc/overlay/sbin/osupdate

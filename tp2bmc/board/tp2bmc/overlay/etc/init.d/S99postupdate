@@ -51,6 +51,10 @@ STAGED_NOTE=/mnt/overlay/staged-firmware
 # stubbed copy on the board's own shell, without a flash.
 OS_RELEASE=/etc/os-release
 METRICS_TOKEN=/mnt/overlay/metrics-token
+# The curl the gate uses, for the same reason: tests/gate.sh points this at a
+# stub, so the `-x` check and the argument handling are exercised rather than
+# bypassed.
+CURL_BIN=/usr/bin/curl
 
 # How long to give bmcd to answer. It is started by S94bmcd, five scripts
 # earlier, and on a first boot it may still be generating a self-signed
@@ -177,12 +181,12 @@ release_matches() {
 		log "version matches the staged note: $running"
 	fi
 
-	if [ ! -x /usr/bin/curl ]; then
+	if [ ! -x "$CURL_BIN" ]; then
 		log "no curl; metrics check skipped"
 		return 0
 	fi
 
-	tok=$(curl -sk --max-time 10 "https://127.0.0.1/api/bmc?opt=get&type=metrics_token" 2>/dev/null \
+	tok=$("$CURL_BIN" -sk --max-time 10 "https://127.0.0.1/api/bmc?opt=get&type=metrics_token" 2>/dev/null \
 		| sed -n 's/.*"token":"\([0-9a-f]*\)".*/\1/p' | head -1)
 	if [ -z "$tok" ]; then
 		tok=$(sed -n 's/^TOKEN=//p' "$METRICS_TOKEN" 2>/dev/null | head -1 | tr -d '\r')
@@ -192,7 +196,7 @@ release_matches() {
 		log "FAILED: no metrics token from the daemon or the overlay"
 		return 1
 	fi
-	body=$(curl -sk --max-time 10 -u "metrics:$tok" https://127.0.0.1/metrics 2>/dev/null) || body=""
+	body=$("$CURL_BIN" -sk --max-time 10 -u "metrics:$tok" https://127.0.0.1/metrics 2>/dev/null) || body=""
 
 	case "$body" in
 		*bmcd_build_info*)
