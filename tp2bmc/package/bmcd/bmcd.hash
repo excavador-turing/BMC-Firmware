@@ -15,10 +15,13 @@
 # before the patch changed still carries the old toolchain and produces the
 # old sum under a name that looks correct.
 #
-# The version is commit b3da29e on excavador/bmcd branch `hive`, released
-# as v2.7.0: every bmcd_switch_port_* series carries a kind label, not only
-# bmcd_switch_port_present. Computed with rust-bin 1.98.1 in the pinned
-# container and verified by re-running `make bmcd-source` with this file in
-# place.
-sha256  0425becf777539742012cd6a2dd7c92902fc0fbfcc0e4688a6b4dc8708e81668  bmcd-b3da29efbf3e39f6072bb486097691856be3519f-cargo2.tar.gz
+# Computed with buildroot/local.mk REMOVED. A dev override rsyncs a working
+# tree instead of downloading the pinned archive, so a hash computed with one
+# in place would describe whatever happened to be on the workstation.
+#
+# The version is commit f7d2c9d on excavador/bmcd branch `hive`, released as
+# v2.8.0: configurable firmware sources, the catalogue, firmware_install and
+# the staging guard. Computed with rust-bin 1.98.1 in the pinned container
+# and verified by re-running `make bmcd-source` with this file in place.
+sha256  9b38177fa1920e99da6b0cf8fb08d288e79429a6535ff5755ca046ef22648af7  bmcd-f7d2c9da1c48360d4fe45741980e66b94090254e-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

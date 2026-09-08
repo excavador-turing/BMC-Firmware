@@ -10,8 +10,8 @@
 # BMC_UI_LICENSE_FILES = LICENSE -- shipped no LICENSE at all, which for a
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
-# Verified 2026-09-08: 568937 bytes, built by GitHub Actions from tag
-# v3.6.0, checked against the release's own SHA256SUMS. v3.6.0 adds the
-# metrics-token card on Info and the upgrade candidate on the Firmware
-# Upgrade page, both of which need the matching bmcd (v2.6.0).
-sha256  23d360feaf178c25bbf9e7fe73568ecb7d5c61b849000089dd36d3706146b5d7  bmc-ui-v3.6.0.tar.gz
+# Verified 2026-09-08: 573360 bytes, built by GitHub Actions from tag
+# v3.7.0, checked against the release's own SHA256SUMS. v3.7.0 adds the
+# firmware source editor and the list of installable versions, both of which
+# need the matching bmcd (v2.8.0) to answer type=firmware_available.
+sha256  65f109fe6718ff4c7948ef7dc031d1ff9a6fdfe867a7c811828a69d860ad0d85  bmc-ui-v3.7.0.tar.gz

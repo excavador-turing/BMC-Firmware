@@ -3,7 +3,7 @@
 # bmcd
 ###########################################################
 
-BMCD_VERSION = b3da29efbf3e39f6072bb486097691856be3519f
+BMCD_VERSION = f7d2c9da1c48360d4fe45741980e66b94090254e
 BMCD_SITE = $(call github,excavador,bmcd,$(BMCD_VERSION))
 BMCD_LICENSE = Apache-2.0
 BMCD_LICENSE_FILES = LICENSE
