@@ -166,7 +166,8 @@ release_matches() {
 	staged=$(note_version)
 
 	if [ -z "$staged" ]; then
-		log "no staged note; version check skipped"
+		if [ -f "$STAGED_NOTE" ]; then log "staged note carries no version; version check skipped"
+		else log "no staged note; version check skipped"; fi
 	elif ! is_versioned "$staged"; then
 		log "staged build '$staged' carries no version; version check skipped"
 	elif [ "$staged" != "$running" ]; then
