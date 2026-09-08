@@ -83,6 +83,33 @@ jobs:
           restore-keys: |
             br-dl-
 
+      # A cache restored from a FALLBACK key cannot be trusted to hold the
+      # cargo-vendored archives, and this is not theoretical -- it broke a
+      # release build.
+      #
+      # `bmcd-<commit>-cargo2.tar.gz` is named for the package commit and
+      # nothing else. Its CONTENTS also depend on the Rust toolchain, because
+      # `cargo vendor` runs under it. So bumping Rust changes the bytes while
+      # leaving the filename identical: the primary key misses (the patch file
+      # changed), restore-keys hand back the previous cache, Buildroot finds an
+      # archive with the right name and the wrong contents, and every Rust
+      # package fails its hash check reporting the PREVIOUS release's sum as
+      # what it "got".
+      #
+      # Only these three are affected -- every other entry in dl/ is an
+      # upstream tarball whose name pins its contents. Dropping them on a
+      # fallback restore costs one re-vendor and removes the whole class.
+      - name: drop stale vendored archives on a fallback cache restore
+        if: steps.dl.outputs.cache-hit != 'true'
+        run: |
+          if compgen -G 'dl/*-cargo2.tar.gz' > /dev/null; then
+            echo "cache restored from a fallback key; re-vendoring these:"
+            ls -1 dl/*-cargo2.tar.gz
+            rm -f dl/*-cargo2.tar.gz
+          else
+            echo "no vendored archives in the restored cache; nothing to drop"
+          fi
+
       # ccache. BR2_CCACHE=y has been in the defconfig all along, but the
       # cache lived in the container's /root and died with it, so every run
       # compiled gcc, glibc and the kernel from nothing. The key is unique
