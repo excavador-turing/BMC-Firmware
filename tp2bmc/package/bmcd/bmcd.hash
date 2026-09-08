@@ -1,12 +1,20 @@
 # bmcd is a cargo package: Buildroot fetches the GitHub archive, runs
 # `cargo vendor`, and stores the re-packed archive (the "-cargo2" suffix)
 # -- so the sum covers the vendored crates too, exactly as Buildroot does
-# for its own cargo packages. Computed with rust-bin 1.98.1 in the pinned
-# container on 2026-09-08; a Rust bump can legitimately change it.
-# The version is a commit on excavador/bmcd branch `hive` (v2.3.7 plus
-# the preserve-power-state change from SQU-114, the About-page fields and
-# off-the-RAM-disk staging from SQU-124, and the switch-state endpoint,
-# board serial and power_on_time fix from SQU-127), not an upstream tag.
-# Locally computed:
-sha256  19d57513eaaa746e42432d1ff94d0995813c7f6d43f48701541b94a0bbaffd51  bmcd-06a44aef553f4043371f737cff793f94e299edf8-cargo2.tar.gz
+# for its own cargo packages.
+#
+# THE SUM DEPENDS ON THE RUST TOOLCHAIN, not just on the commit. The
+# archive is named after the commit alone, so a stale one in dl/ looks
+# right and hashes wrong. Measured on 2026-09-08 against this very
+# commit: rust-bin 1.85.0 vendored
+# 9815f9cb190773112439b8979222f45ee79124f15ace2d29c5484141be679f65,
+# rust-bin 1.98.1 vendored the sum below. Recompute after any Rust bump,
+# from a tree that was re-extracted AFTER the bump -- buildroot_patches/
+# are applied at extract time, so a tree extracted before the patch
+# changed still carries the old toolchain and will produce the old sum.
+#
+# The version is commit 9b5cffa on excavador/bmcd branch `hive`, released
+# as v2.4.0. Computed with rust-bin 1.98.1 in the pinned container and
+# verified by re-running `make bmcd-source` with this file in place.
+sha256  84b9825371b085cea0f21ef03efd50893cfb16c0806cecb98c3700d605b44b9c  bmcd-9b5cffa84ee55b468538e1c45af25b379490ba20-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

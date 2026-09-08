@@ -9,63 +9,45 @@
 > anything newer. This fork exists to have a firmware that builds, releases and
 > installs from a pipeline we can see.
 
-## Running now: `v2.2.0-unstable-hive.6`
+## Running now: `v2.3.0`
 
-Flashed 2026-09-07 17:02, **over the air, with all four compute modules
-running**. Everything in this section was measured on the board after that
-flash, not inferred from a build.
+The first **stable** release of this fork. Everything before it was a
+`v2.2.0-unstable-hive.N` pre-release; those tags and their releases have been
+removed, and their content is here. Everything in this section was measured on
+the board after the flash, not inferred from a build.
 
 | verified | evidence |
 |---|---|
-| **A bad image undoes itself.** Promotion waits until bmcd answers on `https://127.0.0.1/` and every compute node's switch port exists; otherwise the board reboots, which lands on the previous image because nothing was renamed and `nextboot` is one-shot | Its own log on the first real flash: `bmcd answered after 3s`, `switch ports present: node1 node2 node3 node4`, then promoted — root volume `rootfs`, hive.5 kept as `rootfs_prev`. Six branches were exercised beforehand against a stubbed copy on the board's own busybox, including both failure paths |
-| **The rollback note survives the rollback.** The gate writes to `/mnt/overlay/postupdate.log` | `/var/log` is a symlink into a tmpfs; `/mnt/overlay` is the UBI volume *both* images mount. Read back off the board after the flash |
-| **The image records which Buildroot built it** | `BUILDROOT_VERSION=2025.02.17` in `/etc/os-release`. Buildroot writes its own release into that file and `post_build.sh` used to overwrite all of it |
-| **The About page stops lying.** `build_version` is sent, and `buildroot` carries the Buildroot release rather than the firmware name | The live payload: `"build_version":"2.3.7"`, `"buildroot":"2025.02.17"`. It rendered `vundefined` and `Turing Pi v2.2.0` before |
-| **The board can update itself** — `tpi-selfupdate` fetches a release, verifies it against `SHA256SUMS`, checks it fits the UBI slot, stages it | On the board: `--check --channel edge` resolves hive.6, reports it current, exits 2. Refuses anything not newer without `--allow-downgrade`, which matters because GitHub's "Latest" here is hive.2 |
-| **Firmware uploads are staged on disk, not in a 58 MB RAM disk** | `bmcd` picks the first of `/mnt/sdcard`, `/mnt/overlay`, `/tmp` that is a real mount with room. Built and running; the upload path itself is still to be re-tested (SQU-123) |
-| **Linux 6.12.104 LTS on Buildroot 2025.02.17 LTS**, both pinned explicitly, five out-of-tree patches re-ported | `uname -r` on the board. Upstream builds on Buildroot 2024.05.1 (EOL) and whatever kernel it defaults to — 6.8, never a longterm release |
-| **The RTL8370MB-CG switch works on the new kernel**, with its I2C transport added as a *third* interface beside SMI and MDIO rather than replacing upstream's SMI driver | `rtl8365mb-i2c 0-005c: found an RTL8370MB-CG switch`, then all four node ports and `ge0` at `Link is Up - 1Gbps/Full`; `br0` bridges all six |
-| **A firmware update no longer touches running nodes.** bmcd reads the live rail state on start and adopts it, instead of re-applying the value persisted in `bmcd.bin`; a cold boot still restores the persisted state | Two flashes and a daemon restart with four nodes powered: every rail stayed on, every `/proc/uptime` monotonic, no node dropped a ping. Fixes upstream [bmcd#90](https://github.com/turing-machines/bmcd/issues/90); built from our [bmcd fork](https://github.com/excavador/bmcd) |
-| **Fan, serial and USB survived the kernel bump** | `pwmchip0` + `pwmfan` (the PWM patch rewritten onto 6.11's chip-ownership API), `/dev/ttyS0`–`ttyS4`, `tpi usb status` reports host/device routing |
-| **The image is 79 % of its UBI slot**, down from 85 %, and the build **fails at 90 %** | collectd, avahi, i2c-tools, nano, htop, tree, evtest, bash and the unused C++ runtime dropped; both overlay scripts rewritten in POSIX sh; every build prints `rootfs: N bytes, P% of the … slot` |
-| **A tagged release builds in ~23 minutes**, from 1 h 55 m, with every input pinned by sha256 (bmcd, tpi, bmc_installer, bmc-ui, the Rust toolchain) and every action pinned by commit | Release history in this repo |
-| **The same container builds it on a workstation in ~13 minutes** — `just container / configure / build / kernel / size / biggest` | The build was always containerised; nothing said you could run that container yourself |
-| **`tpi info` reports the release tag** | It used to report the Buildroot version, so a flashed board could not tell you what was on it |
+| **A bad image undoes itself.** Promotion waits until bmcd answers on `https://127.0.0.1/` and every compute node's switch port exists; otherwise the board reboots, which lands on the previous image because nothing was renamed and `nextboot` is one-shot | Its own log, across **seven consecutive over-the-air promotions**: `bmcd answered after 3s`, `switch ports present: node1 node2 node3 node4`, then promoted. Six branches were exercised beforehand against a stubbed copy on the board's own busybox, including both failure paths |
+| **The rollback note survives the rollback.** The gate writes to `/mnt/overlay/postupdate.log` | `/var/log` is a symlink into a tmpfs; `/mnt/overlay` is the UBI volume *both* images mount. Read back off the board after each flash |
+| **The board has a temperature.** The T113s thermal sensor is described in the board DTS — mainline has no THS node for this SoC, so the driver was built but never probed | `allwinner,sun20i-d1-ths` bound to `2009400.thermal-sensor`; `/sys/class/thermal/thermal_zone0` reads **52405** millidegrees, and the About page shows 52.0 °C |
+| **The fan is driven by the kernel, from that sensor**, through a thermal zone with trips at 20/45/60/70 °C and a floor at state 3 — the sensor is the BMC SoC but the fan cools the modules | It stepped **6/6 → 4/6** on its own and held there; module temperatures were unchanged at 51–56 °C across the change |
+| **The fan is shown as the seven discrete states the device tree defines**, not as a percentage | `cooling-levels = <0 16 32 64 102 170 254>` read from the board's own device tree; the UI renders a segmented gauge and reports `4 of 6` |
+| **A firmware update no longer touches running nodes.** bmcd reads the live rail state on start and adopts it instead of re-applying what `bmcd.bin` persisted; a cold boot still restores the persisted state | Seven flashes and daemon restarts with four nodes powered: every rail stayed on, every `/proc/uptime` monotonic, no node dropped a ping. Fixes upstream [bmcd#90](https://github.com/turing-machines/bmcd/issues/90) |
+| **`power_on_time` is per node and is a duration.** Upstream inferred it from a single shared bit, so the read could only ever agree for node 1, and the UI rendered `now - value` against a value that was already elapsed seconds | It reported `powered on 20703 d 2 h ago`; it now reports the duration the API actually returns, and the enable lines are read back per node |
+| **The switch panel shows real link state** | `ge1` displayed as down — the first time this fork could show a port that was not up. Port-to-node mapping was confirmed by correlating a 45-second traffic delta per port against each module's own NIC: all four tracked within 2–5 %, same ordering |
+| **There is a `/metrics` endpoint**, authenticated, carrying node power and uptime, fan state, SoC temperature and switch per-port counters | `curl` without credentials returns **401**; with them, Prometheus text. The board was the only thing in this estate reporting nothing |
+| **HTTP/2 is refused, not downgraded after the parser has already run** | `curl --http2` negotiates **HTTP/1.1** and gets 401. It previously answered `HTTP/2 401` — the request had been parsed by the h2 stack before authentication rejected it |
+| **A serial console per module, in the browser.** A browser cannot set `Authorization` on a websocket handshake, so the token rides the subprotocol — the pattern Kubernetes uses — and the server echoes back the non-bearer entry | Live on `/console`; xterm is a lazy chunk the main bundle never loads |
+| **Linux 6.12.109 LTS on Buildroot 2025.02.17 LTS**, both pinned, five out-of-tree patches re-ported | `uname -r` on the board. Upstream builds on Buildroot 2024.05.1 (EOL) and a 6.8 kernel that is not a longterm release |
+| **Built with Rust 1.98.1**, up from 1.85.0, which had been holding back a bmcd dependency update that closes an advisory | `rustc --version` in the build container; the vendored archive is pinned by sha256 against that toolchain |
+| **The image is 78 % of its UBI slot** — 36,978,688 of 46,981,120 bytes — and the build **fails at 90 %** | Down from 37,326,848 while *gaining* a serial console, four new panels and a newer toolchain |
+| **A tagged release builds in ~23 minutes**, every input pinned by sha256 (bmcd, tpi, bmc_installer, bmc-ui, the Rust toolchain) and every action pinned by commit | Release history in this repo |
+| **`tpi info` reports the release tag**, and `tpi firmware` completes in ~23 s | It used to report the Buildroot version, so a flashed board could not say what was on it |
 
 ### Known, on this version
 
-- **There is no temperature anywhere**, and the reason is the device tree.
-  `CONFIG_SUN8I_THERMAL=y` is set and the driver registers — but
-  `/sys/bus/platform/drivers/sun8i-thermal/` has no device bound to it,
-  `/proc/device-tree` contains no thermal-sensor node, `/sys/class/thermal`
-  holds only `cooling_device0` (the fan, an actuator, not a sensor), and
-  dmesg has zero thermal lines. So the driver never probes, the daemon has
-  nothing to report, and the interface has nothing to draw. Fixing it means
-  adding the THS node to the board DTS, not changing the daemon or the UI.
-- **The fan runs at 100 % with nothing to regulate against**, which follows
-  from the above.
-- The web UI still prints a doubled `v` on version fields — `daemon
-  vv2.2.0-unstable-hive.6`, `board revision (vv2.5.2)`. Fixed in [our UI
-  fork](https://github.com/excavador/BMC-UI), not yet built into an image.
-- The About page renders the board model with its **trailing NUL padding**
-  (`TuringPi2` followed by seven `\u0000`), which the daemon sends verbatim.
-- **`power_on_time` is wrong for three nodes out of four after a BMC reboot.**
-  Measured after the hive.6 flash: the daemon reported node 1 at 52418 s,
-  matching the module's own uptime, and nodes 2–4 at 172 s — the time since
-  the BMC restarted, not since the modules were powered. The modules had in
-  fact been up ~52 300–52 500 s and never reset.
+- **`power_on_time` still reads high for nodes 2–4** until they are genuinely
+  power-cycled. The value is now read correctly; what is stale is the board's
+  own record, and only dropping the rail clears it. The web UI's `RESTART`
+  sends `type=reset`, which does not.
 - **An image that hangs *before* `S99postupdate` runs is still not covered.**
   The gate only helps an image that boots far enough to be judged; anything
   earlier still needs power cut, which hard-cuts the compute modules.
-- The kernel **on the board** is **6.12.104**. The tree is now pinned at
-  **6.12.109**, the current 6.12 longterm release and 796 upstream commits
-  further on — but that is a build, not a flash: `uname -r` keeps saying
-  6.12.104 until the next image goes on.
-- This image was built with Rust **1.85.0**, which was holding back dependency
-  updates in bmcd, including one that fixes an advisory. The tree is on 1.98.1
-  now; the board gets it at the next flash.
 - The login page is served with an **RSA self-signed certificate** minted at
   boot, so every browser calls it insecure.
+- **Flashing a module over USB is built but not exercised on hardware.** The
+  `rockusb` module loads; the operation is untested on this kernel.
 
 ## Plan
 
@@ -76,36 +58,26 @@ Nothing in this section is running on the board.
 *Nothing is currently in this state — everything that was here shipped in
 hive.6 and moved up to "Running now" with its evidence.*
 
-| change | where | what it does |
-|---|---|---|
-| **Health-gated promotion** | firmware, `etc/init.d/S99postupdate` | A tentative image is promoted only if bmcd answers on `https://127.0.0.1/` and every compute node's switch port exists. Otherwise the board reboots, which lands on the previous image by itself: `nextboot` is one-shot and u-boot has already consumed it. Covers the two ways this fork has actually produced a broken image — a daemon that will not link, and a switch driver that silently leaves the kernel config — the second of which leaves the BMC reachable and all four nodes islanded. Exercised against six cases including both failures |
-| **`BUILDROOT_VERSION` in `/etc/os-release`** | firmware, `board/tp2bmc/post_build.sh` | Buildroot writes its release into that file and this fork overwrote the whole of it, so no image recorded which Buildroot built it. Buildroot exports `BR2_VERSION` to post-build scripts, so it costs one line |
-| **`tpi-selfupdate`** | firmware, `sbin/tpi-selfupdate` | Pulls a release from this repository's GitHub releases, verifies it against `SHA256SUMS`, checks it fits the UBI slot, and stages it. Two channels, because every release here is a pre-release and GitHub's "Latest" is hive.2 — following it would walk the board backwards. Refuses anything not newer without `--allow-downgrade`, and never reboots unless asked |
-| **Staging off the RAM disk** | [bmcd fork](https://github.com/excavador/bmcd) | Prefers `/mnt/sdcard`, then `/mnt/overlay`, then `/tmp`, choosing the first that is a real mount with room. Removes the failure in the list above as a class |
-| **`build_version` on the About page** | bmcd fork | Sends the field the web interface has always read, so it stops rendering `vundefined` |
-| **Buildroot release reported honestly** | bmcd fork | Reads the new `BUILDROOT_VERSION` key, falling back to `PRETTY_NAME` so older images report exactly what they do today |
-
 ### Not implemented
 
 | planned | why |
 |---|---|
 | **Hardware watchdog + boot counter** so a tentative image that *hangs* rolls back by itself | The health gate above only helps an image that boots far enough to run it. An image that hangs earlier still means a trip to the rack. Must be proven from an SD boot with a console before it ships in a `.tpu` |
 | **Node-aware USB flashing** | `tpi flash -n N` writes to whichever module enumerates first; with more than one in maskrom it reports success while writing nothing, or writes the wrong module |
-| **A `/metrics` endpoint** — node power and uptime, fan, SoC temperature, switch per-port counters | The board is the only thing in this estate that reports nothing, and the data already exists in the firmware |
 | **Remote syslog and an audit line per mutating API call** | Logs live in tmpfs and die at reboot, and a power-off from the web UI, from `tpi`, and over the API all look identical |
 | **Key-only SSH and a forced password change** | The board ships with a vendor default password and password authentication enabled |
 | **An EC P-384 certificate for bmcd, and a way to install a trusted one** | The current one is RSA-4096, minted at every boot, and there is no path to install a real certificate except `scp` and a restart |
 | **VLAN filtering and STP on the switch** | `br0` bridges all six ports flat: the management plane shares layer 2 with node traffic, and plugging both uplinks into a switch would loop |
-| **Temperature-driven fan curve** | The fan is a fixed persisted speed with no trip point that reflects module heat |
 | **Persistent per-node serial capture**, and honour `uart_baud` | A module that panics at 03:00 leaves nothing behind: the daemon keeps a 16 KiB RAM ring that dies with it |
 | **Node heartbeat with opt-in power-cycle** | Nothing recovers a module that wedges below the OS |
 | **Upstream the switch driver's I2C transport** | The interface split above makes this a series that could go to netdev, so each future kernel bump shrinks the patch instead of repeating it |
 | **Repoint the UI's update check** at this fork's releases | It reads a mirror that stops at v2.0.5, so followed literally it would downgrade the board. `tpi-selfupdate` covers the command line; the web interface still points at the mirror |
 | **Hardware-less contract tests** against the stubbed HAL, and reproducible builds | CI builds an image and never exercises the API |
 
-Two things are built but **not exercised on hardware**: flashing a module over
-USB (the `rockusb` module loads; the operation is untested on this kernel) and
-switch port isolation beyond every port being up.
+One thing is built but **not exercised on hardware**: flashing a module over
+USB — the `rockusb` module loads, but the operation is untested on this
+kernel. Switch port state is no longer in that category: the Network tab
+reads real per-port link state, and showed `ge1` down.
 
 ### A trap when a package's file set shrinks
 

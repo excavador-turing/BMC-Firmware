@@ -3,16 +3,15 @@
 # for it. Pinned on purpose -- if the asset ever changes, the build fails here
 # instead of silently shipping a different UI.
 #
-# This is now OUR fork's release, not upstream's. Upstream v3.3.6 rendered
+# This is our fork's release, not upstream's. Upstream v3.3.7 rendered
 # "vundefined" for the build version, reported the firmware name as the
 # Buildroot release, shipped 668.9 KB of fonts including 21 .woff files no
-# browser that can run the bundle needs, and -- despite this .mk declaring
+# browser that can run the bundle needs, and -- despite bmc-ui.mk declaring
 # BMC_UI_LICENSE_FILES = LICENSE -- shipped no LICENSE at all, which for a
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
-# Verified 2026-09-07: 566343 bytes, built by GitHub Actions from tag
-# v3.3.7-hive.3, checked against the release's own SHA256SUMS. hive.3 adds a
-# serial console for each module (xterm in a lazy chunk the main bundle never
-# touches), the A/B firmware slot panel, board health, per-node liveness, and
-# the fan's real duty read from the board's own device tree.
-sha256  520277406db438bda428266831d22582cd9133c518b235b2132beadea83af280  bmc-ui-v3.3.7-hive.6.tar.gz
+# Verified 2026-09-08: 565987 bytes, built by GitHub Actions from tag
+# v3.4.0, checked against the release's own SHA256SUMS. v3.4.0 is the first
+# numbered release of the fork; the v3.3.7-hive.N pre-releases it replaces
+# have been deleted, so this is also the only bmc-ui asset still fetchable.
+sha256  0b18ae0386d0a8e8c540bef5b0ff54e248edf4fec861d763420281914748ea26  bmc-ui-v3.4.0.tar.gz
