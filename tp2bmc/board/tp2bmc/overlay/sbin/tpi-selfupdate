@@ -14,10 +14,13 @@
 # the reboot -- `fw_setenv nextboot` alone puts everything back.
 
 REPO="excavador/tp2-bmc-firmware"
+# An HTTP directory to scan instead of a GitHub repository. Set with --url.
+SOURCE_URL=""
 CHANNEL="stable"
 TAG=""
 CHECK_ONLY=0
 JSON=0
+LIST_ONLY=0
 ALLOW_DOWNGRADE=0
 DO_REBOOT=0
 KEEP_IMAGE=0
@@ -45,7 +48,19 @@ Usage: tpi-selfupdate [options]
                                   pre-releases included
   --tag TAG              install this exact tag, ignoring --channel
   --repo OWNER/REPO      release repository (default: $REPO)
+  --url PREFIX           scan an HTTP directory instead of a GitHub repo.
+                         Expects <PREFIX>/<version>/<image>.tpu, which is what
+                         firmware.turingpi.com serves. Checksums are used when
+                         the directory publishes them and ABSENT otherwise --
+                         upstream's does not, so an image from there is
+                         trusted on TLS alone.
   --check                report what would happen and exit; downloads nothing
+  --list                 print every release this repository offers, newest
+                         first, and exit. Implies --json. Enumerates rather
+                         than resolving: --check answers "what would I
+                         install", --list answers "what is there". bmcd uses
+                         it to let an operator pick a version, including an
+                         older one.
   --json                 print one JSON object on STDOUT describing what the
                          channel resolves to. Every log line already goes to
                          stderr, so stdout carries the object and nothing
@@ -70,8 +85,10 @@ while [ $# -gt 0 ]; do
 		--channel) CHANNEL="${2:-}"; shift 2 ;;
 		--tag) TAG="${2:-}"; shift 2 ;;
 		--repo) REPO="${2:-}"; shift 2 ;;
+		--url) SOURCE_URL="${2:-}"; shift 2 ;;
 		--check) CHECK_ONLY=1; shift ;;
 		--json) JSON=1; shift ;;
+		--list) LIST_ONLY=1; JSON=1; shift ;;
 		--allow-downgrade) ALLOW_DOWNGRADE=1; shift ;;
 		--reboot) DO_REBOOT=1; shift ;;
 		--keep) KEEP_IMAGE=1; shift ;;
@@ -187,8 +204,160 @@ staging_dir() {
 	return 1
 }
 
+#
+# http_versions
+#
+# Version directories under an HTTP prefix, newest first.
+#
+# This parses Apache mod_autoindex output, which is PRESENTATION and not an
+# API: a server upgrade or a theme change can break it without warning. So a
+# caller must treat "no versions found" as "this source returned nothing
+# usable" and never as "there are no updates" -- the two are indistinguishable
+# from here, and only the caller knows which claim it is about to make.
+#
+# Verified against https://firmware.turingpi.com/turing-pi2/ on 2026-09-08:
+# per-version directories v2.0.5/ .. v1.0.1/, each holding tp2-ota-<v>.tpu.
+#
+http_versions() {
+	body=$(curl -sSfL --max-time 30 "$SOURCE_URL/") \
+		|| die "cannot reach $SOURCE_URL"
+
+	printf '%s' "$body" \
+		| tr '<' '\n' \
+		| sed -n 's/.*href="\(v\{0,1\}[0-9][^"\/]*\)\/".*/\1/p' \
+		| sort -u \
+		| sort -V -r
+}
+
+#
+# http_asset TAG
+#
+# The .tpu in one version directory, and its checksum when the directory
+# publishes one. Two lines: URL, then the sha256 or an empty line.
+#
+# Deliberately NOT called while listing: listing costs one request, and
+# resolving every version's asset would cost one per version for information
+# nobody has asked for yet.
+#
+http_asset() {
+	tag=$1
+	dir="$SOURCE_URL/$tag"
+	body=$(curl -sSfL --max-time 30 "$dir/") \
+		|| die "cannot list $dir"
+
+	# Any .tpu in the directory. The filename convention differs between
+	# publishers -- upstream ships tp2-ota-<v>.tpu, this fork ships
+	# tp2-bmc-firmware-ota-<v>.tpu -- so match the extension, not a prefix.
+	asset=$(printf '%s' "$body" \
+		| tr '<' '\n' \
+		| sed -n 's/.*href="\([^"]*\.tpu\)".*/\1/p' \
+		| head -1)
+	[ -n "$asset" ] || die "no .tpu in $dir"
+
+	printf '%s/%s\n' "$dir" "$asset"
+
+	# Checksums, if this publisher ships any. Upstream does not: SHA256SUMS,
+	# sha256sum.txt, sha256 and checksums.txt all 404 on
+	# firmware.turingpi.com as of 2026-09-08. An absent checksum is reported
+	# as empty rather than as a failure, because it is the normal state for
+	# that source -- but the caller must then say so rather than implying the
+	# image was verified.
+	for name in SHA256SUMS sha256sum.txt sha256 checksums.txt; do
+		sums=$(curl -sfL --max-time 20 "$dir/$name" 2>/dev/null) || continue
+		sum=$(printf '%s' "$sums" | awk -v f="$(basename "$asset")" '$2 == f || $2 == "*" f { print $1; exit }')
+		[ -n "$sum" ] || continue
+		printf '%s\n' "$sum"
+		return 0
+	done
+	printf '\n'
+}
+
+#
+# list_releases
+#
+# Every release the repository offers, newest first, as a JSON array.
+#
+# GitHub returns one object per release; splitting on the `},{` boundary gives
+# one chunk each, which is enough to read a tag and its flags without a JSON
+# parser -- and there is none on this board, no jq and no python3, only awk
+# and sed.
+#
+# Drafts are skipped: they are not installable by anyone but their author.
+# Pre-releases are KEPT and flagged, because "show me older or unstable
+# builds" is exactly what a human picking from a list may want; the flag lets
+# the caller decide rather than deciding for it here.
+#
+list_releases() {
+	api="https://api.github.com/repos/$REPO/releases?per_page=100"
+	body=$(curl -sSfL --max-time 30 "$api") \
+		|| die "cannot reach the GitHub API at $api"
+
+	printf '%s' "$body" \
+		| sed 's/},[[:space:]]*{/}\n{/g' \
+		| while IFS= read -r chunk; do
+			tag=$(printf '%s' "$chunk" \
+				| sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+				| head -1)
+			[ -n "$tag" ] || continue
+			draft=$(printf '%s' "$chunk" \
+				| sed -n 's/.*"draft"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p' \
+				| head -1)
+			[ "$draft" = "true" ] && continue
+			pre=$(printf '%s' "$chunk" \
+				| sed -n 's/.*"prerelease"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p' \
+				| head -1)
+			[ -n "$pre" ] || pre=false
+			printf '%s\t%s\n' "$tag" "$pre"
+		done \
+		| sort -V -r -k1,1
+}
+
 running=$(running_version)
 [ -n "$running" ] || die "cannot read VERSION from /etc/os-release"
+
+if [ "$LIST_ONLY" -eq 1 ] && [ -n "$SOURCE_URL" ]; then
+	printf '{"url":"%s","running":"%s","releases":[' "$SOURCE_URL" "$running"
+	first=1
+	http_versions | while IFS= read -r tag; do
+		[ -n "$tag" ] || continue
+		if [ "$tag" = "$running" ]; then
+			newer=false; current=true
+		elif is_newer "$tag" "$running"; then
+			newer=true; current=false
+		else
+			newer=false; current=false
+		fi
+		[ "$first" -eq 1 ] || printf ','
+		first=0
+		# prerelease has no meaning for a directory listing; false, not absent,
+		# so the shape matches the GitHub form and one consumer reads both.
+		printf '{"tag":"%s","prerelease":false,"newer":%s,"current":%s}' \
+			"$tag" "$newer" "$current"
+	done
+	printf ']}\n'
+	exit 0
+fi
+
+if [ "$LIST_ONLY" -eq 1 ]; then
+	printf '{"repo":"%s","running":"%s","releases":[' "$REPO" "$running"
+	first=1
+	list_releases | while IFS="$(printf '\t')" read -r tag pre; do
+		[ -n "$tag" ] || continue
+		if [ "$tag" = "$running" ]; then
+			newer=false; current=true
+		elif is_newer "$tag" "$running"; then
+			newer=true; current=false
+		else
+			newer=false; current=false
+		fi
+		[ "$first" -eq 1 ] || printf ','
+		first=0
+		printf '{"tag":"%s","prerelease":%s,"newer":%s,"current":%s}' \
+			"$tag" "$pre" "$newer" "$current"
+	done
+	printf ']}\n'
+	exit 0
+fi
 
 if [ -n "$TAG" ]; then
 	target="$TAG"
