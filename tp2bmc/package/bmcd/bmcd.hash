@@ -5,16 +5,20 @@
 #
 # THE SUM DEPENDS ON THE RUST TOOLCHAIN, not just on the commit. The
 # archive is named after the commit alone, so a stale one in dl/ looks
-# right and hashes wrong. Measured on 2026-09-08 against this very
-# commit: rust-bin 1.85.0 vendored
+# right and hashes wrong. Measured on 2026-09-08 against commit 9b5cffa:
+# rust-bin 1.85.0 vendored
 # 9815f9cb190773112439b8979222f45ee79124f15ace2d29c5484141be679f65,
-# rust-bin 1.98.1 vendored the sum below. Recompute after any Rust bump,
-# from a tree that was re-extracted AFTER the bump -- buildroot_patches/
-# are applied at extract time, so a tree extracted before the patch
-# changed still carries the old toolchain and will produce the old sum.
+# rust-bin 1.98.1 vendored
+# 84b9825371b085cea0f21ef03efd50893cfb16c0806cecb98c3700d605b44b9c.
+# Recompute after any Rust bump, from a tree re-extracted AFTER the bump --
+# buildroot_patches/ are applied at extract time, so a tree extracted
+# before the patch changed still carries the old toolchain and produces the
+# old sum under a name that looks correct.
 #
-# The version is commit 9b5cffa on excavador/bmcd branch `hive`, released
-# as v2.4.0. Computed with rust-bin 1.98.1 in the pinned container and
-# verified by re-running `make bmcd-source` with this file in place.
-sha256  84b9825371b085cea0f21ef03efd50893cfb16c0806cecb98c3700d605b44b9c  bmcd-9b5cffa84ee55b468538e1c45af25b379490ba20-cargo2.tar.gz
+# The version is commit ac5c8c9 on excavador/bmcd branch `hive`, released
+# as v2.5.0 (the kernel field on About, and the staged-image reporting the
+# firmware page needs). Computed with rust-bin 1.98.1 in the pinned
+# container and verified by re-running `make bmcd-source` with this file in
+# place.
+sha256  021685037dfbc162cf0282e2d865636c7654d6ff55d5b44b4a616d5a545ebdb7  bmcd-ac5c8c98aa63bb60d97f4de4a31653e282a96f9c-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

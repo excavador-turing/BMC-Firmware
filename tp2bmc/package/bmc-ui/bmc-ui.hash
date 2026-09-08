@@ -10,8 +10,8 @@
 # BMC_UI_LICENSE_FILES = LICENSE -- shipped no LICENSE at all, which for a
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
-# Verified 2026-09-08: 565987 bytes, built by GitHub Actions from tag
-# v3.4.0, checked against the release's own SHA256SUMS. v3.4.0 is the first
-# numbered release of the fork; the v3.3.7-hive.N pre-releases it replaces
-# have been deleted, so this is also the only bmc-ui asset still fetchable.
-sha256  0b18ae0386d0a8e8c540bef5b0ff54e248edf4fec861d763420281914748ea26  bmc-ui-v3.4.0.tar.gz
+# Verified 2026-09-08: 566414 bytes, built by GitHub Actions from tag
+# v3.5.0, checked against the release's own SHA256SUMS. v3.5.0 adds the
+# Linux kernel row on About and names the staged firmware version on the
+# Firmware Upgrade page, both of which need the matching bmcd (v2.5.0).
+sha256  dfd98c8727ff6cd20d1d69cd682367ad95df5d272286394c736d7bfc833bb78d  bmc-ui-v3.5.0.tar.gz
