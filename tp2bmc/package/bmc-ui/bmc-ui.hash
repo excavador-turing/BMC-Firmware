@@ -13,5 +13,12 @@
 # Verified 2026-09-08: 573360 bytes, built by GitHub Actions from tag
 # v3.7.0, checked against the release's own SHA256SUMS. v3.7.0 adds the
 # firmware source editor and the list of installable versions, both of which
-# need the matching bmcd (v2.8.0) to answer type=firmware_available.
+# need a bmcd that answers type=firmware_available (v2.8.0 or newer; the
+# firmware now pins v2.9.0).
+#
+# The sum is UNCHANGED across the move to excavador-turing. The asset was
+# rebuilt from the same tree under the new owner and came out byte-identical
+# -- 573360 bytes, same sha256 -- because the release workflow packs with
+# `tar --sort=name | gzip -9 -n`, which pins member order and drops the
+# gzip timestamp. Only the URL in bmc-ui.mk changed.
 sha256  65f109fe6718ff4c7948ef7dc031d1ff9a6fdfe867a7c811828a69d860ad0d85  bmc-ui-v3.7.0.tar.gz

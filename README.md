@@ -1,4 +1,4 @@
-# Turing Pi BMC firmware — `excavador` fork
+# Turing Pi BMC firmware — the `excavador-turing` fork
 
 > **This is a fork of [turing-machines/BMC-Firmware](https://github.com/turing-machines/BMC-Firmware).**
 > `main` tracks upstream. **`hive` is the branch that gets built and flashed**;

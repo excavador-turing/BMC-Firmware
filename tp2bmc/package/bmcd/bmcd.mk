@@ -3,8 +3,8 @@
 # bmcd
 ###########################################################
 
-BMCD_VERSION = f7d2c9da1c48360d4fe45741980e66b94090254e
-BMCD_SITE = $(call github,excavador,bmcd,$(BMCD_VERSION))
+BMCD_VERSION = 4ad46f64f1e11470aa42bd64fa64845b4e0a5b6b
+BMCD_SITE = $(call github,excavador-turing,bmcd,$(BMCD_VERSION))
 BMCD_LICENSE = Apache-2.0
 BMCD_LICENSE_FILES = LICENSE
 # host-pkgconf explicitly: with per-package directories only declared
