@@ -15,10 +15,10 @@
 # before the patch changed still carries the old toolchain and produces the
 # old sum under a name that looks correct.
 #
-# The version is commit ac5c8c9 on excavador/bmcd branch `hive`, released
-# as v2.5.0 (the kernel field on About, and the staged-image reporting the
-# firmware page needs). Computed with rust-bin 1.98.1 in the pinned
-# container and verified by re-running `make bmcd-source` with this file in
-# place.
-sha256  021685037dfbc162cf0282e2d865636c7654d6ff55d5b44b4a616d5a545ebdb7  bmcd-ac5c8c98aa63bb60d97f4de4a31653e282a96f9c-cargo2.tar.gz
+# The version is commit 9474e75 on excavador/bmcd branch `hive`, released
+# as v2.6.0: /metrics authenticated by its own token rather than root's
+# password, and type=update_check. Computed with rust-bin 1.98.1 in the
+# pinned container and verified by re-running `make bmcd-source` with this
+# file in place.
+sha256  b732e93fe9f942bc0ee5e6e5d7e2d43eca74db18521330082453eeceed46e999  bmcd-9474e75957a886a6ef2f36ff5f183625a810e44e-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
