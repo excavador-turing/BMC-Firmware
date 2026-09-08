@@ -40,12 +40,18 @@ BR2_PER_PACKAGE_DIRECTORIES=y
 # version here so a Buildroot upgrade and a kernel upgrade are two
 # separate, reviewable changes.
 #
-# 6.12 is a longterm series (maintained to Dec 2026 at least); .104 is
-# the point release Buildroot 2025.02.17 defaults to, so we track the
-# LTS without diverging from what this Buildroot is tested against.
+# 6.12 is a longterm series (maintained to Dec 2026 at least); .109 is
+# its current point release. Buildroot 2025.02.17 defaults to .104, and
+# linux/linux.hash lists only the release each Buildroot was cut against,
+# so moving off .104 also moves off the one sum Buildroot has for us. It
+# will not complain: linux.mk puts a custom-version kernel tarball in
+# BR_NO_CHECK_HASH_FOR, so a missing sum means the kernel is downloaded
+# unverified, quietly. buildroot_patches/0003 supplies ours, from
+# kernel.org's signed sha256sums.asc. A kernel bump is therefore two
+# files: this one and that patch.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.104"
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.109"
 # The headers series must be named too. BR2_TOOLCHAIN_HEADERS_AT_LEAST_*
 # is selected by BR2_LINUX_KERNEL_LATEST_VERSION, NOT by a custom version
 # (linux/Config.in), so with BR2_KERNEL_HEADERS_AS_KERNEL a custom version

@@ -24,7 +24,9 @@ Add a device tree binding for them.
 Signed-off-by: Aleksandr Shubin <privatesub2@gmail.com>
 Reviewed-by: Conor Dooley <conor.dooley@microchip.com>
 
-Rebased onto Linux 6.12.104.
+Rebased onto Linux 6.12.104. Re-verified against 6.12.109: upstream
+touches none of the five files in that range, and the patch applies
+unchanged, at fuzz 0.
 
 The binding, Kconfig, Makefile and DTSI hunks applied unchanged (context
 offsets only), but the driver did NOT build: 6.11 reworked how a PWM

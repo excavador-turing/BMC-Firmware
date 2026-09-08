@@ -26,7 +26,9 @@ this should not pass silently.
 
 Signed-off-by: Sam Edwards <sam@turingpi.com>
 
-Rebased onto Linux 6.12.104.
+Rebased onto Linux 6.12.104. Re-verified against 6.12.109: upstream does
+not touch i2c-mv64xxx.c in that range, and the patch applies unchanged,
+at fuzz 0.
 
 Mechanical. Upstream touched this file exactly three times between 6.8.12
 and 6.12.104, all renames:

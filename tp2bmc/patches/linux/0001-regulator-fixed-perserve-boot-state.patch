@@ -11,7 +11,9 @@ the initialization of those latches can be omitted.
 * added an get function that reads the shadow bitmap to check which
   latches are currently on.
 
-Rebased onto Linux 6.12.104.
+Rebased onto Linux 6.12.104. Re-verified against 6.12.109: upstream
+touches none of these three files in that range, and the patch applies
+unchanged, at fuzz 0.
 
 The regulator and header hunks applied unchanged (context offset only).
 gpio-latch.c needed one real fix: platform_driver::remove() returns void

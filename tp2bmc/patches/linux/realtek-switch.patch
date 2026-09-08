@@ -25,6 +25,14 @@ local: realtek: implement bridge offload
 
 Rebased onto Linux 6.12.104, and this one is a port rather than a rebase.
 
+Re-verified against 6.12.109, where it still applies unchanged at fuzz 0.
+That range does touch rtl83xx.c -- the one file this patch shares with
+upstream -- but at the other end of it: 6.12.109 takes "net: dsa: realtek:
+use gpiod_set_value_cansleep for reset GPIO", which rewrites two lines in
+rtl83xx_reset_{assert,deassert}() around line 309, while the single hunk
+here is the setup_regmaps() hook in rtl83xx_probe() around line 156. Both
+survive.
+
 Between 6.8 and 6.12 the realtek DSA driver was restructured upstream
 (Luiz Angelo Daros de Luca): the probe/regmap/registration code that
 lived in realtek-smi.c and realtek-mdio.c moved into a new common

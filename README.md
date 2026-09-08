@@ -57,8 +57,10 @@ flash, not inferred from a build.
 - **An image that hangs *before* `S99postupdate` runs is still not covered.**
   The gate only helps an image that boots far enough to be judged; anything
   earlier still needs power cut, which hard-cuts the compute modules.
-- The kernel is **6.12.104** while 6.12.109 is current — five LTS point
-  releases behind.
+- The kernel **on the board** is **6.12.104**. The tree is now pinned at
+  **6.12.109**, the current 6.12 longterm release and 796 upstream commits
+  further on — but that is a build, not a flash: `uname -r` keeps saying
+  6.12.104 until the next image goes on.
 - This image was built with Rust **1.85.0**, which was holding back dependency
   updates in bmcd, including one that fixes an advisory. The tree is on 1.98.1
   now; the board gets it at the next flash.
