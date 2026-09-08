@@ -1,0 +1,10 @@
+# The BMC's web interface, so a browser or a Bonjour browser finds the board
+# without anyone knowing its address. HTTPS on 443, not the port-80 redirect:
+# advertising the redirect makes a client take two round trips to reach a page
+# that was always going to be served over TLS.
+#
+# The certificate is self-signed until SQU-115, so this points at a page the
+# browser will warn about. That is the same warning it gives for the address,
+# and hiding the board does not make the certificate better.
+type _https._tcp
+port 443

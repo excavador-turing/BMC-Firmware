@@ -37,6 +37,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`turingpi.local` resolves again** (SQU-162). Dropping avahi for rootfs
+  headroom (SQU-110) also removed the board's mDNS advertisement, and nothing
+  replaced it — so `tpi` with no `--host` has failed since v2.3.0, because its
+  default host is literally `turingpi.local`, and upstream's documentation
+  tells people to reach the board that way. Nobody noticed here because this
+  estate always passes an address.
+
+  `mdnsd` replaces avahi: BSD-3, about 40 KB, and no D-Bus, expat or libdaemon
+  behind it — which is what made avahi expensive, not avahi itself. The board
+  advertises its own hostname, so a default image is `turingpi.local` again and
+  a renamed board is whatever it was renamed to.
+- The web interface is advertised as `_https._tcp` on 443, so a Bonjour browser
+  finds the board. Port 443 rather than the port-80 redirect: advertising the
+  redirect costs a client two round trips to reach a page that was always going
+  to be served over TLS.
+
 - **The promotion gate checks that the image is the one that was staged, and
   that it serves metrics** (SQU-140). The two existing checks prove the image
   is *alive* — the daemon answers, the switch ports exist — and neither proves
