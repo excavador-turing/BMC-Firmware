@@ -9,7 +9,7 @@
 > anything newer. This fork exists to have a firmware that builds, releases and
 > installs from a pipeline we can see.
 
-## Running now: `v2.3.0`
+## Running now: `v2.4.0`
 
 The first **stable** release of this fork. Everything before it was a
 `v2.2.0-unstable-hive.N` pre-release; those tags and their releases have been
@@ -18,12 +18,12 @@ the board after the flash, not inferred from a build.
 
 | verified | evidence |
 |---|---|
-| **A bad image undoes itself.** Promotion waits until bmcd answers on `https://127.0.0.1/` and every compute node's switch port exists; otherwise the board reboots, which lands on the previous image because nothing was renamed and `nextboot` is one-shot | Its own log, across **seven consecutive over-the-air promotions**: `bmcd answered after 3s`, `switch ports present: node1 node2 node3 node4`, then promoted. Six branches were exercised beforehand against a stubbed copy on the board's own busybox, including both failure paths |
+| **A bad image undoes itself.** Promotion waits until bmcd answers on `https://127.0.0.1/` and every compute node's switch port exists; otherwise the board reboots, which lands on the previous image because nothing was renamed and `nextboot` is one-shot | Its own log, across **nine consecutive over-the-air promotions**: `bmcd answered after 3s`, `switch ports present: node1 node2 node3 node4`, then promoted. Six branches were exercised beforehand against a stubbed copy on the board's own busybox, including both failure paths |
 | **The rollback note survives the rollback.** The gate writes to `/mnt/overlay/postupdate.log` | `/var/log` is a symlink into a tmpfs; `/mnt/overlay` is the UBI volume *both* images mount. Read back off the board after each flash |
 | **The board has a temperature.** The T113s thermal sensor is described in the board DTS — mainline has no THS node for this SoC, so the driver was built but never probed | `allwinner,sun20i-d1-ths` bound to `2009400.thermal-sensor`; `/sys/class/thermal/thermal_zone0` reads **52405** millidegrees, and the About page shows 52.0 °C |
 | **The fan is driven by the kernel, from that sensor**, through a thermal zone with trips at 20/45/60/70 °C and a floor at state 3 — the sensor is the BMC SoC but the fan cools the modules | It stepped **6/6 → 4/6** on its own and held there; module temperatures were unchanged at 51–56 °C across the change |
 | **The fan is shown as the seven discrete states the device tree defines**, not as a percentage | `cooling-levels = <0 16 32 64 102 170 254>` read from the board's own device tree; the UI renders a segmented gauge and reports `4 of 6` |
-| **A firmware update no longer touches running nodes.** bmcd reads the live rail state on start and adopts it instead of re-applying what `bmcd.bin` persisted; a cold boot still restores the persisted state | Seven flashes and daemon restarts with four nodes powered: every rail stayed on, every `/proc/uptime` monotonic, no node dropped a ping. Fixes upstream [bmcd#90](https://github.com/turing-machines/bmcd/issues/90) |
+| **A firmware update no longer touches running nodes.** bmcd reads the live rail state on start and adopts it instead of re-applying what `bmcd.bin` persisted; a cold boot still restores the persisted state | Nine flashes and daemon restarts with four nodes powered: every rail stayed on, every `/proc/uptime` monotonic, no node dropped a ping. Fixes upstream [bmcd#90](https://github.com/turing-machines/bmcd/issues/90) |
 | **`power_on_time` is per node and is a duration.** Upstream inferred it from a single shared bit, so the read could only ever agree for node 1, and the UI rendered `now - value` against a value that was already elapsed seconds | It reported `powered on 20703 d 2 h ago`; it now reports the duration the API actually returns, and the enable lines are read back per node |
 | **The switch panel shows real link state** | `ge1` displayed as down — the first time this fork could show a port that was not up. Port-to-node mapping was confirmed by correlating a 45-second traffic delta per port against each module's own NIC: all four tracked within 2–5 %, same ordering |
 | **There is a `/metrics` endpoint**, authenticated, carrying node power and uptime, fan state, SoC temperature and switch per-port counters | `curl` without credentials returns **401**; with them, Prometheus text. The board was the only thing in this estate reporting nothing |
@@ -31,9 +31,11 @@ the board after the flash, not inferred from a build.
 | **A serial console per module, in the browser.** A browser cannot set `Authorization` on a websocket handshake, so the token rides the subprotocol — the pattern Kubernetes uses — and the server echoes back the non-bearer entry | Live on `/console`; xterm is a lazy chunk the main bundle never loads |
 | **Linux 6.12.109 LTS on Buildroot 2025.02.17 LTS**, both pinned, five out-of-tree patches re-ported | `uname -r` on the board. Upstream builds on Buildroot 2024.05.1 (EOL) and a 6.8 kernel that is not a longterm release |
 | **Built with Rust 1.98.1**, up from 1.85.0, which had been holding back a bmcd dependency update that closes an advisory | `rustc --version` in the build container; the vendored archive is pinned by sha256 against that toolchain |
-| **The image is 78 % of its UBI slot** — 36,974,592 of 46,981,120 bytes — and the build **fails at 90 %** | Down from 37,326,848 while *gaining* a serial console, four new panels and a newer toolchain |
+| **The image is 78 % of its UBI slot** — 36,990,976 of 46,981,120 bytes — and the build **fails at 90 %** | Down from 37,326,848 while *gaining* a serial console, four new panels and a newer toolchain |
 | **A tagged release builds in ~23 minutes**, every input pinned by sha256 (bmcd, tpi, bmc_installer, bmc-ui, the Rust toolchain) and every action pinned by commit | Release history in this repo |
 | **`tpi info` reports the release tag**, and `tpi firmware` completes in ~23 s | It used to report the Buildroot version, so a flashed board could not say what was on it |
+| **The About page reports the Linux kernel.** Nothing in the daemon read it before, so `uname -r` over SSH was the only way to confirm which kernel had actually booted after a bump | The live page: `Linux kernel 6.12.109`, matching `/proc/sys/kernel/osrelease` on the board |
+| **The Firmware Upgrade page names the version that is staged**, not merely that something is. The staging volume is static and never mounted, so its version cannot be read on a running system; the stager records the tag, checksum and time to `/mnt/overlay/staged-firmware` instead, and the promotion script removes it once it has decided | Proven by mutation, not by reading the code: with no note the API reports `staged: null`; with one it reports every field; with the note removed it returns to `null`. The page renders `Staged version v2.5.0 · tpi-selfupdate`. The writer and the clearer are both present in the running image |
 
 ### Known, on this version
 
