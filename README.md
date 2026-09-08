@@ -31,7 +31,7 @@ the board after the flash, not inferred from a build.
 | **A serial console per module, in the browser.** A browser cannot set `Authorization` on a websocket handshake, so the token rides the subprotocol — the pattern Kubernetes uses — and the server echoes back the non-bearer entry | Live on `/console`; xterm is a lazy chunk the main bundle never loads |
 | **Linux 6.12.109 LTS on Buildroot 2025.02.17 LTS**, both pinned, five out-of-tree patches re-ported | `uname -r` on the board. Upstream builds on Buildroot 2024.05.1 (EOL) and a 6.8 kernel that is not a longterm release |
 | **Built with Rust 1.98.1**, up from 1.85.0, which had been holding back a bmcd dependency update that closes an advisory | `rustc --version` in the build container; the vendored archive is pinned by sha256 against that toolchain |
-| **The image is 78 % of its UBI slot** — 36,978,688 of 46,981,120 bytes — and the build **fails at 90 %** | Down from 37,326,848 while *gaining* a serial console, four new panels and a newer toolchain |
+| **The image is 78 % of its UBI slot** — 36,974,592 of 46,981,120 bytes — and the build **fails at 90 %** | Down from 37,326,848 while *gaining* a serial console, four new panels and a newer toolchain |
 | **A tagged release builds in ~23 minutes**, every input pinned by sha256 (bmcd, tpi, bmc_installer, bmc-ui, the Rust toolchain) and every action pinned by commit | Release history in this repo |
 | **`tpi info` reports the release tag**, and `tpi firmware` completes in ~23 s | It used to report the Buildroot version, so a flashed board could not say what was on it |
 
