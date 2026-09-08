@@ -13,7 +13,7 @@
 # Deliberately does NOT reboot unless asked. Staging is reversible right up to
 # the reboot -- `fw_setenv nextboot` alone puts everything back.
 
-REPO="excavador/tp2-bmc-firmware"
+REPO="excavador-turing/BMC-Firmware"
 # An HTTP directory to scan instead of a GitHub repository. Set with --url.
 SOURCE_URL=""
 CHANNEL="stable"

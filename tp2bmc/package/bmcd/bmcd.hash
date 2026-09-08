@@ -19,9 +19,16 @@
 # tree instead of downloading the pinned archive, so a hash computed with one
 # in place would describe whatever happened to be on the workstation.
 #
-# The version is commit f7d2c9d on excavador/bmcd branch `hive`, released as
-# v2.8.0: configurable firmware sources, the catalogue, firmware_install and
-# the staging guard. Computed with rust-bin 1.98.1 in the pinned container
-# and verified by re-running `make bmcd-source` with this file in place.
-sha256  9b38177fa1920e99da6b0cf8fb08d288e79429a6535ff5755ca046ef22648af7  bmcd-f7d2c9da1c48360d4fe45741980e66b94090254e-cargo2.tar.gz
+# The version is commit 4ad46f6 on excavador-turing/bmcd branch `hive`,
+# released as v2.9.0: the fork's move to its own organization, which is more
+# than a rename -- firmware-sources.json persists on the overlay, so bmcd
+# rewrites a stored retired location on read. Without that a board keeps
+# polling the archived repository, sees the releases it already knew, and
+# never learns of another one.
+#
+# Computed with rust-bin 1.98.1 in the pinned container and verified by
+# re-running `make bmcd-source` with this file in place: the first run
+# reported expected 9b38177f / got 7515878b, and the number below is the one
+# buildroot MEASURED, not the one that was hoped for.
+sha256  7515878b8135520a10ebd7e6fa5a43e8a577d158097a6d0c1cdc8e05d991dab0  bmcd-4ad46f64f1e11470aa42bd64fa64845b4e0a5b6b-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
