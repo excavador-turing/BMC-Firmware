@@ -1,7 +1,7 @@
 ###########################################################
 # turing pi CLI
 ###########################################################
-TPI_VERSION:= 101c3acb1fe07b1a95c370429901e0b8baf29a71
+TPI_VERSION:= eda96fb8bfb727a2650c339a37a18482730593ca
 TPI_SITE = $(call github,excavador-turing,tpi,$(TPI_VERSION))
 TPI_LICENSE = Apache-2.0
 TPI_LICENSE_FILES = LICENSE

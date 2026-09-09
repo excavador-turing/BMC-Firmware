@@ -41,22 +41,25 @@ trap 'rm -rf "$WORK"' EXIT INT TERM
 LOGFILE="$WORK/postupdate.log"
 STAGED_NOTE="$WORK/staged-firmware"
 OS_RELEASE="$WORK/os-release"
-METRICS_TOKEN="$WORK/metrics-token"
+METRICS_URL="http://127.0.0.1:9110/metrics"
 CURL_BIN="$WORK/curl"
 
 PASS=0
 FAIL=0
 
 #
-# stub_curl TOKEN_BEHAVIOUR METRICS_BEHAVIOUR
+# stub_curl METRICS_BEHAVIOUR
 #
-# Writes a fake curl that answers the gate's two requests. Behaviours:
+# Writes a fake curl that answers the gate's one request. Behaviours:
 #
-#   token:   a hex string to hand out, or "refuse" (empty answer, as a
-#            daemon that is up but rejects the request), or "dead" (exit 7,
-#            as a daemon that is not listening at all)
-#   metrics: "ok" (a body containing bmcd_build_info), "empty" (a 200 with
-#            an unrelated body -- the broken-build case), or "dead" (exit 7)
+#   "ok" (a body containing bmcd_build_info), "empty" (a 200 with an
+#   unrelated body -- the broken-build case), or "dead" (exit 7, as a daemon
+#   that is not listening at all).
+#
+# It takes one argument now. The gate used to make two requests: mint a
+# metrics token through /api/bmc, then present it to /metrics. /metrics moved
+# to its own plain listener and takes no credential, so both the token
+# behaviour and the stub arm that served it are gone.
 #
 # It is a real executable on a real path, so the gate's `[ -x ]` check and
 # its argument handling are exercised, not bypassed.
@@ -66,15 +69,8 @@ stub_curl() {
 #!/bin/sh
 for arg in "\$@"; do
 	case "\$arg" in
-		*type=metrics_token*)
-			case "$1" in
-				refuse) exit 0 ;;
-				dead)   exit 7 ;;
-				*) printf '{"response":[{"result":{"token":"%s"}}]}' "$1"; exit 0 ;;
-			esac
-			;;
 		*/metrics)
-			case "$2" in
+			case "$1" in
 				ok)    printf 'bmcd_build_info{version="v2.8.0"} 1\n'; exit 0 ;;
 				empty) printf 'some_other_metric 1\n'; exit 0 ;;
 				dead)  exit 7 ;;
@@ -123,8 +119,6 @@ check() {
 running_is() { printf 'ID=tp2bmc\nVERSION=%s\n' "$1" >"$OS_RELEASE"; }
 note_says()  { printf '%s\n' "$1" >"$STAGED_NOTE"; }
 no_note()    { rm -f "$STAGED_NOTE"; }
-token_file() { printf 'TOKEN=%s\nCREATED_AT=2026-09-08T00:00:00Z\n' "$1" >"$METRICS_TOKEN"; }
-no_token_file() { rm -f "$METRICS_TOKEN"; }
 
 echo "gate contract tests -- $SCRIPT"
 echo
@@ -132,8 +126,7 @@ echo
 # --- the happy path ------------------------------------------------------
 running_is v2.8.0
 note_says 'VERSION=v2.8.0'
-token_file deadbeef
-stub_curl deadbeef ok
+stub_curl ok
 check 'note v2.8.0, image v2.8.0' 0 'version matches the staged note'
 
 # --- the rejection this gate exists for ----------------------------------
@@ -168,35 +161,20 @@ check 'no staged note' 0 'no staged note'
 # The whole reason for the second half: both earlier checks pass here.
 running_is v2.8.0
 note_says 'VERSION=v2.8.0'
-stub_curl deadbeef empty
+stub_curl empty
 check 'daemon answers without bmcd_build_info' 1 'FAILED: /metrics did not answer'
 
 # --- the daemon does not answer /metrics at all --------------------------
-stub_curl deadbeef dead
+stub_curl dead
 check 'daemon does not answer /metrics' 1 'FAILED: /metrics did not answer'
 
-# --- a fresh board: no token file yet ------------------------------------
-# This case caught a real bug. The first draft read the token from the
-# overlay file, and /metrics -- unlike /api/bmc -- has NO loopback
-# exception, so every good image on a board that had never minted a token
-# would have been rolled back. The gate asks the daemon instead, and
-# type=metrics_token mints one when none exists.
+# --- the endpoint answers with the wrong body ----------------------------
+# A build whose /metrics serves something, but not this daemon's own
+# families, is exactly what the first two checks would wave through.
 running_is v2.8.0
 note_says 'VERSION=v2.8.0'
-no_token_file
-stub_curl feedface ok
-check 'no token file; the daemon mints one' 0 'metrics answer, with bmcd_build_info'
-
-# --- the token API refuses, but the file is there ------------------------
-running_is v2.8.0
-token_file deadbeef
-stub_curl refuse ok
-check 'token API refuses; overlay file used' 0 'token read from the overlay'
-
-# --- neither the daemon nor a file will give a token ---------------------
-no_token_file
-stub_curl refuse ok
-check 'no token anywhere' 1 'FAILED: no metrics token'
+stub_curl empty
+check 'metrics answers, but not with bmcd_build_info' 1 'FAILED: /metrics did not answer'
 
 # --- no curl on the board ------------------------------------------------
 # Not a hypothetical: a rootfs-headroom change could drop it. The version
@@ -214,8 +192,7 @@ note_says 'VERSION=v2.8.1-rc1
 FILE=tp2-bmc-firmware-ota-v2.8.1-rc1.tpu
 STAGED_AT=2026-09-08T23:32:57Z
 SOURCE=upload'
-token_file deadbeef
-stub_curl deadbeef ok
+stub_curl ok
 check 'the board, as it stands' 0 'version matches the staged note: v2.8.1-rc1'
 
 echo

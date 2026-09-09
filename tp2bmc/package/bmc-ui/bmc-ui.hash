@@ -10,20 +10,21 @@
 # BMC_UI_LICENSE_FILES = LICENSE -- shipped no LICENSE at all, which for a
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
-# Verified 2026-09-09: 579146 bytes, built by GitHub Actions from tag
-# v3.15.0. The sum was recomputed from the downloaded bytes rather than read
+# Verified 2026-09-09: 577994 bytes, built by GitHub Actions from tag
+# v3.17.0. The sum was recomputed from the downloaded bytes rather than read
 # out of the release's own SHA256SUMS -- a manifest published beside an asset
 # cannot attest to it, and catching a re-uploaded asset is the whole reason
 # this file exists.
 #
-# v3.15.0 puts the fan slider behind an explicit Override switch that
-# actually holds, and offers that switch only where the daemon reports it can
-# pause a governor. Turning it on does not move the fan: the step it is on
-# becomes the step it is held at.
+# v3.16.0 folded the pages' standing explanations behind (i) popovers that
+# link to the docs site. v3.17.0 removed the Metrics token card: /metrics
+# moved to its own credential-free listener, so there is no token to show or
+# rotate, and a card offering to rotate one would imply a protection that is
+# not there.
 #
 # The sum is UNCHANGED across the move to excavador-turing. The asset was
 # rebuilt from the same tree under the new owner and came out byte-identical
 # -- 573360 bytes, same sha256 -- because the release workflow packs with
 # `tar --sort=name | gzip -9 -n`, which pins member order and drops the
 # gzip timestamp. Only the URL in bmc-ui.mk changed.
-sha256  a981b989742c0b1168055ec8aa9b579f0fa2059081fe42b1110ba475a5a916e4  bmc-ui-v3.15.0.tar.gz
+sha256  59b4495e3405dc6469e666b7d782040912f370eef12fe0c41443d0403c80933b  bmc-ui-v3.17.0.tar.gz

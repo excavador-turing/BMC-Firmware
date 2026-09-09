@@ -19,16 +19,19 @@
 # tree instead of downloading the pinned archive, so a hash computed with one
 # in place would describe whatever happened to be on the workstation.
 #
-# The version is commit d695b61 on excavador-turing/bmcd branch `hive`,
-# released as v2.23.0: a fan that can be held at a step with a temperature
-# ceiling that takes it back, a flash that targets the module asked for
-# rather than the one that answered first, and an audit line per mutating
-# call that names the caller -- including when the caller was the loopback
-# bypass and there was no credential at all.
+# The version is commit 8789ef5 on excavador-turing/bmcd branch `hive`,
+# released as v2.27.0. Since v2.23.0 (firmware v2.14.0): the OpenAPI document
+# describes what its operations answer with, derived from the types the
+# handlers serialise and checked against them; `bmcd --openapi` prints that
+# document without a board; and /metrics moved to its own plain listener on
+# port 9110 with the metrics token removed entirely.
+#
+# That last one changes S99postupdate: the gate used to mint itself a token
+# through the /api/bmc loopback bypass, and now makes one plain request.
 #
 # Measured 2026-09-09 with rust-bin 1.98.1 in the pinned container, from a
 # tree with no buildroot/local.mk: `make bmcd-source` reported got
-# 05c70daa against a zeroed expectation, then re-run to confirm it fetches
+# cd81e04b against a zeroed expectation, then re-run to confirm it fetches
 # and verifies cleanly.
-sha256  05c70daa87a36d60f97bb5f7388e0896e8157193caea532a9884478f79e68585  bmcd-d695b61d12e535526ca299c0857849e7b53bd1cb-cargo2.tar.gz
+sha256  cd81e04b565014924a0842f35e17b285ec90890a10f6f97f18b83bd89eb8c1ca  bmcd-8789ef5423119857d8be57f270e8f277c9fc19bc-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

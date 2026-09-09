@@ -13,6 +13,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.15.0] — 2026-09-09
+
+### Changed
+
+- **`/metrics` is served on port 9110, plain HTTP, with no credential**
+  (SQU-178). It used to sit on `:443` beside the API and the web interface,
+  behind TLS and a token of its own.
+
+  The token existed for one reason: so that a credential in a scrape config
+  could not also reach `/api/bmc` and power four compute modules off. On a
+  listener that serves nothing but `/metrics` there is nothing else to reach,
+  so the property survives and the mechanism is a port instead of a secret.
+  The TLS was always scraped with verification disabled, because this board's
+  certificate is expired and carries no SAN, so it bought nothing and cost a
+  handshake per scrape on a Cortex-A7.
+
+  **A scrape config pointed at `:443` will stop working.** Point it at 9110,
+  drop the basic auth and drop the TLS block.
+
+- **The promotion gate no longer depends on the `/api/bmc` loopback bypass.**
+  It used to reach through it to mint itself a metrics token before it could
+  check the endpoint; it now makes one plain request. The on-board `tpi` is
+  the only remaining user of that bypass.
+
+  `tests/gate.sh` shrank with it — the stub's token behaviour and the three
+  cases exercising token retrieval are gone, replaced by one case for an
+  endpoint that answers with the wrong body. Ten cases, all passing, and
+  proven to fail by accepting any body at all.
+
+- **bmcd v2.23.0 → v2.27.0**, **`tpi` v1.3.0 → v1.4.0**, **BMC-UI v3.15.0 →
+  v3.17.0**. Beyond the metrics change: the OpenAPI document now describes
+  what its operations answer with and is checked against what the daemon
+  sends, `bmcd --openapi` prints it without a board, and the interface folded
+  its standing explanations behind (i) popovers linking to the docs site.
+
+### Removed
+
+- **`/mnt/overlay/metrics-token`.** Nothing writes or reads it. An existing
+  file is harmless and is simply ignored; the daemon will not recreate one.
+
 ## [v2.14.0] — 2026-09-09
 
 ### Changed

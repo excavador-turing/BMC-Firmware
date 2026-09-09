@@ -50,11 +50,11 @@ STAGED_NOTE=/mnt/overlay/staged-firmware
 # the only moment anything knows: the volume itself is never mounted.
 ROLLBACK_VERSION=/mnt/overlay/rollback-version
 
-# What the running image says it is, and the credential /metrics takes.
+# What the running image says it is, and where /metrics is served.
 # Variables rather than literals so the gate can be exercised against a
 # stubbed copy on the board's own shell, without a flash.
 OS_RELEASE=/etc/os-release
-METRICS_TOKEN=/mnt/overlay/metrics-token
+METRICS_URL=http://127.0.0.1:9110/metrics
 # The curl the gate uses, for the same reason: tests/gate.sh points this at a
 # stub, so the `-x` check and the argument handling are exercised rather than
 # bypassed.
@@ -163,11 +163,10 @@ is_versioned() {
 # that names no version (a dev build) skips the comparison but still has to
 # serve metrics -- a dev image is exactly the one most likely to be wrong.
 #
-# The token is asked of the daemon, not read from a file. /api/bmc is
-# loopback-bypassed and type=metrics_token MINTS the token if none exists
-# yet, so a fresh board passes. /metrics itself has NO loopback exception --
-# tested on the board -- so with no credential it fails closed, which is
-# right for a scrape endpoint and would be wrong for this gate.
+# No credential is fetched any more. /metrics moved to its own plain-HTTP
+# listener on 9110 and takes none, so this check is one request. That also
+# removed this gate's last dependence on the /api/bmc loopback bypass, which
+# it used to need in order to mint a token for itself.
 #
 release_matches() {
 	running=$(sed -n 's/^VERSION=//p' "$OS_RELEASE" 2>/dev/null | tr -d '"' | head -1)
@@ -190,17 +189,7 @@ release_matches() {
 		return 0
 	fi
 
-	tok=$("$CURL_BIN" -sk --max-time 10 "https://127.0.0.1/api/bmc?opt=get&type=metrics_token" 2>/dev/null \
-		| sed -n 's/.*"token":"\([0-9a-f]*\)".*/\1/p' | head -1)
-	if [ -z "$tok" ]; then
-		tok=$(sed -n 's/^TOKEN=//p' "$METRICS_TOKEN" 2>/dev/null | head -1 | tr -d '\r')
-		[ -n "$tok" ] && log "metrics token read from the overlay; the daemon did not hand one out"
-	fi
-	if [ -z "$tok" ]; then
-		log "FAILED: no metrics token from the daemon or the overlay"
-		return 1
-	fi
-	body=$("$CURL_BIN" -sk --max-time 10 -u "metrics:$tok" https://127.0.0.1/metrics 2>/dev/null) || body=""
+	body=$("$CURL_BIN" -s --max-time 10 "$METRICS_URL" 2>/dev/null) || body=""
 
 	case "$body" in
 		*bmcd_build_info*)
