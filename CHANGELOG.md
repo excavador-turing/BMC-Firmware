@@ -17,7 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- bmcd **2.15.0**, `tpi` **1.2.0**, BMC-UI **3.9.0**. Between them this release
+- bmcd **2.15.1**, `tpi` **1.2.0**, BMC-UI **3.9.0**. Between them this release
   carries: a firmware catalogue that answers from cache and refreshes behind
   itself instead of blocking the page for sixteen seconds; park mode, so an
   uploaded image lands on the SD card and installing stays a separate choice;
