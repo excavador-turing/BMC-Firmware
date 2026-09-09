@@ -13,6 +13,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.9.2] — 2026-09-09
+
+### Changed
+
+- BMC-UI **3.9.2**: each firmware source lists its newest three versions,
+  always, with the rest behind "show N more". The previous rule showed only
+  versions at or above the running one, which left an empty card the moment
+  the board ran something no source had published yet.
+
 ## [v2.9.1] — 2026-09-09
 
 ### Changed
@@ -146,7 +155,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   drives the fan from it instead of a fixed persisted speed.
 - `SHA256SUMS` published per release and verified on download.
 
-[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.9.1...hive
+[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.9.2...hive
+[v2.9.2]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.2
 [v2.9.1]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.1
 [v2.9.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.0
 [v2.8.1]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.8.1
