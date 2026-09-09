@@ -1,14 +1,15 @@
 # Cargo package: the sum is of Buildroot's vendored, re-packed archive
 # (see bmcd.hash for the toolchain trap this shares).
 #
-# The version is commit ab07e21 on excavador-turing/tpi, released as v1.5.0:
-# `firmware install` re-resolves against a forced poll before refusing, so it
-# no longer rejects the very command `firmware check` printed. The two read
-# different caches with independent timing, and for up to half an hour after
-# a release one could see it and the other could not.
+# The version is commit 1a4afca on excavador-turing/tpi, released as v1.5.1:
+# `firmware install` WAITS for the board's re-poll to land before refusing.
+# v1.5.0 claimed this and did not do it -- forcing a poll does not fetch, the
+# daemon spawns it and returns the cached list at once, so re-resolving hit
+# the same stale answer. Proved on the board before this pin: the same refusal
+# takes 1 s on 1.5.0 and 58 s on 1.5.1, and the catalogue's checked_at moves.
 #
 # Measured 2026-09-09 with rust-bin 1.98.1 in the pinned container: `make
-# tpi-source` reported got 656f88b6 against a zeroed expectation, then
+# tpi-source` reported got 7b612dee against a zeroed expectation, then
 # re-run to confirm it fetches and verifies cleanly.
-sha256  656f88b6a10a32214b0b21876aebbb23fbc0482062973461650e59da45ad43a9  tpi-ab07e210bda4f9611cf784984692e2ea4299bb40-cargo2.tar.gz
+sha256  7b612dee9ec4a0b0f43f6ca23662a25555c46c21624f293335001c8dd2a92d2c  tpi-1a4afca6fe26ba0552ba3e3513aeb5e4ecaa0828-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE

@@ -13,7 +13,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.18.0] — 2026-09-09
+
+### Fixed
+
+- **`tpi` v1.5.0 → v1.5.1: the fix v2.17.0 shipped did not work.** `firmware
+  install` still refused the command `firmware check` had just printed.
+
+  v1.5.0 asked the board to re-poll its firmware sources and resolved against
+  the answer — but `firmware_available&refresh=1` does not fetch. The daemon
+  *spawns* the poll and returns the cached list immediately with `refreshing`
+  set, so the second resolution ran against the same stale list as the first.
+  Confirmed on the board: a forced request came back in one second carrying
+  the same `checked_at` it had before the call.
+
+  v1.5.1 waits for the poll to land before re-resolving, keyed on
+  `checked_at`, which advances exactly once a poll completes. Bounded at 180 s,
+  and a refusal that hits the bound says the poll did not finish rather than
+  claiming no source has the version.
+
+  Proved on the board before this release rather than after, with a version
+  that exists nowhere so nothing could install either way:
+
+  | build | elapsed | `checked_at` |
+  |---|---|---|
+  | 1.5.0 | 1 s | unchanged |
+  | 1.5.1 | 58 s | 20:50:57 → 20:52:11 |
+
 ## [v2.17.0] — 2026-09-09
+
+> **The `tpi` change below is inert.** It describes behaviour v1.5.0 did not
+> have; v2.18.0 carries the version that does. Kept as written, because a
+> release note that quietly becomes true later teaches nobody anything.
+
+
 
 ### Changed
 
