@@ -46,6 +46,10 @@ LOGFILE=/mnt/overlay/postupdate.log
 # already running, or one that was rejected.
 STAGED_NOTE=/mnt/overlay/staged-firmware
 
+# What the rollback volume holds, written here at promotion because this is
+# the only moment anything knows: the volume itself is never mounted.
+ROLLBACK_VERSION=/mnt/overlay/rollback-version
+
 # What the running image says it is, and the credential /metrics takes.
 # Variables rather than literals so the gate can be exercised against a
 # stubbed copy on the board's own shell, without a flash.
@@ -321,6 +325,20 @@ postupdate() {
 	fi
 	ubirename "$UBIDEV" $renames
 	echo "postupdate: Volumes renamed: $renames"
+
+	# Carry forward what this image replaced, before the note is removed.
+	#
+	# The rollback volume is not mounted, so nothing on a running board can
+	# read its version -- which is why the interface could only say "version
+	# not readable". The stager knew it and wrote REPLACES=; this is the one
+	# moment it is still on disk and the rename has just made it true.
+	# Never fatal: a board that cannot record this has still promoted.
+	replaces=$(sed -n 's/^REPLACES=//p' "$STAGED_NOTE" 2>/dev/null | head -1 | tr -d '\r')
+	if [ -n "$replaces" ]; then
+		printf '%s\n' "$replaces" > "$ROLLBACK_VERSION" 2>/dev/null \
+			|| log "could not record the rollback version"
+	fi
+
 	# Promoted: what the note describes is now what is running.
 	clear_staged_note
 }

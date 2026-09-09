@@ -550,6 +550,10 @@ if [ -d "$(dirname "$STAGED_NOTE")" ]; then
 		printf 'STAGED_AT=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 		printf 'SIZE_BYTES=%s\n' "$size"
 		printf 'SOURCE=tpi-selfupdate\n'
+		# What this image replaces. Only the stager knows: the gate runs
+		# as the NEW image, and the old one's volume is unmounted, so its
+		# version cannot be read from a running board.
+		printf 'REPLACES=%s\n' "$running"
 	} > "$STAGED_NOTE" || log "warning: could not record the staged version in $STAGED_NOTE"
 fi
 
