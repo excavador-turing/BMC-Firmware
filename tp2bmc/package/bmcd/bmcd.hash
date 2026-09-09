@@ -19,18 +19,17 @@
 # tree instead of downloading the pinned archive, so a hash computed with one
 # in place would describe whatever happened to be on the workstation.
 #
-# The version is commit a8fa484 on excavador-turing/bmcd branch `hive`,
-# released as v2.15.0: a catalogue that answers from cache and refreshes
-# behind itself, park mode, the hostname and time settings, config export,
-# and the thermal zone's trip points.
+# The version is commit 0adb80b on excavador-turing/bmcd branch `hive`,
+# released as v2.16.0: one path per API operation over the same dispatcher,
+# and the daemon's own OpenAPI 3.1 description at /api/bmc/openapi.json.
 #
 # The toolchain change is why this sum moved so far: CI validated 1.85.0
 # while THIS container built 1.98.1, and the vendored archive is a product
 # of the compiler. Same source, different bytes -- exactly the trap the
 # comment above describes, now with the two versions finally the same one.
 #
-# Measured, not hoped for: `make bmcd-source` reported got 6e30c665 against a
+# Measured, not hoped for: `make bmcd-source` reported got 03d0ccb2 against a
 # deliberately blank expectation, and 832831fb is what is recorded. Re-run
 # afterwards to confirm the recorded sum is the one the build computes.
-sha256  6e30c665bd4d3d139d423e64e87da677387f7ffedbce12a4d46b67a3b5ddfacc  bmcd-a8fa484ef04882be6a0fc7aa4d4a09bf1b4dc9ce-cargo2.tar.gz
+sha256  03d0ccb218cfd79cc36a64737ab8fa190a932b847e293bc9848fa9659e111aaf  bmcd-0adb80b06fe84ce8c2ac210982c133de3e21ec45-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

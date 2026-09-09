@@ -13,6 +13,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.10.0] — 2026-09-09
+
+### Changed
+
+- bmcd **2.16.0**: every API operation has a path of its own —
+  `GET /api/bmc/thermal`, `POST /api/bmc/hostname` — over the same dispatcher
+  as the `?opt=&type=` form, which stays as it is; refusals on the new paths
+  are RFC 9457 problem documents; and the daemon describes itself at
+  `/api/bmc/openapi.json` (OpenAPI 3.1, response bodies not yet typed).
+- `tpi` **1.2.2**: `firmware install` works — it had never worked in any
+  release — and `firmware list --refresh` waits for the daemon's re-poll
+  instead of printing the previous list.
+
 ## [v2.9.2] — 2026-09-09
 
 ### Changed
@@ -155,7 +168,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   drives the fan from it instead of a fixed persisted speed.
 - `SHA256SUMS` published per release and verified on download.
 
-[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.9.2...hive
+[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.10.0...hive
+[v2.10.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.10.0
 [v2.9.2]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.2
 [v2.9.1]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.1
 [v2.9.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.0
