@@ -9,6 +9,9 @@
 > anything newer. This fork exists to have a firmware that builds, releases and
 > installs from a pipeline we can see.
 
+Where the daemon, the interface and the listeners live, and what was declined
+along the way: [docs/architecture.md](docs/architecture.md).
+
 ## Running now: `v2.5.0`
 
 The first **stable** release of this fork. Everything before it was a
