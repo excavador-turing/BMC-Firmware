@@ -13,6 +13,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.9.0] — 2026-09-09
+
+### Changed
+
+- bmcd **2.15.0**, `tpi` **1.2.0**, BMC-UI **3.9.0**. Between them this release
+  carries: a firmware catalogue that answers from cache and refreshes behind
+  itself instead of blocking the page for sixteen seconds; park mode, so an
+  uploaded image lands on the SD card and installing stays a separate choice;
+  the hostname and the time servers as settings; configuration export and
+  import before board B; the thermal zone's trip points, so the fan's step has
+  a reason attached; a seven-tab interface reorganised around what a person is
+  doing; and a command line that reaches all of it.
+
 ### Added
 
 - **Contract tests for the promotion gate** (`tests/gate.sh`). The gate decides
@@ -122,7 +135,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   drives the fan from it instead of a fixed persisted speed.
 - `SHA256SUMS` published per release and verified on download.
 
-[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.8.1...hive
+[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.9.0...hive
+[v2.9.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.0
 [v2.8.1]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.8.1
 [v2.8.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.8.0
 [v2.7.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.7.0

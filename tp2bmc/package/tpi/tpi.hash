@@ -1,12 +1,11 @@
 # Cargo package: the sum is of Buildroot's vendored, re-packed archive
 # (see bmcd.hash for the toolchain trap this shares).
 #
-# The version is commit a6c2c07 on excavador-turing/tpi, released as v1.1.1:
-# `firmware install` can install an image parked on the SD card (1.1.0 posted
-# it to an endpoint the daemon refuses for local sources), and the default
-# host says so when the name does not resolve.
+# The version is commit 68ec911 on excavador-turing/tpi, released as v1.2.0:
+# hostname, ntp and config commands to match the daemon, and a `firmware
+# list` that says what is staged and whether the last boot rolled back.
 #
 # Measured with rust-bin 1.98.1 in the pinned container: `make tpi-source`
-# reported got 733377bf against a blank expectation, then re-run to confirm.
-sha256  733377bfd9bdaa38ecd5b41dd4dd6e9c6c92cef17d80ac795d483a4b9e492d35  tpi-a6c2c07f88b08260797f395820ec6a7fd4fcb8ce-cargo2.tar.gz
+# reported got 329614fd against a blank expectation, then re-run to confirm.
+sha256  329614fdbd9a7f84200fdec5c818ef3732984bc51400ad1dbedcbbe728f2cfe3  tpi-68ec911a4c06b6debf784cdadd792112e9f6ca56-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE
