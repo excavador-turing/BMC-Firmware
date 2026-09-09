@@ -32,8 +32,17 @@ jobs:
       # runner's shell and not on the board would pass here and fail where it
       # matters, so run the suite under both: dash for POSIX strictness,
       # busybox ash for the actual target.
+      #
+      # The runner image ships third-party apt repositories this job has no
+      # use for. On 2026-09-09 a hash mismatch in Google's failed the step,
+      # so an unrelated repository took down the gate's own tests. Drop the
+      # .list files, which is all of them -- Ubuntu's own archive is a
+      # .sources file and stays.
       - name: install shells
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq dash busybox
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/*.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dash busybox
 
       - name: contract tests (dash)
         run: |
