@@ -1,13 +1,14 @@
 # Cargo package: the sum is of Buildroot's vendored, re-packed archive
 # (see bmcd.hash for the toolchain trap this shares).
 #
-# The version is commit eda96fb on excavador-turing/tpi, released as v1.4.0:
-# `cooling set --hold` and `--auto` from v1.3.0, and v1.4.0 removes `tpi
-# metrics show|rotate` and `config export --with-secrets`, both of which
-# commanded a metrics token the daemon no longer has.
+# The version is commit ab07e21 on excavador-turing/tpi, released as v1.5.0:
+# `firmware install` re-resolves against a forced poll before refusing, so it
+# no longer rejects the very command `firmware check` printed. The two read
+# different caches with independent timing, and for up to half an hour after
+# a release one could see it and the other could not.
 #
 # Measured 2026-09-09 with rust-bin 1.98.1 in the pinned container: `make
-# tpi-source` reported got 111dda56 against a zeroed expectation, then
+# tpi-source` reported got 656f88b6 against a zeroed expectation, then
 # re-run to confirm it fetches and verifies cleanly.
-sha256  111dda5691632e9acc5c92999f00397c781ae9d58dad37f8fd25667d04eba62b  tpi-eda96fb8bfb727a2650c339a37a18482730593ca-cargo2.tar.gz
+sha256  656f88b6a10a32214b0b21876aebbb23fbc0482062973461650e59da45ad43a9  tpi-ab07e210bda4f9611cf784984692e2ea4299bb40-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE

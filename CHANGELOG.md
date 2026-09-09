@@ -13,6 +13,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.17.0] — 2026-09-09
+
+### Changed
+
+- **`tpi` v1.4.0 → v1.5.0.** `firmware install` no longer refuses the command
+  `firmware check` just printed.
+
+  The two read different caches with independent timing: `check` asks the
+  board's update checker, which reaches GitHub, while `install` resolved the
+  requested version against the firmware catalogue, whose entries are fresh
+  for half an hour. Reproduced on a board twenty-seven seconds after v2.16.0
+  published — `check` said `install it with: tpi firmware install v2.16.0` and
+  exited 10; the next command said `no source offers v2.16.0` and exited 1.
+
+  `install` now re-resolves against a forced poll before believing no source
+  has the version. The successful path pays nothing. The refusal itself stays:
+  posting an unresolved version would fail in the middle of a download rather
+  than before it starts.
+
 ## [v2.16.0] — 2026-09-09
 
 ### Changed
