@@ -1,11 +1,13 @@
 # Cargo package: the sum is of Buildroot's vendored, re-packed archive
 # (see bmcd.hash for the toolchain trap this shares).
 #
-# The version is commit 68ec911 on excavador-turing/tpi, released as v1.2.0:
-# hostname, ntp and config commands to match the daemon, and a `firmware
-# list` that says what is staged and whether the last boot rolled back.
+# The version is commit c4d3619 on excavador-turing/tpi, released as v1.2.1:
+# the first release of this tool ever run against a board. 1.2.0 shipped
+# with every fork command broken -- the response unwrapper returned the
+# wrapper array, and serde read it as the struct's fields in order -- and
+# 1.2.1 is the five fixes that followed from actually pointing it at one.
 #
 # Measured with rust-bin 1.98.1 in the pinned container: `make tpi-source`
-# reported got 329614fd against a blank expectation, then re-run to confirm.
-sha256  329614fdbd9a7f84200fdec5c818ef3732984bc51400ad1dbedcbbe728f2cfe3  tpi-68ec911a4c06b6debf784cdadd792112e9f6ca56-cargo2.tar.gz
+# reported got dd5bbcfb against a blank expectation, then re-run to confirm.
+sha256  dd5bbcfb23b171faa8c3cb9bb1e6d25d0ed324f8dc54c734b9c69c2626929950  tpi-c4d36199d20dafc996a3723e32ac2cdd21c12413-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE

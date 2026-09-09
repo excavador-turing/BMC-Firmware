@@ -11,7 +11,7 @@
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
 # Verified 2026-09-08: 573360 bytes, built by GitHub Actions from tag
-# v3.9.0, checked against the release's own SHA256SUMS. v3.9.0 adds the
+# v3.9.1, checked against the release's own SHA256SUMS. v3.9.1 adds the
 # firmware source editor and the list of installable versions, both of which
 # need a bmcd that answers type=firmware_available (v2.8.0 or newer; the
 # firmware now pins v2.9.0).
@@ -21,4 +21,4 @@
 # -- 573360 bytes, same sha256 -- because the release workflow packs with
 # `tar --sort=name | gzip -9 -n`, which pins member order and drops the
 # gzip timestamp. Only the URL in bmc-ui.mk changed.
-sha256  827015c79ef606bd4ee165dcc9e32fc3f7ae675740ddd7684ea324db2e0a158e  bmc-ui-v3.9.0.tar.gz
+sha256  d3ed5ebe37dbc4205c01280622aa3635ada7297aa3f7665d58a909ed05b06d20  bmc-ui-v3.9.1.tar.gz

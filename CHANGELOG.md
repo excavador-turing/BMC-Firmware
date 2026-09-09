@@ -13,6 +13,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.9.1] — 2026-09-09
+
+### Changed
+
+- `tpi` **1.2.1** and BMC-UI **3.9.1**. The CLI in v2.9.0 was the one whose
+  every fork command failed against a real board — the first release of the
+  tool ever run against one found five bugs, all fixed here. The interface's
+  USB selector no longer prints its label through its value, and every
+  candidate from a GitHub source has a link to its release notes beside
+  Install.
+
 ## [v2.9.0] — 2026-09-09
 
 ### Changed
@@ -135,7 +146,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   drives the fan from it instead of a fixed persisted speed.
 - `SHA256SUMS` published per release and verified on download.
 
-[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.9.0...hive
+[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.9.1...hive
+[v2.9.1]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.1
 [v2.9.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.0
 [v2.8.1]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.8.1
 [v2.8.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.8.0
