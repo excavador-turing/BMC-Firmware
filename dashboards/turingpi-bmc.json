@@ -1008,7 +1008,7 @@
       "gridPos": {
         "x": 0,
         "y": 39,
-        "w": 8,
+        "w": 6,
         "h": 6
       },
       "targets": [
@@ -1082,9 +1082,9 @@
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 8,
+        "x": 6,
         "y": 39,
-        "w": 8,
+        "w": 6,
         "h": 6
       },
       "targets": [
@@ -1167,9 +1167,9 @@
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 16,
+        "x": 12,
         "y": 39,
-        "w": 8,
+        "w": 6,
         "h": 6
       },
       "targets": [
@@ -1410,6 +1410,67 @@
         },
         "tooltip": {
           "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Threads",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "id": 25,
+      "gridPos": {
+        "x": 18,
+        "y": 39,
+        "w": 6,
+        "h": 6
+      },
+      "description": "Threads the daemon has, beside the memory panel to its left. That pairing is the point: a heap leak grows the resident set with this flat, while a leaked task or an unreaped blocking thread grows both, because every thread carries a stack.\n\nOn 2026-09-09 the board lost about a megabyte a minute and neither series existed, so the two could not be told apart. SQU-172.",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "bmcd_process_threads",
+          "refId": "A",
+          "legendFormat": "threads"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "axisPlacement": "auto"
+          },
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
           "sort": "none"
         }
       }

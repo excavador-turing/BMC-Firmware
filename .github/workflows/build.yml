@@ -41,7 +41,57 @@ permissions:
   contents: read
 
 jobs:
+  # CHANGELOG.md states the policy this enforces: "a two-hour Buildroot run for
+  # a file that never reaches the board is waste." Until now that was a rule
+  # nothing checked, and every push to `hive` cost two hours whether or not it
+  # could change a byte of the image.
+  #
+  # Fails OPEN in every uncertain case -- a tag, a workflow_dispatch, a pull
+  # request, a new branch, a force push, an unreadable diff -- because a build
+  # that runs needlessly costs time, and one that is skipped wrongly ships an
+  # untested image. Tags always build, so a release can never be skipped by
+  # this, whatever it decides.
+  gate:
+    name: is a build needed
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.decide.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - id: decide
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -eu
+          decide() {
+            printf 'build=%s\n' "$1" >> "$GITHUB_OUTPUT"
+            printf '%s: %s\n' "$1" "$2" >> "$GITHUB_STEP_SUMMARY"
+            echo "$1: $2"
+            exit 0
+          }
+          [ "${{ github.event_name }}" = "push" ] || decide true "not a push"
+          case "${{ github.ref }}" in refs/tags/*) decide true "a tag always builds";; esac
+          case "$BEFORE" in ""|0000000000000000000000000000000000000000)
+            decide true "no previous commit to compare against";; esac
+          changed=$(git diff --name-only "$BEFORE" "${{ github.sha }}") \
+            || decide true "could not read the diff"
+          [ -n "$changed" ] || decide true "empty diff"
+          # Anything NOT matching these can change the image, so it builds.
+          relevant=$(printf '%s\n' "$changed" | grep -vE \
+            '^(dashboards/|tests/|\.github/workflows/checks\.yml$|.*\.md$|LICENSE$)' || true)
+          if [ -z "$relevant" ]; then
+            decide false "nothing changed that reaches the board"
+          fi
+          echo "these can change the image:"
+          printf '  %s\n' $relevant
+          decide true "$(printf '%s\n' "$relevant" | wc -l) path(s) reach the board"
+
   build:
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write   # the release step; nothing else writes

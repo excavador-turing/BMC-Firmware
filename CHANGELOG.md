@@ -15,6 +15,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- A **Threads** panel on the dashboard, over `bmcd_process_threads` (bmcd
+  2.20.0), sitting beside Memory in the BMC health row. The pairing is the
+  point: a heap leak grows the resident set with the thread count flat, while a
+  leaked task grows both. Neither series existed during the 2026-09-09 outage,
+  which is why it could not be attributed.
+- A **gate on the build** (`build.yml`). This file has said since it was
+  written that "a two-hour Buildroot run for a file that never reaches the
+  board is waste", and nothing enforced it -- every push to `hive` cost two
+  hours whether or not it could change a byte of the image. A short job now
+  decides, and the build waits on it.
+
+  It fails open in every uncertain case: a tag, a dispatch, a pull request, a
+  new branch, a force push, an unreadable diff. **Tags always build**, so a
+  release can never be skipped by this whatever it decides. Verified against
+  four representative file sets and a real commit pair.
+
+### Not yet pinned
+
+- bmcd **2.20.0** adds `bmcd_process_threads`, which the new panel reads. The
+  pin still points at 2.19.0: there is no point cutting a firmware release
+  while the board cannot be flashed (SQU-172). Bump it with the next release.
+
 - A Grafana dashboard, `dashboards/turingpi-bmc.json`, published as a release
   asset and checksummed into `SHA256SUMS`. It covers every metric the daemon
   emits in five rows, including the two added after the 2026-09-09 outage: the
