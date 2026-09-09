@@ -13,6 +13,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Attaching a serial console could kill the board.** The kernel is built with
+  `CONFIG_MAGIC_SYSRQ=y` and boots with `console=ttyS0`, so a BREAK on that line
+  is a SysRq trigger and the next byte is the command. USB-serial adapters
+  assert BREAK as a matter of course when a port is opened, closed, or has its
+  line settings changed. Nothing set `kernel.sysrq`, so the full command set was
+  live, including reboot, power off and SIGKILL-everything.
+
+  A board was lost to this on 2026-09-09, within two minutes of an FTDI adapter
+  being wired to the BMC UART while the board was otherwise healthy. The console
+  was being added as a *recovery* tool, which makes this the worst possible
+  place for the hazard to live.
+
+  The mask is now `0x1a` in two places: `CONFIG_MAGIC_SYSRQ_DEFAULT_ENABLE`, so
+  it holds from the first instruction of the kernel, and `S00sysrq`, which
+  re-applies it at runtime. That is 2 (console log level) + 8 (debugging dumps)
+  + 16 (sync) -- so `w`, `m` and `t` still work on a hung board, while remount
+  read-only, process signalling, reboot and power off are gone.
+
+
 ### Added
 
 - A **Threads** panel on the dashboard, over `bmcd_process_threads` (bmcd

@@ -227,5 +227,12 @@ CONFIG_DMA_CMA=y
 CONFIG_PRINTK_TIME=y
 CONFIG_FRAME_WARN=2048
 CONFIG_MAGIC_SYSRQ=y
+# A BREAK on console=ttyS0 is a SysRq trigger, and USB-serial adapters
+# assert BREAK when a port is opened, closed or reconfigured. Left at the
+# kernel default, attaching a console can reboot or power off the board --
+# which cost us one on 2026-09-09. 0x1a = 2 (log level) + 8 (debug dumps)
+# + 16 (sync): everything worth having when reading a hung board, and
+# nothing that can end it. S00sysrq re-applies the same mask at runtime.
+CONFIG_MAGIC_SYSRQ_DEFAULT_ENABLE=0x1a
 CONFIG_DEBUG_FS=y
 CONFIG_ATOMIC64_SELFTEST=y
