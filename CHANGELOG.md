@@ -13,6 +13,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.16.0] — 2026-09-09
+
+### Changed
+
+- **bmcd v2.27.0 → v2.28.0.** The ten handlers that assembled their answer
+  with `json!` now serialise named types, so every read operation in the
+  OpenAPI document describes what it answers with and none is left as "not
+  described here". The shapes are reconstructions of what the daemon already
+  sent, odd corners preserved and explained: power, USB and SD card answer a
+  one-element array because that is upstream's shape; node power reports
+  strings because an unreadable rail is `Unknown` and a boolean could not say
+  so; the SD card's used-bytes field is `use` on the wire because `use` is
+  what upstream sent and a Rust keyword.
+
+  **Naming a cooling device that does not exist now answers 400, not 500.**
+  A client branches on status, and 500 is the retryable one — so the old
+  answer asked callers to retry something that could never change.
+
+- **BMC-UI v3.17.0 → v3.18.0.** Twenty-three hand-written response interfaces
+  become aliases onto types generated from the `openapi.json` bmcd publishes,
+  and CI regenerates and diffs, so a hand edit or a pin moved without
+  regenerating fails there rather than on a board. Nothing changes on screen.
+
+  Two things this shook out. The generated types are stricter than the
+  hand-written ones — schemars cannot tell a field always sent as `null` from
+  one omitted when empty — so a reading is now recognised by a type guard
+  rather than by a runtime check the compiler could not see. And BMC-UI's
+  quality workflow had been `pull_request` only, in a fork that never opens
+  one, so its lint, build and tests had never run in CI at all.
+
+### Added
+
+- **`docs/architecture.md`** — where the daemon, the interface and the
+  listeners live, the board measurements the arrangement rests on, and what
+  was declined along the way. Linked from the README.
+
+### Fixed
+
+- **CI's shell install no longer fails on a third-party apt repository it does
+  not use.** A hash mismatch in the runner image's Google Chrome repository
+  failed the promotion-gate job on a documentation-only change. The step now
+  drops the runner's third-party `.list` files before updating.
+
 ## [v2.15.0] — 2026-09-09
 
 ### Changed
