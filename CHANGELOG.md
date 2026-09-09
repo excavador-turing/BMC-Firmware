@@ -13,6 +13,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.19.0] — 2026-09-10
+
+### Changed
+
+- **`tpi` v1.5.1 → v1.6.0: the check that caused all of this is gone.**
+
+  Three releases in a row carried attempts to make `firmware install` resolve
+  a version correctly against the board's cached listing. The listing lags a
+  release by up to half an hour, so `firmware check` would print
+  `install it with: tpi firmware install <v>` and the next command would
+  reject it. v2.17.0's attempt was inert; v2.18.0's worked by waiting up to
+  three minutes.
+
+  Both were the wrong shape. The resolution existed because of a comment
+  claiming the board would otherwise fail "in the middle of a download".
+  Measured: the daemon answers **400 in 0.48 s** with
+  `tpi-selfupdate: cannot fetch SHA256SUMS for v9.9.9`, before any download,
+  staging nothing. There was nothing to protect against.
+
+  So the listing now informs the confirmation line and cannot refuse, and the
+  board — which is what downloads the image — decides. On a version that
+  exists nowhere: 140 s and a possibly-wrong refusal before, 1 s and the
+  board's own message now.
+
+### Fixed
+
+- **`tpi firmware list --refresh` could confirm that a release did not
+  exist.** It waited 60 s for a poll, then gave up and printed the previous
+  listing with nothing said, indistinguishable from a current one. Polls
+  measured on this board took 74 s, 78 s and 140 s. Now four minutes, it says
+  when it gives up, and `list` prints how old the listing is on every run —
+  the daemon had always sent that, and the client discarded it.
+
 ## [v2.18.0] — 2026-09-09
 
 ### Fixed
