@@ -119,6 +119,18 @@ jobs:
           set -eu
           shellcheck --shell=busybox --severity=warning \
             tests/gate.sh \
+            tests/dashboard.sh \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/osupdate
+
+  # The dashboard is published as a release asset, so a broken one is only
+  # discovered by whoever downloads it -- after the release is immutable.
+  dashboard:
+    name: dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: validate the published dashboard
+        run: sh tests/dashboard.sh

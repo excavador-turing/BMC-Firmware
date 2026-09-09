@@ -13,6 +13,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- A Grafana dashboard, `dashboards/turingpi-bmc.json`, published as a release
+  asset and checksummed into `SHA256SUMS`. It covers every metric the daemon
+  emits in five rows, including the two added after the 2026-09-09 outage: the
+  daemon's own resident set beside the board's free memory, and the promotion
+  gate's record, which until now existed only in `/mnt/overlay/postupdate.log`
+  and so was readable only on a board that answers.
+- `tests/dashboard.sh`, run by `checks.yml`. It guards one specific regression:
+  a dashboard re-exported from a Grafana UI bakes in that instance's datasource
+  uid and drops `__inputs`, which still parses, still imports for its author,
+  and is silently useless to everyone else. Verified by breaking the file three
+  ways and confirming each is caught with a reason.
+
+
 ## [v2.11.0] — 2026-09-09
 
 Built but **not installed**: the board wedged before this could be flashed and

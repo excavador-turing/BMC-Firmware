@@ -235,9 +235,13 @@ jobs:
       - name: checksums
         run: |
           sudo chown -R "$(id -u):$(id -g)" artifacts
+          # The dashboard reads metrics this firmware's daemon emits, so it is
+          # versioned with the firmware rather than left to drift on a website.
+          # tests/dashboard.sh (checks.yml) has already validated it.
+          cp dashboards/turingpi-bmc.json artifacts/turingpi-bmc-dashboard.json
           cd artifacts
           ls -la
-          sha256sum *.tpu *.img > SHA256SUMS
+          sha256sum *.tpu *.img turingpi-bmc-dashboard.json > SHA256SUMS
           cat SHA256SUMS
 
       - name: archive artifacts
@@ -290,6 +294,11 @@ jobs:
 
             `.tpu` is the OTA package, `.img` the recovery SD image.
             Verify with `sha256sum -c SHA256SUMS`.
+
+            `turingpi-bmc-dashboard.json` is a Grafana dashboard over the
+            metrics this build's daemon emits. Import it and pick your
+            Prometheus-compatible datasource; see
+            https://turing.excavador.xyz/guides/monitor-it/
 
       - name: publish release
         if: startsWith(github.ref, 'refs/tags/')
