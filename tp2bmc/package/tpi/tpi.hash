@@ -1,13 +1,13 @@
 # Cargo package: the sum is of Buildroot's vendored, re-packed archive
 # (see bmcd.hash for the toolchain trap this shares).
 #
-# The version is commit 01b57ae on excavador-turing/tpi, released as v1.2.2:
-# the first release of this tool ever run against a board. 1.2.0 shipped
-# with every fork command broken -- the response unwrapper returned the
-# wrapper array, and serde read it as the struct's fields in order -- and
-# 1.2.1 is the five fixes that followed from actually pointing it at one.
+# The version is commit 101c3ac on excavador-turing/tpi, released as v1.3.0:
+# `cooling set --hold` and `--auto`, which pause and resume the kernel's fan
+# governor, and a Governor column that prints `-` rather than `running` on a
+# daemon too old to report it.
 #
-# Measured with rust-bin 1.98.1 in the pinned container: `make tpi-source`
-# reported got 08400d87 against a blank expectation, then re-run to confirm.
-sha256  08400d87a86b674712052d009e39947b4dc418cf43016ea3f9caa68dfbfbee7a  tpi-01b57aefeeca205af0a90f004c04bf4883ff2e23-cargo2.tar.gz
+# Measured 2026-09-09 with rust-bin 1.98.1 in the pinned container: `make
+# tpi-source` reported got 85638e00 against a zeroed expectation, then
+# re-run to confirm it fetches and verifies cleanly.
+sha256  85638e000e8c3d2d3d92148bc3db9aceac1ff563a8553352e8b48815e8e34881  tpi-101c3acb1fe07b1a95c370429901e0b8baf29a71-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE

@@ -19,9 +19,16 @@
 # tree instead of downloading the pinned archive, so a hash computed with one
 # in place would describe whatever happened to be on the workstation.
 #
-# The version is commit 82f5474 on excavador-turing/bmcd branch `hive`,
-# released as v2.19.0: aliased API paths with an OpenAPI 3.1 document,
-# the gate's promotion counter, this daemon's own resident-set metric,
-# and a rollback that can finally be named.
-sha256  d4c699bc96e449eaa36915afa3d51520513c4401fd97a8c0ddf28483ed64e348  bmcd-82f547451e270dc68f1a696b4a0b49fd070d40b3-cargo2.tar.gz
+# The version is commit d695b61 on excavador-turing/bmcd branch `hive`,
+# released as v2.23.0: a fan that can be held at a step with a temperature
+# ceiling that takes it back, a flash that targets the module asked for
+# rather than the one that answered first, and an audit line per mutating
+# call that names the caller -- including when the caller was the loopback
+# bypass and there was no credential at all.
+#
+# Measured 2026-09-09 with rust-bin 1.98.1 in the pinned container, from a
+# tree with no buildroot/local.mk: `make bmcd-source` reported got
+# 05c70daa against a zeroed expectation, then re-run to confirm it fetches
+# and verifies cleanly.
+sha256  05c70daa87a36d60f97bb5f7388e0896e8157193caea532a9884478f79e68585  bmcd-d695b61d12e535526ca299c0857849e7b53bd1cb-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

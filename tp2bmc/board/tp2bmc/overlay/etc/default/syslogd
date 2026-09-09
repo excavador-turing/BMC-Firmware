@@ -1,0 +1,26 @@
+# Where this board's logs go.
+#
+# By default they go nowhere but RAM. /var/log is a tmpfs, so every line the
+# kernel and bmcd write is lost at the next boot -- which is precisely when
+# you want to read them. The 2026-09-09 mdns outage was diagnosed from
+# /var/log/messages on a board that had not yet been rebooted; had it been
+# power-cycled first, the 825 "conflicting name detected" lines that gave the
+# mechanism away would not have existed.
+#
+# Writing them to the overlay instead is NOT the fix. The overlay is UBI on a
+# 2040-eraseblock NAND with five free, and a log file is the one workload
+# guaranteed to keep growing.
+#
+# The fix is to send them somewhere else. Uncomment and point this at a
+# collector that speaks syslog over UDP -- VictoriaLogs with
+# `-syslog.listenAddr.udp`, or anything else:
+#
+#   SYSLOGD_ARGS="-R logs.example:514"
+#
+# Add -L to keep logging locally as well, which is worth it: the local copy is
+# what you read over SSH when the network is the thing that broke.
+#
+#   SYSLOGD_ARGS="-R logs.example:514 -L"
+#
+# Left unset on purpose. A default pointing at a host that does not exist would
+# make every boot wait on a DNS lookup for a collector nobody configured.

@@ -13,6 +13,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.14.0] — 2026-09-09
+
+### Changed
+
+- **bmcd v2.19.0 → v2.23.0**, four releases:
+
+    - **A fan can be held at a step** (SQU-170). `opt=set&type=cooling` takes
+      `mode=manual` to pause the zone's governor and `mode=auto` to hand the
+      fan back. Until now a written step was returned to the governor's own
+      choice within a poll, which is what made the interface's slider a
+      control that lied. A held fan is taken back above the zone's hottest
+      `active` trip, because this board declares no `critical` trip and
+      nothing else would intervene.
+
+    - **A flash targets the module that was asked for** (SQU-105). All four
+      modules sit behind one hub on a v2.5 board, and the daemon used to take
+      whichever answered first — a flash of node 2 could write node 1 and
+      report success. The node-to-port mapping is read from this board's own
+      device tree rather than assumed.
+
+    - **An audit line per mutating call** (SQU-108), naming the action, node,
+      caller, address and outcome, and naming the loopback bypass explicitly
+      when there was no credential at all. Sent to the system log as well as
+      the rotating file, because `/tmp` and `/var/log` are both tmpfs here.
+
+    - **`bmcd_process_threads`**, the companion to the resident-set metric.
+
+- **`tpi` v1.2.2 → v1.3.0**: `cooling set --hold` and `--auto`, and a Governor
+  column that says `-` rather than `running` on a daemon that does not report
+  it.
+
+- **BMC-UI v3.14.0 → v3.15.0**: the fan slider now sits behind an explicit
+  Override switch, offered only where the daemon reports it can actually hold
+  a step.
+
+### Added
+
+- **`/etc/default/syslogd`**, carrying the remote-logging knob documented and
+  deliberately unset (SQU-108). `syslogd -R <host>:<port>` sends this board's
+  kernel and daemon logs somewhere that survives a reboot; `/var/log` is a
+  tmpfs and the overlay is the wrong answer, on a NAND with five free
+  eraseblocks and a workload guaranteed to grow. A default pointing at a host
+  nobody configured would make every boot wait on a DNS lookup.
+
 ## [v2.13.0] — 2026-09-09
 
 ### Changed
