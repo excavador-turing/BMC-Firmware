@@ -10,15 +10,16 @@
 # BMC_UI_LICENSE_FILES = LICENSE -- shipped no LICENSE at all, which for a
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
-# Verified 2026-09-08: 573360 bytes, built by GitHub Actions from tag
-# v3.10.1, checked against the release's own SHA256SUMS. v3.10.1 adds the
-# firmware source editor and the list of installable versions, both of which
-# need a bmcd that answers type=firmware_available (v2.8.0 or newer; the
-# firmware now pins v2.9.0).
+# Verified 2026-09-09: 578087 bytes, built by GitHub Actions from tag
+# v3.14.0, checked against the release's own SHA256SUMS. v3.14.0 carries the
+# console replaying a module's scrollback on open, the reboot dialogs no
+# longer claiming the compute modules lose power (they do not), the upload
+# ending at "parked on the SD card" rather than offering a reboot that would
+# apply nothing, and Install OS in red like every other consequential action.
 #
 # The sum is UNCHANGED across the move to excavador-turing. The asset was
 # rebuilt from the same tree under the new owner and came out byte-identical
 # -- 573360 bytes, same sha256 -- because the release workflow packs with
 # `tar --sort=name | gzip -9 -n`, which pins member order and drops the
 # gzip timestamp. Only the URL in bmc-ui.mk changed.
-sha256  599f2a9eb65ce07061b287467fcd9d0dac10ca83eb00fab6450c9d2251313b8b  bmc-ui-v3.10.1.tar.gz
+sha256  52eaceb0cdf24e8847b28f9d79f60332c3ba22ec96bc00fd198a7796d12b6284  bmc-ui-v3.14.0.tar.gz

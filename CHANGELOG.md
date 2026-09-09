@@ -15,6 +15,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [v2.13.0] — 2026-09-09
 
+### Changed
+
+- BMC-UI **v3.10.1 → v3.14.0**, four releases of interface work:
+
+  - The console replays the module's scrollback when you open it, instead of
+    showing a blank terminal however long the module has been running, and
+    gains a **Redraw** button.
+  - The reboot dialogs stop claiming the compute modules lose power. They do
+    not, and this fork's not cutting them is one of the things it exists for.
+    Both live places said otherwise, in all six languages.
+  - Rebooting from Settings now says when a firmware is staged, so a reboot for
+    an unrelated reason no longer silently applies an update.
+  - An upload no longer offers a reboot that would do nothing. It parks the
+    image on the SD card, and the message says so.
+  - **Install OS** is red, like every other consequential action, and the
+    shared confirmation dialog commits in red rather than in the colour of
+    Save.
+  - The firmware sources editor no longer breaks at 390 px.
+
 ### Fixed
 
 - **mDNS was eating the board** (SQU-175). This is the cause of both outages on
