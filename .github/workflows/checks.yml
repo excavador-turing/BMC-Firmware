@@ -121,6 +121,7 @@ jobs:
             tests/gate.sh \
             tests/dashboard.sh \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S00sysrq \
+            tp2bmc/board/tp2bmc/overlay/usr/sbin/mdnsd-guard \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/osupdate

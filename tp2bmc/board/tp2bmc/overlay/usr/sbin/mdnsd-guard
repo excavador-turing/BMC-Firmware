@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# Restart mdnsd when it has grown too large.
+#
+# mdnsd 0.12 leaks on every config reload, and the real fix is not here: it is
+# /etc/default/mdnsd, which binds it to br0 so it stops treating its own
+# announcements on the switch ports as name conflicts and reloading 69 times a
+# second. With that in place the leak is gone -- measured at 8 kB over 90
+# seconds, against 956 kB a minute before (SQU-175).
+#
+# This is the net under that. The leak itself is upstream's and still present;
+# only its trigger has been removed, and a board with 118 MB of RAM, no swap
+# and no watchdog dies completely if some other trigger turns up -- userspace
+# stops answering while the kernel still replies to ping, and only cutting the
+# power brings it back. That happened twice on 2026-09-09.
+#
+# A restart is a complete remedy and costs nothing: mDNS is stateless enough
+# that clients simply re-query.
+#
+# Threshold rather than timer, deliberately. A board on a quiet network is
+# never touched, and every restart is logged with the size that triggered it.
+# Those log lines are the field data on how fast this really leaks, which a
+# blind hourly restart would have thrown away.
+#
+# Delete this when mdnsd no longer leaks.
+set -eu
+
+THRESHOLD_KB="${MDNSD_GUARD_THRESHOLD_KB:-20480}"   # 20 MB of a 118 MB board
+PIDFILE=/var/run/mdnsd.pid
+
+[ -r "$PIDFILE" ] || exit 0
+pid=$(cat "$PIDFILE" 2>/dev/null) || exit 0
+[ -n "$pid" ] && [ -d "/proc/$pid" ] || exit 0
+
+rss=$(awk '/^VmRSS:/ { print $2 }' "/proc/$pid/status" 2>/dev/null) || exit 0
+[ -n "$rss" ] || exit 0
+[ "$rss" -gt "$THRESHOLD_KB" ] || exit 0
+
+avail=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo 2>/dev/null)
+logger -t mdnsd-guard "mdnsd ${rss} kB exceeds ${THRESHOLD_KB} kB, MemAvailable ${avail:-?} kB: restarting"
+
+/etc/init.d/S50mdnsd restart >/dev/null 2>&1 || true
+
+sleep 2
+newpid=$(cat "$PIDFILE" 2>/dev/null || echo "")
+newrss=""
+[ -n "$newpid" ] && [ -d "/proc/$newpid" ] && \
+	newrss=$(awk '/^VmRSS:/ { print $2 }' "/proc/$newpid/status" 2>/dev/null)
+newavail=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo 2>/dev/null)
+logger -t mdnsd-guard "restarted: mdnsd ${newrss:-?} kB, MemAvailable ${newavail:-?} kB"

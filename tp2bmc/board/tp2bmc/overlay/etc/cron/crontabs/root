@@ -1,0 +1,3 @@
+# Check mdnsd's size every five minutes and restart it if it has run away.
+# See /usr/sbin/mdnsd-guard; this is a safety net for SQU-175, not the fix.
+*/5 * * * * /usr/sbin/mdnsd-guard

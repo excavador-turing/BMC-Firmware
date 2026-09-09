@@ -13,6 +13,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.13.0] — 2026-09-09
+
+### Fixed
+
+- **mDNS was eating the board** (SQU-175). This is the cause of both outages on
+  2026-09-09, and it was ours.
+
+  `mdnsd` binds every interface it can see. On this board that means the DSA
+  switch ports — `node1`..`node4`, `ge0`, `dsa` — which share one MAC and one
+  link-local address, because they are ports of a single switch rather than
+  separate hosts. mdnsd announced on each, saw its own announcement arrive on
+  the others, and called that a name conflict. Every conflict triggers a config
+  reload, and mdnsd 0.12 leaks on reload.
+
+  Measured on the board: **825 reloads in twelve seconds**, and the process
+  growing **956 kB a minute** on a machine with 118 MB of RAM and no swap. That
+  is ninety minutes from boot to a board that answers ping and nothing else.
+  The same storm wrote those 825 log lines into `/var/log`, which is on the
+  58 MB tmpfs, so it was consuming memory from both ends.
+
+  `/etc/default/mdnsd` now binds it to `br0`, the only interface with an
+  address and the one the default route uses. After the change, on the same
+  board: **zero reloads in ninety seconds, and 8 kB of growth.**
+
+### Added
+
+- **`mdnsd-guard`**, run every five minutes from cron. Restarts mdnsd if its
+  resident set passes 20 MB, and logs the size that triggered it.
+
+  A net under the fix above, not a substitute for it. The leak is upstream's
+  and still present; only its trigger has been removed. On a board with no
+  watchdog, where the failure mode is losing the machine entirely, a threshold
+  check that does nothing on a healthy system is cheap insurance — and if it
+  ever fires, the log line is the field evidence that something still reloads.
+
+
 ## [v2.12.0] — 2026-09-09
 
 ### Fixed

@@ -1,0 +1,16 @@
+# Bind mdnsd to the bridge, and to nothing else.
+#
+# Left to itself it binds every interface it can see. On this board that means
+# the DSA switch ports -- node1..node4, ge0, dsa -- which all share one MAC and
+# one link-local address, because they are ports of a single switch rather than
+# separate hosts. mdnsd announces on each, sees its own announcement arrive on
+# the others, and calls that a name conflict.
+#
+# The result is a reload storm: 825 config reloads in twelve seconds, measured
+# on 2026-09-09. Each reload leaks (SQU-175), which is what consumed the board
+# twice that day, and the log spam lands in /var/log on a 58 MB tmpfs.
+#
+# br0 is the only interface with an address and the one the default route uses,
+# so it is the only one anyone can reach the board on. Announcing there is both
+# correct and sufficient.
+MDNSD_ARGS="-i br0"
