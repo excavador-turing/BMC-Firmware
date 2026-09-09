@@ -84,28 +84,42 @@ the OpenAPI 3.1 document from them; the document is published with each bmcd
 release; the interface's TypeScript types are generated from it, and CI fails
 on drift. Never the other way round.
 
-## The fleet UI is the exposure surface
+## turing-fleet is the exposure surface
 
 Exposing a board through the tunnel — a hostname, a certificate, an Envoy route
 and two policies per board, for a thing that can flash every module — was the
 plan until 2026-09-09. It is not any more.
 
-A second interface, running as a pod in the cluster, talks to every board over
-the management LAN and is the only thing Envoy exposes. The tunnel route points
-at the pod, never at a board. The pod authenticates to each board with a client
-certificate from the internal CA, never with a stored password; bmcd verifies
-the certificate and enforces authorization on what it asserts, so a compromised
-pod is bounded by its certificate.
+**`turing-fleet`** is a second interface over every board, published at
+`hive.excavador.xyz`. No board is ever on the tunnel route, and no board gets a
+public name.
+
+It is a **static bundle** and nothing more. Envoy terminates the browser's
+login, serves that bundle at `/`, and routes `/boards/<id>/…` to each board
+over the management LAN, presenting a client certificate from the internal CA
+on that leg. The bundle holds no credential and runs no server; the browser
+does the fan-out across boards. bmcd verifies the certificate and only then
+trusts the identity headers behind it, so what a compromised front end can
+assert is bounded by what its certificate is allowed to say.
+
+It ships from the same repository as the board's interface, sharing the
+components by import, which is why the API client takes a base URL rather than
+assuming `/api/bmc` on the same host.
+
+It runs on control-plane nodes, spread across them, alongside the tunnel and
+Envoy — never on workers. A thing that exists to flash and recover the workers
+must not live on what it flashes.
 
 What it does not change: one daemon, one bundle. The board keeps its whole
-interface on the LAN as the break-glass path, because the fleet UI depends on
+interface on the LAN as the break-glass path, because turing-fleet depends on
 the cluster it exists to recover.
 
-What it costs: version skew becomes designed-in. The fleet UI talks to boards on
+What it costs: version skew becomes designed-in. It talks to boards on
 different firmware at once, so it tolerates absent and null alike on every
 reading and states the range of bmcd releases it supports.
 
-Tracked as SQU-182; the client-certificate trust in bmcd as SQU-136.
+Tracked as SQU-182; the client-certificate trust in bmcd as SQU-136; the
+placement as SQU-185.
 
 ## Declined, with the reason
 
