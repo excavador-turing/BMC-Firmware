@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.12.0] — 2026-09-09
+
 ### Fixed
 
 - **Attaching a serial console could kill the board.** The kernel is built with
@@ -52,7 +54,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   release can never be skipped by this whatever it decides. Verified against
   four representative file sets and a real commit pair.
 
-### Not yet pinned
+### Still pinned at bmcd 2.19.0
 
 - bmcd **2.20.0** adds `bmcd_process_threads`, which the new panel reads. The
   pin still points at 2.19.0: there is no point cutting a firmware release
