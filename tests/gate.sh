@@ -41,8 +41,14 @@ trap 'rm -rf "$WORK"' EXIT INT TERM
 LOGFILE="$WORK/postupdate.log"
 STAGED_NOTE="$WORK/staged-firmware"
 OS_RELEASE="$WORK/os-release"
-METRICS_URL="http://127.0.0.1:9110/metrics"
 CURL_BIN="$WORK/curl"
+
+# The URL the gate is REQUIRED to request. Deliberately a literal, and
+# deliberately not assigned to the gate's own METRICS_URL: overriding that
+# would make the stub follow the script wherever it went, so a gate that
+# quietly returned to :443 would still pass. This is the one value in this
+# file that must not track the thing it is testing.
+EXPECT_METRICS_URL="http://127.0.0.1:9110/metrics"
 
 PASS=0
 FAIL=0
@@ -62,14 +68,16 @@ FAIL=0
 # behaviour and the stub arm that served it are gone.
 #
 # It is a real executable on a real path, so the gate's `[ -x ]` check and
-# its argument handling are exercised, not bypassed.
+# its argument handling are exercised, not bypassed. It answers only
+# $EXPECT_METRICS_URL, so the port the gate asks for is part of the contract
+# this file tests rather than something it inherits.
 #
 stub_curl() {
 	cat >"$CURL_BIN" <<STUB
 #!/bin/sh
 for arg in "\$@"; do
 	case "\$arg" in
-		*/metrics)
+		$EXPECT_METRICS_URL)
 			case "$1" in
 				ok)    printf 'bmcd_build_info{version="v2.8.0"} 1\n'; exit 0 ;;
 				empty) printf 'some_other_metric 1\n'; exit 0 ;;
