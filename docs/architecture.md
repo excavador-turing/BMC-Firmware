@@ -20,7 +20,7 @@ day, and the reasoning rests on those numbers; if they move, revisit it.
 | `/tmp` | 58 MB tmpfs | `df /tmp` |
 | listeners | 22 (ssh), 80, 443 (bmcd: API and interface), 9110 (bmcd: metrics) | `netstat -tln` |
 | a release build | 23, 18 and 24 minutes for v2.13.0, v2.14.0 and v2.15.0 | GitHub Actions |
-| a board-side install | about 90 s from staging to the gate's verdict | `/mnt/overlay/postupdate.log` |
+| the promotion gate | **4 s** from tentative boot to verdict, over five consecutive promotions | `/mnt/overlay/postupdate.log` |
 
 ## What ships, and from where
 
