@@ -17,61 +17,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- **Attaching a serial console could kill the board.** The kernel is built with
-  `CONFIG_MAGIC_SYSRQ=y` and boots with `console=ttyS0`, so a BREAK on that line
-  is a SysRq trigger and the next byte is the command. USB-serial adapters
-  assert BREAK as a matter of course when a port is opened, closed, or has its
-  line settings changed. Nothing set `kernel.sysrq`, so the full command set was
-  live, including reboot, power off and SIGKILL-everything.
+- **A serial console could reboot the board by accident.** The kernel boots
+  with `console=ttyS0` and a BREAK on that line triggers SysRq, with the next
+  byte taken as the command. USB-serial adapters assert BREAK whenever a port
+  is opened, closed or reconfigured, and nothing guarded it. The kernel's own
+  help for `MAGIC_SYSRQ_SERIAL` describes the hazard exactly: *"a disconnected
+  TTL level serial which can generate some garbage that can lead to spurious
+  false sysrq detects."*
 
-  A board was lost to this on 2026-09-09, within two minutes of an FTDI adapter
-  being wired to the BMC UART while the board was otherwise healthy. The console
-  was being added as a *recovery* tool, which makes this the worst possible
-  place for the hazard to live.
+  The first instinct was to mask the dangerous commands off. That was the wrong
+  trade: this board has **no watchdog**, so a serial reset is the only remedy
+  short of walking to the rack, and it is worth keeping.
 
-  The mask is now `0x1a` in two places: `CONFIG_MAGIC_SYSRQ_DEFAULT_ENABLE`, so
-  it holds from the first instruction of the kernel, and `S00sysrq`, which
-  re-applies it at runtime. That is 2 (console log level) + 8 (debugging dumps)
-  + 16 (sync) -- so `w`, `m` and `t` still work on a hung board, while remount
-  read-only, process signalling, reboot and power off are gone.
+  So the trigger is guarded rather than the commands removed.
+  `MAGIC_SYSRQ_SERIAL_SEQUENCE="sysrq"` means a BREAK on its own now does
+  nothing; the sequence must follow it before any command is accepted. Garbage
+  cannot produce that and a person typing it means it. The full command set
+  stays available:
 
+      BREAK, then "sysrq", then the key
+        b  reboot        o  power off      s  sync
+        w  blocked tasks m  memory         t  all tasks
 
-### Added
-
-- A **Threads** panel on the dashboard, over `bmcd_process_threads` (bmcd
-  2.20.0), sitting beside Memory in the BMC health row. The pairing is the
-  point: a heap leak grows the resident set with the thread count flat, while a
-  leaked task grows both. Neither series existed during the 2026-09-09 outage,
-  which is why it could not be attributed.
-- A **gate on the build** (`build.yml`). This file has said since it was
-  written that "a two-hour Buildroot run for a file that never reaches the
-  board is waste", and nothing enforced it -- every push to `hive` cost two
-  hours whether or not it could change a byte of the image. A short job now
-  decides, and the build waits on it.
-
-  It fails open in every uncertain case: a tag, a dispatch, a pull request, a
-  new branch, a force push, an unreadable diff. **Tags always build**, so a
-  release can never be skipped by this whatever it decides. Verified against
-  four representative file sets and a real commit pair.
-
-### Still pinned at bmcd 2.19.0
-
-- bmcd **2.20.0** adds `bmcd_process_threads`, which the new panel reads. The
-  pin still points at 2.19.0: there is no point cutting a firmware release
-  while the board cannot be flashed (SQU-172). Bump it with the next release.
-
-- A Grafana dashboard, `dashboards/turingpi-bmc.json`, published as a release
-  asset and checksummed into `SHA256SUMS`. It covers every metric the daemon
-  emits in five rows, including the two added after the 2026-09-09 outage: the
-  daemon's own resident set beside the board's free memory, and the promotion
-  gate's record, which until now existed only in `/mnt/overlay/postupdate.log`
-  and so was readable only on a board that answers.
-- `tests/dashboard.sh`, run by `checks.yml`. It guards one specific regression:
-  a dashboard re-exported from a Grafana UI bakes in that instance's datasource
-  uid and drops `__inputs`, which still parses, still imports for its author,
-  and is silently useless to everyone else. Verified by breaking the file three
-  ways and confirming each is caught with a reason.
-
+  `S00sysrq` sets the runtime value to match, so the intent is visible in the
+  init scripts and not only in a kernel config.
 
 ## [v2.11.0] — 2026-09-09
 

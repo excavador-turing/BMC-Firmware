@@ -1,34 +1,29 @@
 #!/bin/sh
 #
-# Restrict magic SysRq, which the serial console can trigger by accident.
+# Keep the full magic SysRq command set available on the BMC console.
 #
-# The kernel is built with CONFIG_MAGIC_SYSRQ=y and boots with console=ttyS0,
-# so a BREAK on that line is a SysRq trigger and the next byte is the command.
-# USB-serial adapters assert BREAK as a matter of course when a port is opened,
-# closed, or has its line settings changed -- so simply attaching a console can
-# reboot the board, power it off, or SIGKILL every process on it.
+# This board has no watchdog, so when its userspace wedges the only remedy is
+# a person walking to the rack and cutting power. A serial reset is the one
+# remote alternative, and it is worth keeping.
 #
-# That is what a recovery console must never do. On 2026-09-09 a board was lost
-# within two minutes of an FTDI adapter being wired to the BMC UART, while it
-# was otherwise healthy.
+# What made that dangerous was not SysRq itself but its trigger: a BREAK on
+# console=ttyS0, which USB-serial adapters assert whenever a port is opened,
+# closed or reconfigured. A stray byte after one of those could reboot the
+# board or SIGKILL everything on it. That is guarded in the kernel config now
+# with MAGIC_SYSRQ_SERIAL_SEQUENCE, so BREAK alone does nothing and the
+# sequence has to follow it.
 #
-# The mask keeps what is worth having on a board you are debugging and removes
-# everything that can end its life:
+# This script only makes the runtime value explicit and greppable, so nobody
+# reading the init scripts has to infer it from a kernel config:
 #
-#     2  console log level        kept
-#     8  debugging dumps          kept -- `w` blocked tasks, `m` memory, `t` tasks
-#    16  sync                     kept
-#    32  remount read-only        DROPPED
-#    64  signalling of processes  DROPPED -- term, kill, oom-kill
-#   128  reboot / poweroff        DROPPED
-#   256  nice all RT tasks        DROPPED
-#
-# 2 + 8 + 16 = 26. Reading a hung board stays possible; killing it does not.
-SYSRQ_MASK=26
+#   BREAK, then "sysrq", then the command key.
+#     b  reboot          o  power off        w  show blocked tasks
+#     m  memory report   t  all tasks        s  sync
+SYSRQ_MASK=1
 
 case "$1" in
 	start|"")
-		printf 'Restricting magic SysRq to %s: ' "${SYSRQ_MASK}"
+		printf 'Magic SysRq (guarded by a serial sequence): '
 		if printf '%s\n' "${SYSRQ_MASK}" > /proc/sys/kernel/sysrq 2>/dev/null; then
 			echo "OK"
 		else
