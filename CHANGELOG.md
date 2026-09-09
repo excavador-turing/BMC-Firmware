@@ -13,6 +13,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.11.0] — 2026-09-09
+
+Built but **not installed**: the board wedged before this could be flashed and
+needs a physical power cycle first (SQU-172). This is the image to install when
+it comes back.
+
+### Changed
+
+- bmcd **2.19.0**: the health gate's history as a metric
+  (`bmcd_firmware_promotion_total`), the daemon's own resident set
+  (`bmcd_process_resident_bytes`), a `refreshing` flag that can no longer stick
+  through a panic, and a rollback slot whose version can finally be named.
+- BMC-UI **3.10.1**: a red warning on v2.5 boards that flashing may not target
+  the module you chose, a bounded poll on the firmware page, and Reset network
+  made destructive with a confirmation that says what it costs.
+- `tpi` **1.2.2**: `firmware install` works — it had never worked in any
+  release — and `firmware list --refresh` waits for the daemon's re-poll.
+
+### Added
+
+- The gate records what a promoted image replaced, so a rollback can be named
+  rather than reported as "version not readable".
+
 ## [v2.10.0] — 2026-09-09
 
 ### Changed
@@ -168,7 +191,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   drives the fan from it instead of a fixed persisted speed.
 - `SHA256SUMS` published per release and verified on download.
 
-[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.10.0...hive
+[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.11.0...hive
+[v2.11.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.11.0
 [v2.10.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.10.0
 [v2.9.2]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.2
 [v2.9.1]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.9.1
