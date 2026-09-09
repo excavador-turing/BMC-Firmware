@@ -46,7 +46,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   literal, so the harness can exercise the `-x` check and the argument handling
   instead of bypassing them.
 
-## [v2.8.1] — unreleased
+## [v2.8.1] — 2026-09-09
 
 ### Added
 
@@ -86,6 +86,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   staged note that names a file but no version now says so, rather than
   claiming there was no note at all.
 
+### Changed
+
+- bmcd **2.10.1** and `tpi` **1.1.1**. Between them: a parked image is ordered
+  against the running version instead of showing as `unknown`, and
+  `tpi firmware install` can actually install one — 1.1.0 posted it to an
+  endpoint the daemon refuses for local sources, so the resolution succeeded
+  and the install failed with a 400.
+
 ## [v2.8.0] — 2026-09-08
 
 ### Changed
@@ -114,6 +122,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   drives the fan from it instead of a fixed persisted speed.
 - `SHA256SUMS` published per release and verified on download.
 
-[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.8.0...hive
+[Unreleased]: https://github.com/excavador-turing/BMC-Firmware/compare/v2.8.1...hive
+[v2.8.1]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.8.1
 [v2.8.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.8.0
 [v2.7.0]: https://github.com/excavador-turing/BMC-Firmware/releases/tag/v2.7.0
