@@ -52,7 +52,8 @@
           },
           "expr": "up{job=\"turingpi-bmc\"}",
           "refId": "A",
-          "instant": true
+          "instant": true,
+          "legendFormat": "{{instance}}"
         }
       ],
       "description": "1 when your scraper last reached the board's /metrics. Everything else on this dashboard is meaningless when this is 0 -- read it first.",
@@ -137,7 +138,7 @@
           },
           "expr": "bmcd_build_info",
           "refId": "A",
-          "legendFormat": "{{version}}",
+          "legendFormat": "{{instance}} {{version}}",
           "instant": true
         }
       ],
@@ -192,7 +193,8 @@
           },
           "expr": "bmcd_uptime_seconds",
           "refId": "A",
-          "instant": true
+          "instant": true,
+          "legendFormat": "{{instance}}"
         }
       ],
       "description": "Seconds since the BMC booted. A reset here without a firmware flash is worth explaining.",
@@ -247,7 +249,8 @@
           },
           "expr": "bmcd_cooling_state",
           "refId": "A",
-          "instant": true
+          "instant": true,
+          "legendFormat": "{{instance}}"
         }
       ],
       "description": "The fan is driven by the kernel thermal zone and takes SEVEN discrete steps (0-6), not a percentage. The device tree's cooling-levels are 0 16 32 64 102 170 254, so the steps are not evenly spaced in duty.",
@@ -316,7 +319,8 @@
           },
           "expr": "bmcd_temperature_celsius",
           "refId": "A",
-          "instant": true
+          "instant": true,
+          "legendFormat": "{{instance}}"
         }
       ],
       "description": "The T113s thermal sensor. Mainline describes no THS node for this SoC, so this reads at all only because the board DTS in this fork adds one.",
@@ -384,7 +388,8 @@
           },
           "expr": "bmcd_nand_eraseblocks{state=\"available\"} or bmcd_nand_available_bytes",
           "refId": "A",
-          "instant": true
+          "instant": true,
+          "legendFormat": "{{instance}}"
         }
       ],
       "description": "Unallocated space on the BMC's NAND. It only ever goes down; a sudden drop means something is writing to flash that should not be.",
@@ -419,7 +424,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Thermal loop \u2014 temperature against fan step",
+      "title": "Thermal loop — temperature against fan step",
       "id": 8,
       "datasource": {
         "type": "prometheus",
@@ -439,7 +444,7 @@
           },
           "expr": "bmcd_temperature_celsius",
           "refId": "A",
-          "legendFormat": "temperature (C)"
+          "legendFormat": "{{instance}} temperature (C)"
         },
         {
           "datasource": {
@@ -448,7 +453,7 @@
           },
           "expr": "bmcd_cooling_state",
           "refId": "B",
-          "legendFormat": "fan step (0-6)"
+          "legendFormat": "{{instance}} fan step (0-6)"
         }
       ],
       "description": "The pair that says whether the thermal loop actually works. The fan is stepped by the kernel from trips at 20/45/60/70 C with a floor at step 3, and the sensor is the BMC SoC while the fan cools the MODULES -- so expect the fan to lead temperature, not track it. A flat fan line while temperature climbs means the zone is not driving the cooling device.",
@@ -572,7 +577,7 @@
           },
           "expr": "bmcd_node_power_state",
           "refId": "A",
-          "legendFormat": "{{node}}"
+          "legendFormat": "{{instance}} {{node}}"
         }
       ],
       "description": "The four RK1 rails. A firmware flash must NOT change these: bmcd reads the live rail state on start and adopts it rather than re-applying what bmcd.bin persisted.",
@@ -657,7 +662,7 @@
           },
           "expr": "bmcd_node_power_on_seconds",
           "refId": "A",
-          "legendFormat": "{{node}}"
+          "legendFormat": "{{instance}} {{node}}"
         }
       ],
       "description": "Elapsed seconds since the rail came up -- a DURATION the daemon reports, not a timestamp. It only clears on a real power cycle: the web UI's RESTART sends type=reset, which does not drop the rail, so a node can show a long power-on time and a short OS uptime.",
@@ -715,7 +720,7 @@
           },
           "expr": "label_replace(bmcd_switch_port_link{port=~\"node.*\"}, \"node\", \"$1\", \"port\", \"(.*)\") == 0 and on(node) bmcd_node_power_state == 1",
           "refId": "A",
-          "legendFormat": "{{node}}"
+          "legendFormat": "{{instance}} {{node}}"
         }
       ],
       "description": "The 'node NIC dead' signal, and the reason SQU-107 exists: nothing else in this estate can see it. A powered module whose switch port has no carrier is islanded -- it is up, and unreachable.\n\nEMPTY IS THE HEALTHY STATE. This panel draws nothing when all is well, which is deliberate; the join was verified by inverting it (== 1 returns exactly four series).\n\nThe port filter is by NAME (port=~\"node.*\") and not by kind=\"node\", because only bmcd_switch_port_present carries a kind label -- link, speed and the byte counters do not.",
@@ -787,7 +792,7 @@
           },
           "expr": "bmcd_switch_port_link",
           "refId": "A",
-          "legendFormat": "{{port}}"
+          "legendFormat": "{{instance}} {{port}}"
         }
       ],
       "description": "All six RTL8370MB-CG ports: four to the modules, ge0 and ge1 the uplinks. ge1 reading down is expected on this board -- only one uplink is cabled.",
@@ -872,7 +877,7 @@
           },
           "expr": "rate(bmcd_switch_port_rx_bytes_total[5m])*8",
           "refId": "A",
-          "legendFormat": "{{port}} rx"
+          "legendFormat": "{{instance}} {{port}} rx"
         },
         {
           "datasource": {
@@ -881,7 +886,7 @@
           },
           "expr": "rate(bmcd_switch_port_tx_bytes_total[5m])*8",
           "refId": "B",
-          "legendFormat": "{{port}} tx"
+          "legendFormat": "{{instance}} {{port}} tx"
         }
       ],
       "description": "Counters straight off the switch. This is also how each port was mapped to its module: correlating a traffic delta per port against each node's own NIC, which matched within 2-5% with identical ordering.",
@@ -939,7 +944,7 @@
           },
           "expr": "rate(bmcd_switch_port_rx_errors_total[5m])",
           "refId": "A",
-          "legendFormat": "{{port}} rx errors"
+          "legendFormat": "{{instance}} {{port}} rx errors"
         },
         {
           "datasource": {
@@ -948,7 +953,7 @@
           },
           "expr": "rate(bmcd_switch_port_tx_errors_total[5m])",
           "refId": "B",
-          "legendFormat": "{{port}} tx errors"
+          "legendFormat": "{{instance}} {{port}} tx errors"
         }
       ],
       "description": "Flat at zero is the expected state. Anything sustained here is a cable or a port, and it will show up as retransmits long before anything else in the estate notices.",
@@ -1019,7 +1024,7 @@
           },
           "expr": "bmcd_load1",
           "refId": "A",
-          "legendFormat": "1m"
+          "legendFormat": "{{instance}} 1m"
         },
         {
           "datasource": {
@@ -1028,7 +1033,7 @@
           },
           "expr": "bmcd_load5",
           "refId": "B",
-          "legendFormat": "5m"
+          "legendFormat": "{{instance}} 5m"
         },
         {
           "datasource": {
@@ -1037,7 +1042,7 @@
           },
           "expr": "bmcd_load15",
           "refId": "C",
-          "legendFormat": "15m"
+          "legendFormat": "{{instance}} 15m"
         }
       ],
       "description": "A single-core-class SoC with 116 MB of RAM. Sustained load here is usually a firmware upload or a serial console.",
@@ -1095,7 +1100,7 @@
           },
           "expr": "bmcd_memory_total_bytes",
           "refId": "A",
-          "legendFormat": "total"
+          "legendFormat": "{{instance}} total"
         },
         {
           "datasource": {
@@ -1104,7 +1109,7 @@
           },
           "expr": "bmcd_memory_available_bytes",
           "refId": "B",
-          "legendFormat": "available"
+          "legendFormat": "{{instance}} available"
         },
         {
           "datasource": {
@@ -1113,7 +1118,7 @@
           },
           "expr": "bmcd_memory_free_bytes",
           "refId": "C",
-          "legendFormat": "free"
+          "legendFormat": "{{instance}} free"
         },
         {
           "datasource": {
@@ -1122,7 +1127,7 @@
           },
           "expr": "bmcd_process_resident_bytes",
           "refId": "D",
-          "legendFormat": "bmcd (resident)"
+          "legendFormat": "{{instance}} bmcd (resident)"
         }
       ],
       "description": "116 MB total. This is why firmware staging was moved off /tmp: a 58 MB tmpfs on a 116 MB board could not hold a 37 MB image plus the daemon's buffers.\n\nWatch `available` against `bmcd (resident)`. On 2026-09-09 available fell about 1 MB a minute under sustained polling and the board stopped answering at 70 MB; the daemon's own resident set did not exist yet, so nothing here could say what was consuming it. That is what the fourth series is for. SQU-172.",
@@ -1180,7 +1185,7 @@
           },
           "expr": "bmcd_clock_offset_seconds",
           "refId": "A",
-          "legendFormat": "offset"
+          "legendFormat": "{{instance}} offset"
         }
       ],
       "description": "The BMC's clock minus true time, negative when the board is behind. It has no battery-backed sync on boot, so expect a step at every reboot and a settle afterwards. Timestamps in the promotion log come from this clock.",
@@ -1252,7 +1257,7 @@
           },
           "expr": "bmcd_firmware_promotion_total{result=\"promoted\"}",
           "refId": "A",
-          "legendFormat": "promoted"
+          "legendFormat": "{{instance}} promoted"
         }
       ],
       "description": "Boots the health gate kept. Derived as attempts minus rollbacks, because the gate writes no single line meaning 'kept' -- a board cut off mid-gate counts here.",
@@ -1307,7 +1312,7 @@
           },
           "expr": "bmcd_firmware_promotion_total{result=\"rolled_back\"}",
           "refId": "A",
-          "legendFormat": "rolled back"
+          "legendFormat": "{{instance}} rolled back"
         }
       ],
       "description": "Boots the gate refused. A rollback is not a fault in itself -- it is the gate doing its job -- but one you did not expect is worth reading /mnt/overlay/postupdate.log for.",
@@ -1366,7 +1371,7 @@
           },
           "expr": "increase(bmcd_firmware_promotion_total{result=\"promoted\"}[1h])",
           "refId": "A",
-          "legendFormat": "promoted"
+          "legendFormat": "{{instance}} promoted"
         },
         {
           "datasource": {
@@ -1375,7 +1380,7 @@
           },
           "expr": "increase(bmcd_firmware_promotion_total{result=\"rolled_back\"}[1h])",
           "refId": "B",
-          "legendFormat": "rolled back"
+          "legendFormat": "{{instance}} rolled back"
         }
       ],
       "description": "A step on 'rolled back' is the board refusing an image and returning to the one it had. The reason is in /mnt/overlay/postupdate.log, which survives that reboot -- both images mount that volume.",
@@ -1437,7 +1442,7 @@
           },
           "expr": "bmcd_process_threads",
           "refId": "A",
-          "legendFormat": "threads"
+          "legendFormat": "{{instance}} threads"
         }
       ],
       "fieldConfig": {
