@@ -13,6 +13,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.20.0] — 2026-09-10
+
+### Added
+
+- **bmcd v2.28.0 → v2.29.0: `bmcd_firmware_last_promotion_timestamp_seconds`**
+  (SQU-141). The counter beside it says how often the gate reached a verdict;
+  this says when the last one was, which is what an alert on "no promotion
+  since" needs. Absent rather than wrong when the board's clock cannot be
+  trusted, and only UTC is accepted.
+
+### Removed
+
+- **BMC-UI v3.18.0 → v3.19.0: the red maskrom warning on the flash page**
+  (SQU-157, with SQU-105). It said the daemon writes to whichever module is in
+  maskrom first, whatever the picker says. That was true and is not any more.
+
+  Proven on the board on 2026-09-10 before the warning came down: with **two**
+  modules in maskrom at once, flashing node 2 left node 4 answering `talosctl`
+  with the cluster's certificate authority while node 2 rejected it as unknown.
+  A node that was overwritten cannot present the cluster CA; one that was not
+  cannot fail to. The write landed where it was aimed, and node 2 was
+  reprovisioned back into the cluster afterwards.
+
+  A warning that is no longer true is worse than no warning: it teaches people
+  to ignore the red ones.
+
 ## [v2.19.0] — 2026-09-10
 
 ### Changed
