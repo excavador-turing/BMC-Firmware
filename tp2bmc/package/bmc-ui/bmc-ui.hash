@@ -10,8 +10,8 @@
 # BMC_UI_LICENSE_FILES = LICENSE -- shipped no LICENSE at all, which for a
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
-# Verified 2026-09-09: 577760 bytes, built by GitHub Actions from tag
-# v3.18.0. The sum was recomputed from the downloaded bytes rather than read
+# Verified 2026-09-10: 576231 bytes, built by GitHub Actions from tag
+# v3.19.0. The sum was recomputed from the downloaded bytes rather than read
 # out of the release's own SHA256SUMS -- a manifest published beside an asset
 # cannot attest to it, and catching a re-uploaded asset is the whole reason
 # this file exists. It does agree with that manifest, which is a cross-check
@@ -24,11 +24,14 @@
 # not there. v3.18.0 stops hand-writing the API's response types: twenty-three
 # interfaces are now aliases onto a file generated from the openapi.json that
 # bmcd publishes, and CI regenerates and diffs so a hand edit or a pin moved
-# without regenerating fails there rather than on a board.
+# without regenerating fails there rather than on a board. v3.19.0 removes
+# the maskrom warning from the flash page: SQU-105 landed and the claim it
+# made -- that a flash hits whichever module answered first -- was disproved
+# on the board with two modules in maskrom at once.
 #
 # The sum is UNCHANGED across the move to excavador-turing. The asset was
 # rebuilt from the same tree under the new owner and came out byte-identical
 # -- 573360 bytes, same sha256 -- because the release workflow packs with
 # `tar --sort=name | gzip -9 -n`, which pins member order and drops the
 # gzip timestamp. Only the URL in bmc-ui.mk changed.
-sha256  601df33673ad65e9cf7f69cb9edd59589ab0a14aeb2c740c0ce42f198376c17e  bmc-ui-v3.18.0.tar.gz
+sha256  11711720de2e0eb0dee426d36a6d4271b3a89bbd3243e8e2b36c5fee1d6e0903  bmc-ui-v3.19.0.tar.gz
