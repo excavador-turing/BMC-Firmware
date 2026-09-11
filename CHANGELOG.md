@@ -13,6 +13,55 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.23.0] — 2026-09-11
+
+### Changed
+
+- **bmcd v2.30.0 → v2.31.0: the daemon offers TLS 1.3, with 1.2 as the
+  fallback** (SQU-136). Its acceptor was built from Mozilla's version 4
+  intermediate profile, which pins the maximum protocol version to TLS 1.2.
+  The board's OpenSSL is 3.5.7 and was capable of 1.3 the whole time.
+
+  This is a bug fix, not housekeeping. Under TLS 1.2 a client's
+  `supported_groups` extension constrains the curve of the **server's**
+  certificate as well as the key exchange, so a client whose curve list stops
+  at P-256 — Envoy's default — cannot use a P-384 certificate at all. Every
+  certificate in the estate these boards run in is P-384, so the gateway in
+  front of them failed every handshake, and both boards showed as unreachable
+  behind a login page that worked perfectly.
+
+  No setting changes, the promotion gate is untouched, and TLS 1.2 stays
+  available for whatever client is to hand.
+
+## [v2.22.0] — 2026-09-11
+
+### Added
+
+- **bmcd v2.29.0 → v2.30.0: a proxy holding a certificate from a trusted CA
+  can name the human it authenticated** (SQU-136). `tls.client_ca` turns it
+  on and is absent by default, so a board that never gets one behaves exactly
+  as before. `tls.identity_header` says which header carries the name. A name
+  without a certificate is nobody, and that rule has a test.
+
+  This is what makes a fleet interface possible without giving anything a
+  password to every board.
+
+## [v2.21.0] — 2026-09-10
+
+### Changed
+
+- **BMC-UI v3.19.0 → v3.21.0**, two interface releases in one pin. v3.20.0
+  put the Nodes page on a two-by-two grid — four full-width rows scrolled on
+  a 1080-pixel screen with a third of the width empty beside each — and added
+  the demo mode that answers from captured fixtures, which is what
+  turingpi.xyz serves as its live demo. v3.21.0 tightened that grid until it
+  also fits the demo's frame: measured at 868 pixels in the 1664 by 879 frame
+  the site gives it.
+- **The Grafana dashboard names the board on every series.** With two boards
+  reporting, a panel that did not carry the instance label was drawing both
+  as one line.
+
+
 ## [v2.20.0] — 2026-09-10
 
 ### Added
