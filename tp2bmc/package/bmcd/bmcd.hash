@@ -43,5 +43,5 @@
 # tree with no buildroot/local.mk: `make bmcd-source` reported got
 # 64ce9a97 against a zeroed expectation, then re-run to confirm it fetches
 # and verifies cleanly.
-sha256  64ce9a97981f76d181e90d29e0d3423e01fa47878af9a5ccfb29ee91ad7ae6ad  bmcd-b68d0c2af19ba9ee95f34eee07a9a48c5400ed44-cargo2.tar.gz
+sha256  bfb577e1bb8e27ad0892594ce0c400208b1279cd11ab00ee1b723a3cccacf364  bmcd-29ab78b1c368b8d76aabe30c56e17e7aaa40db59-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
