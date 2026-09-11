@@ -89,8 +89,30 @@ jobs:
           printf '  %s\n' $relevant
           decide true "$(printf '%s\n' "$relevant" | wc -l) path(s) reach the board"
 
+  # The rule: a release ships the latest bmcd, BMC-UI and tpi.
+  #
+  # This job is where it is BECAUSE of where it is. The same check ran in
+  # checks.yml until 2026-09-12, failed on the v2.26.0 tag, and the release
+  # was published anyway -- two workflow runs of one tag, neither waiting on
+  # the other, so the gate reported and could not refuse. A check that cannot
+  # stop the thing it judges is decoration at the one moment it matters.
+  #
+  # The script reports on a pull request and exits non-zero only for a
+  # `refs/tags/v*` ref, so this costs an ordinary push a few seconds and
+  # blocks nothing that is not a release.
+  pins:
+    name: pins are current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: bmcd, BMC-UI and tpi are the latest
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./tests/pins-are-current.sh
+
   build:
-    needs: gate
+    needs: [gate, pins]
     if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-latest
     permissions:
