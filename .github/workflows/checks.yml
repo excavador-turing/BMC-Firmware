@@ -146,16 +146,16 @@ jobs:
   # Reports on a PR, refuses on a tag. Failing every PR because somebody
   # released a daemon an hour ago is how a check becomes something people learn
   # to ignore.
-  pins:
-    name: pins are current
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: bmcd, BMC-UI and tpi are the latest
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: ./tests/pins-are-current.sh
+  # `pins` MOVED to build.yml on 2026-09-12, and the move is the point.
+  #
+  # It lived here, failed on the v2.26.0 tag exactly as designed -- tpi was a
+  # release behind -- and the image was built and published anyway, six
+  # minutes later, because this workflow and the one that publishes are two
+  # runs of the same tag with no dependency between them. A red check here
+  # could not stop anything.
+  #
+  # A rule about what a release contains has to be enforced by the workflow
+  # that makes the release. It is a `needs:` of the build job now (SQU-203).
 
   # The board's own certificate is what protects the password typed into the
   # login page on the management LAN, and the script that issues it can, if it
