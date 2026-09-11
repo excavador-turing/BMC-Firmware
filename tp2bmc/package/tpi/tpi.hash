@@ -10,9 +10,19 @@
 # the interface was bumped -- which is exactly the drift it was written for,
 # on its first real use.
 #
-# Measured 2026-09-11 with rust-bin 1.98.1 in the pinned container, from a
-# tree with no buildroot/local.mk: `make tpi-source` reported got 3e1c451c
-# against a zeroed expectation, then re-run to confirm it fetches and
-# verifies cleanly.
-sha256  3e1c451ce6822e17b4f1986c349894d3a8a6d77635a23a6e56482aa35ff2bf9a  tpi-4009f9ca6515f83928e890708ab41ee1ac183fc8-cargo2.tar.gz
+# v1.7.0 -> v1.8.0 (b98c5079). `tpi health` and `tpi sdcard` reach the two
+# endpoints the interface had to itself, the reboot help stops implying the
+# compute modules go down with the daemon, and power status reads the
+# daemon's "1"/"0" rather than parsing it as a number.
+#
+# THE RELEASE GATE IS WHY THIS IS HERE. v2.26.0 was tagged with tpi still at
+# v1.7.0 and `tests/pins-are-current.sh` refused it: tpi 1.8.0 was published
+# half an hour after firmware v2.25.0, so the pin was current when it was
+# written and stale by the next release. That check is the only thing that
+# noticed.
+#
+# Measured 2026-09-12 with the pinned container: `make tpi-source` reported
+# got cc486206 against a zeroed expectation, then re-run to confirm it
+# fetches and verifies cleanly.
+sha256  cc48620669dd7d1802799fa46b1eb754e4e375583b43cc66026cbec70b705be7  tpi-b98c5079c1ed6a56e054b862d51049e25407ae4a-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE
