@@ -10,12 +10,14 @@
 # BMC_UI_LICENSE_FILES = LICENSE -- shipped no LICENSE at all, which for a
 # GPL-2.0 work we redistribute was a real gap. Ours carries it.
 #
-# Verified 2026-09-10: 576231 bytes, built by GitHub Actions from tag
-# v3.19.0. The sum was recomputed from the downloaded bytes rather than read
+# Verified 2026-09-11: 577222 bytes, built by GitHub Actions from tag
+# v3.21.0. The sum was recomputed from the downloaded bytes rather than read
 # out of the release's own SHA256SUMS -- a manifest published beside an asset
 # cannot attest to it, and catching a re-uploaded asset is the whole reason
 # this file exists. It does agree with that manifest, which is a cross-check
-# and not the source.
+# and not the source. The tarball carries dist/LICENSE, and the grid class
+# the Nodes page needs is present in the built bundle -- both checked on the
+# downloaded archive, not assumed from the tag.
 #
 # v3.16.0 folded the pages' standing explanations behind (i) popovers that
 # link to the docs site. v3.17.0 removed the Metrics token card: /metrics
@@ -27,11 +29,17 @@
 # without regenerating fails there rather than on a board. v3.19.0 removes
 # the maskrom warning from the flash page: SQU-105 landed and the claim it
 # made -- that a flash hits whichever module answered first -- was disproved
-# on the board with two modules in maskrom at once.
+# on the board with two modules in maskrom at once. v3.20.0 gives the Nodes
+# page a two-by-two grid -- four full-width stacked rows scrolled on a 1080p
+# screen with a third of the width empty -- and adds the demo mode that
+# answers from captured fixtures, which is what turingpi.xyz serves. v3.21.0
+# tightens that grid so it also fits the demo's frame: on a card wider than a
+# phone the controls and the two name fields share a row again, which is
+# upstream's own arrangement that the first grid had stacked.
 #
 # The sum is UNCHANGED across the move to excavador-turing. The asset was
 # rebuilt from the same tree under the new owner and came out byte-identical
 # -- 573360 bytes, same sha256 -- because the release workflow packs with
 # `tar --sort=name | gzip -9 -n`, which pins member order and drops the
 # gzip timestamp. Only the URL in bmc-ui.mk changed.
-sha256  11711720de2e0eb0dee426d36a6d4271b3a89bbd3243e8e2b36c5fee1d6e0903  bmc-ui-v3.19.0.tar.gz
+sha256  eebff4157646d5bbe171d15339d3c54495ef55b33c3a4ae9a86aad0179909f38  bmc-ui-v3.21.0.tar.gz
