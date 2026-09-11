@@ -13,6 +13,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.24.0] — 2026-09-11
+
+### Fixed
+
+- **bmcd v2.32.0 → v2.33.0: a node's USB bus number is not part of its
+  identity, and pinning it refused every flash** (SQU-199). The port check
+  that stops a flash of node 2 writing node 1 compared the whole path — bus
+  included — against a bus hardcoded to 1.
+
+  That is not a constant. This board pairs an OHCI and an EHCI controller as
+  **companions for the same physical ports**, so which bus a device lands on
+  is decided by its *speed*: the same hub port is `1-1.2` for a full-speed
+  device and `2-1.2` for a high-speed one. A Rockchip in maskrom is
+  high-speed, so the daemon refused every RK1 it was asked to flash or expose
+  as mass storage:
+
+  ```
+  node 2 requested on 1-1.2; found Rockusb on 2-1.2 instead
+  ```
+
+  about a module that was entirely healthy. Found while recovering a node that
+  would not boot after a power-down — the recovery was blocked by our own
+  check, and nothing on this board could be flashed through the daemon until
+  this release.
+
+  The comparison is on the port chain alone now, and anything that must match
+  a sysfs path is handed the path of the device that actually answered.
+
 ## [v2.23.0] — 2026-09-11
 
 TLS, made usable rather than merely present.
