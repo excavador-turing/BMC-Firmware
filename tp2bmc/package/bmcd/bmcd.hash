@@ -19,18 +19,25 @@
 # tree instead of downloading the pinned archive, so a hash computed with one
 # in place would describe whatever happened to be on the workstation.
 #
-# The version is commit 12765f9 on excavador-turing/bmcd branch `hive`,
-# released as v2.29.0: bmcd_firmware_last_promotion_timestamp_seconds, so a
-# dashboard can say when the gate last decided and not only how often. The
-# gauge is absent rather than wrong when the board's clock cannot be trusted --
-# the gate records the board's own time, which on a BMC that just came up may
-# be well before the real one, and only UTC is accepted.
+# The version is commit 0df4e5b on excavador-turing/bmcd branch `hive`,
+# released as v2.30.0: a proxy holding a client certificate from a configured
+# CA can name the human it authenticated. That is what lets the fleet
+# interface reach a board without holding root's password for it, and it is
+# off unless `tls.client_ca` is set -- which a board does not ship with, so
+# this release changes nothing on a board nobody has configured.
 #
-# Nothing here changes a listener or the gate.
+# The listener does change: client certificates are now REQUESTED (PEER
+# without FAIL_IF_NO_PEER_CERT) when a CA is configured. A client that offers
+# none still gets through to the login page, which is the break-glass path.
 #
-# Measured 2026-09-10 with rust-bin 1.98.1 in the pinned container, from a
-# tree with no buildroot/local.mk: `make bmcd-source` reported got
-# e0eff3d3 against a zeroed expectation, then re-run to confirm it fetches
-# and verifies cleanly.
-sha256  e0eff3d32a15896c6e8643c5e6b9dd3b0b419b05aed0b0e8a01158250c2a6b46  bmcd-12765f91eb34443c1d78042defffdf4e02d94cdf-cargo2.tar.gz
+# Measured 2026-09-11 with the pinned container, from a tree with no
+# buildroot/local.mk: `make bmcd-source` against a zeroed expectation reported
+# got d9f704f7, then re-run to confirm it fetches and verifies cleanly --
+# "OK (sha256: d9f704f7...)".
+#
+# Worth knowing: the sum is of the archive NAME as well as its contents. The
+# same commit pinned short (0df4e5b93a53) hashes to 6a0d3d71 and pinned in
+# full to d9f704f7, because the version string is the archive's name and its
+# top-level directory. Compute it for the exact string that will ship.
+sha256  d9f704f710226af7aff4d7322ca577dc12ff5326209f55aaa2aa486909d5b1f1  bmcd-0df4e5b93a534a0b30e941fb7675edd4532a8fa8-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
