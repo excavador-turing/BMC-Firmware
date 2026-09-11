@@ -42,21 +42,15 @@
 # -- 573360 bytes, same sha256 -- because the release workflow packs with
 # `tar --sort=name | gzip -9 -n`, which pins member order and drops the
 # gzip timestamp. Only the URL in bmc-ui.mk changed.
-# v3.21.0 -> v3.23.0. Two interface releases in one pin.
+# v3.23.0 -> v3.24.0: the firmware install confirmation is a modal.
 #
-# v3.22.0 stopped the daemon's messages being escaped twice: i18next escapes
-# interpolated values by default, and React escapes again on render, so a path
-# came out as &#x2F; in the page.
+# It used to render inline, after every candidate. A board with several
+# sources has a long catalogue, so pressing INSTALL scrolled the question off
+# the bottom of the window -- the button appeared to do nothing, and the
+# obvious response is to press it again. It now uses the same modal the reboot
+# and node-power confirmations use, whose drawer form also fixes the phone
+# case the inline panel was worst on. Reported from use, 2026-09-11.
 #
-# v3.23.0 is the fleet gaining every control the board interface has -- Nodes,
-# Console, USB, Flash a module, Overview, Network, Firmware, Settings -- using
-# the SAME components rather than copies. That matters to THIS package too:
-# the board's own bundle is where those components live, so the board gets the
-# same fixes. Three of them were quiet bugs: toasts were capped at one and
-# carried no board name, "don't ask again" for node power was a single setting
-# shared by every board, and logout walked out of the application under a
-# sub-path.
-#
-# Measured 2026-09-11: `make bmc-ui-source` reported got f43c30f3 against a
+# Measured 2026-09-11: `make bmc-ui-source` reported got 7beaafb3 against a
 # zeroed expectation, then re-run to confirm it fetches and verifies cleanly.
-sha256  f43c30f39a0c8d20de1c5b22ef99b62517cbf4516668980ff7235e051de67c81  bmc-ui-v3.23.0.tar.gz
+sha256  7beaafb3897ba2e8f3e315fc735639abbe93c3d4fc2952fbf8f1e0e8458feb0c  bmc-ui-v3.24.0.tar.gz

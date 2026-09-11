@@ -13,6 +13,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.25.0] — 2026-09-11
+
+### Fixed
+
+- **BMC-UI v3.23.0 → v3.24.0: the firmware install confirmation is a modal.**
+  It rendered inline, after every candidate. A board with several sources has
+  a long catalogue, so pressing INSTALL scrolled the question off the bottom
+  of the window — the button appeared to do nothing, and the obvious response
+  is to press it again. It now uses the same modal the reboot and node-power
+  confirmations use, and its drawer form fixes the phone case the inline panel
+  was worst on. Reported from use.
+
+### Changed
+
+- **tpi → v1.7.0**, which releases the fix already on the branch: renaming a
+  board no longer claims to move its metrics history, because the series never
+  carried a board name.
+
+  Bumped because the pin check added in v2.24.0 caught it — it flagged tpi as
+  stale the moment the interface was bumped, which is exactly the drift it was
+  written for, on its first real use.
+
 ## [v2.24.0] — 2026-09-11
 
 Everything current: the daemon, the interface and the CLI.
