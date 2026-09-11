@@ -19,28 +19,29 @@
 # tree instead of downloading the pinned archive, so a hash computed with one
 # in place would describe whatever happened to be on the workstation.
 #
-# The version is commit e7c1d90 on excavador-turing/bmcd branch `hive`,
-# released as v2.33.0: a node's USB bus number is not part of its identity.
+# The version is commit b68d0c2 on excavador-turing/bmcd branch `hive`,
+# released as v2.34.0. Two releases in one pin:
 #
-# The port check that stops a flash of node 2 writing node 1 compared the whole
-# path, bus included, against a bus hardcoded to 1. This board pairs an OHCI
-# and an EHCI controller as COMPANIONS for the same physical ports, so which
-# bus a device lands on is decided by its speed -- the same hub port is 1-1.2
-# for a full-speed device and 2-1.2 for a high-speed one. A Rockchip in maskrom
-# is high-speed, so the check refused every RK1 it was ever asked to flash:
+# v2.33.0 -- a node's USB bus number is not part of its identity. The port
+# check that stops a flash of node 2 writing node 1 compared the whole path,
+# bus included, against a bus hardcoded to 1. This board pairs an OHCI and an
+# EHCI controller as COMPANIONS for the same physical ports, so the bus a
+# device lands on is decided by its speed: the same hub port is 1-1.2 for a
+# full-speed device and 2-1.2 for a high-speed one. A Rockchip in maskrom is
+# high-speed, so the daemon refused every RK1 it was asked to flash or expose
+# as mass storage. Nothing on this board could be flashed until this release.
 #
-#   node 2 requested on 1-1.2; found Rockusb on 2-1.2 instead
+# v2.34.0 -- the daemon can list the microSD card: name, size, modified time,
+# and whether each entry could be written to a node. Path confinement is one
+# function with its own tests, because the same resolver will serve rename and
+# delete later; root and target are both canonicalised, so `../..` and a
+# symlink off the card are refused by the same rule.
 #
-# Found on bmc-2 on 2026-09-11 while recovering a node that would not boot; the
-# module was healthy and our own check was the only thing in the way. Nothing
-# on this board could be flashed or exposed as mass storage through the daemon
-# until this release.
-#
-# No listener change, no gate change, no new setting.
+# No listener change and no gate change in either.
 #
 # Measured 2026-09-11 with rust-bin 1.98.1 in the pinned container, from a
 # tree with no buildroot/local.mk: `make bmcd-source` reported got
-# 379d140d against a zeroed expectation, then re-run to confirm it fetches
+# 64ce9a97 against a zeroed expectation, then re-run to confirm it fetches
 # and verifies cleanly.
-sha256  379d140d25509497554f6e0a3cc95c4e319f6eef3c635fffacedae5185182ddd  bmcd-e7c1d901a0ec329a34cc944838f2f2ec2fb29e35-cargo2.tar.gz
+sha256  64ce9a97981f76d181e90d29e0d3423e01fa47878af9a5ccfb29ee91ad7ae6ad  bmcd-b68d0c2af19ba9ee95f34eee07a9a48c5400ed44-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
