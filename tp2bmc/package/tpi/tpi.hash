@@ -1,17 +1,14 @@
 # Cargo package: the sum is of Buildroot's vendored, re-packed archive
 # (see bmcd.hash for the toolchain trap this shares).
 #
-# The version is commit a337773 on excavador-turing/tpi, released as v1.6.0:
-# `firmware install` no longer decides whether a version exists -- the board
-# does. The cached listing informs the confirmation line and cannot refuse.
-# v1.5.0 and v1.5.1 both tried to make that listing fresh instead; the board
-# answers 400 in 0.48 s for a version nobody has, so there was nothing to
-# protect against. Also: `list --refresh` waited 60 s for polls that take
-# 74-140 s and then printed the stale listing silently; four minutes now, and
-# it says when it gives up.
+# The version is commit 79ff091 on excavador-turing/tpi branch `hive`: the
+# rename does not move your metrics history. Renaming a board used to be
+# described as carrying its metrics with it; the series carry no board name at
+# all, so nothing moves and the CLI stops saying otherwise.
 #
-# Measured 2026-09-10 with rust-bin 1.98.1 in the pinned container: `make
-# tpi-source` reported got d7eaf605 against a zeroed expectation, then
-# re-run to confirm it fetches and verifies cleanly.
-sha256  d7eaf605ce1775a7269bbf8b95885071b73f965eebbd9ac1e3b6eebac2c81002  tpi-a337773ee4016332430e87e8bf53455e9c1dbe50-cargo2.tar.gz
+# Measured 2026-09-11 with rust-bin 1.98.1 in the pinned container, from a
+# tree with no buildroot/local.mk: `make tpi-source` reported got b5108b8c
+# against a zeroed expectation, then re-run to confirm it fetches and
+# verifies cleanly.
+sha256  b5108b8c210361f7cc6503382dd5a33cc6d381841365a836cb0b8ab953c5f153  tpi-79ff09139d156897986959c471be3ef165713338-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE

@@ -19,29 +19,29 @@
 # tree instead of downloading the pinned archive, so a hash computed with one
 # in place would describe whatever happened to be on the workstation.
 #
-# The version is commit 53154ed on excavador-turing/bmcd branch `hive`,
-# released as v2.32.0. Two releases in one pin:
+# The version is commit b68d0c2 on excavador-turing/bmcd branch `hive`,
+# released as v2.34.0. Two releases in one pin:
 #
-# v2.31.0 -- the daemon offers TLS 1.3, with 1.2 as the fallback. Its acceptor
-# was built from Mozilla's v4 intermediate profile, which pins the maximum
-# protocol version to TLS 1.2, and under TLS 1.2 a client's supported_groups
-# list constrains the curve of the SERVER's certificate as well as the key
-# exchange. Envoy's default list stops at P-256, every certificate in this
-# estate is P-384, so the gateway could not complete a handshake with a board
-# at all. Both boards looked dead behind a working login page.
+# v2.33.0 -- a node's USB bus number is not part of its identity. The port
+# check that stops a flash of node 2 writing node 1 compared the whole path,
+# bus included, against a bus hardcoded to 1. This board pairs an OHCI and an
+# EHCI controller as COMPANIONS for the same physical ports, so the bus a
+# device lands on is decided by its speed: the same hub port is 1-1.2 for a
+# full-speed device and 2-1.2 for a high-speed one. A Rockchip in maskrom is
+# high-speed, so the daemon refused every RK1 it was asked to flash or expose
+# as mass storage. Nothing on this board could be flashed until this release.
 #
-# v2.32.0 -- /metrics reports when the serving certificate expires, and which
-# key it is built on. SQU-115 was a board serving a certificate that had
-# expired more than a year earlier with nothing anywhere saying so; a number a
-# scrape can alert on is the fix for that. It also pins, as a test, that every
-# key an operator might install is served: RSA, P-256, P-384, P-521, Ed25519.
+# v2.34.0 -- the daemon can list the microSD card: name, size, modified time,
+# and whether each entry could be written to a node. Path confinement is one
+# function with its own tests, because the same resolver will serve rename and
+# delete later; root and target are both canonicalised, so `../..` and a
+# symlink off the card are refused by the same rule.
 #
-# This is a listener change. The promotion gate is untouched and no setting
-# changes; TLS 1.2 remains available for whatever client is to hand.
+# No listener change and no gate change in either.
 #
 # Measured 2026-09-11 with rust-bin 1.98.1 in the pinned container, from a
 # tree with no buildroot/local.mk: `make bmcd-source` reported got
-# c494902e against a zeroed expectation, then re-run to confirm it fetches
+# 64ce9a97 against a zeroed expectation, then re-run to confirm it fetches
 # and verifies cleanly.
-sha256  c494902ead967b4b12f597c7b3a7449c7f7e246b08776e0cb86e8e87c13bb491  bmcd-53154ed90465b2bd7374c2d04df34a0af68176d4-cargo2.tar.gz
+sha256  64ce9a97981f76d181e90d29e0d3423e01fa47878af9a5ccfb29ee91ad7ae6ad  bmcd-b68d0c2af19ba9ee95f34eee07a9a48c5400ed44-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

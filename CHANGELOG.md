@@ -13,6 +13,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.24.0] — 2026-09-11
+
+Everything current: the daemon, the interface and the CLI.
+
+### Fixed
+
+- **bmcd v2.32.0 → v2.34.0.** Two releases.
+
+  **v2.33.0 — a node's USB bus number is not part of its identity, and pinning
+  it refused every flash** (SQU-199). The port check that stops a flash of
+  node 2 writing node 1 compared the whole path, bus included, against a bus
+  hardcoded to 1. This board pairs an OHCI and an EHCI controller as
+  **companions for the same physical ports**, so which bus a device lands on is
+  decided by its *speed*: the same hub port is `1-1.2` for a full-speed device
+  and `2-1.2` for a high-speed one. A Rockchip in maskrom is high-speed, so the
+  daemon refused every RK1 it was asked to flash or expose as mass storage,
+  with `node 2 requested on 1-1.2; found Rockusb on 2-1.2 instead`, about
+  modules that were entirely healthy. **Nothing on this board could be flashed
+  through the daemon until this release.**
+
+  **v2.34.0 — the daemon can say what is on the microSD card** (SQU-198). Name,
+  size, modified time, and whether each entry could be written to a node.
+  `tpi flash --local` already reads images off that card; there was simply no
+  way to see what was there, so an operator had to know the path and type it.
+  A non-candidate is listed with its reason rather than hidden. Every path is
+  confined to the card by one function with its own tests, catching `../..` and
+  a symlink off the card with the same rule.
+
+- **BMC-UI v3.21.0 → v3.23.0.** v3.22.0 stopped the daemon's messages being
+  escaped twice — i18next escapes interpolated values and React escapes again,
+  so a path arrived as `&#x2F;` in the page.
+
+  v3.23.0 is the fleet gaining every control the board interface has, built
+  from the **same components** rather than copies. That reaches this package
+  too, because those components are the board's own bundle: toasts were capped
+  at one and carried no board name, "don't ask again" for node power was a
+  single setting shared by every board, and logout walked out of the
+  application under a sub-path. All three are fixed here as well. Export and
+  Import configuration is now **Backup and restore**.
+
+- **tpi → 79ff091: the rename does not move your metrics history.** Renaming a
+  board was described as carrying its metrics with it. The series carry no
+  board name at all, so nothing moves, and the CLI stops claiming otherwise.
+
 ## [v2.23.0] — 2026-09-11
 
 TLS, made usable rather than merely present.

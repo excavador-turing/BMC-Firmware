@@ -42,4 +42,21 @@
 # -- 573360 bytes, same sha256 -- because the release workflow packs with
 # `tar --sort=name | gzip -9 -n`, which pins member order and drops the
 # gzip timestamp. Only the URL in bmc-ui.mk changed.
-sha256  eebff4157646d5bbe171d15339d3c54495ef55b33c3a4ae9a86aad0179909f38  bmc-ui-v3.21.0.tar.gz
+# v3.21.0 -> v3.23.0. Two interface releases in one pin.
+#
+# v3.22.0 stopped the daemon's messages being escaped twice: i18next escapes
+# interpolated values by default, and React escapes again on render, so a path
+# came out as &#x2F; in the page.
+#
+# v3.23.0 is the fleet gaining every control the board interface has -- Nodes,
+# Console, USB, Flash a module, Overview, Network, Firmware, Settings -- using
+# the SAME components rather than copies. That matters to THIS package too:
+# the board's own bundle is where those components live, so the board gets the
+# same fixes. Three of them were quiet bugs: toasts were capped at one and
+# carried no board name, "don't ask again" for node power was a single setting
+# shared by every board, and logout walked out of the application under a
+# sub-path.
+#
+# Measured 2026-09-11: `make bmc-ui-source` reported got f43c30f3 against a
+# zeroed expectation, then re-run to confirm it fetches and verifies cleanly.
+sha256  f43c30f39a0c8d20de1c5b22ef99b62517cbf4516668980ff7235e051de67c81  bmc-ui-v3.23.0.tar.gz
