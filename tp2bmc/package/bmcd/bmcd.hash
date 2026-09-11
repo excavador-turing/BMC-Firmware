@@ -19,24 +19,29 @@
 # tree instead of downloading the pinned archive, so a hash computed with one
 # in place would describe whatever happened to be on the workstation.
 #
-# The version is commit cd94084 on excavador-turing/bmcd branch `hive`,
-# released as v2.31.0: the daemon offers TLS 1.3, with 1.2 as the fallback.
+# The version is commit 53154ed on excavador-turing/bmcd branch `hive`,
+# released as v2.32.0. Two releases in one pin:
 #
-# That is a listener change, and the reason it matters is not the version
-# number. The acceptor was built from Mozilla's v4 intermediate profile, which
-# pins the maximum protocol version to TLS 1.2 -- and under TLS 1.2 a client's
-# supported_groups list constrains the curve of the SERVER's certificate as
-# well as the key exchange. Envoy's default list stops at P-256, every
-# certificate in this estate is P-384, so the gateway could not complete a
-# handshake with a board at all. Both boards looked dead behind a working
-# login page.
+# v2.31.0 -- the daemon offers TLS 1.3, with 1.2 as the fallback. Its acceptor
+# was built from Mozilla's v4 intermediate profile, which pins the maximum
+# protocol version to TLS 1.2, and under TLS 1.2 a client's supported_groups
+# list constrains the curve of the SERVER's certificate as well as the key
+# exchange. Envoy's default list stops at P-256, every certificate in this
+# estate is P-384, so the gateway could not complete a handshake with a board
+# at all. Both boards looked dead behind a working login page.
 #
-# Nothing else changes: no new setting, no gate change, and TLS 1.2 remains
-# available for whatever client is to hand.
+# v2.32.0 -- /metrics reports when the serving certificate expires, and which
+# key it is built on. SQU-115 was a board serving a certificate that had
+# expired more than a year earlier with nothing anywhere saying so; a number a
+# scrape can alert on is the fix for that. It also pins, as a test, that every
+# key an operator might install is served: RSA, P-256, P-384, P-521, Ed25519.
+#
+# This is a listener change. The promotion gate is untouched and no setting
+# changes; TLS 1.2 remains available for whatever client is to hand.
 #
 # Measured 2026-09-11 with rust-bin 1.98.1 in the pinned container, from a
 # tree with no buildroot/local.mk: `make bmcd-source` reported got
-# 3b42af08 against a zeroed expectation, then re-run to confirm it fetches
+# c494902e against a zeroed expectation, then re-run to confirm it fetches
 # and verifies cleanly.
-sha256  3b42af085f909bac8ad7d9f567362db648e5d2e50055d0ebe2cff81f75b89913  bmcd-cd94084f95e45214cbb59f5245fe594797c47e68-cargo2.tar.gz
+sha256  c494902ead967b4b12f597c7b3a7449c7f7e246b08776e0cb86e8e87c13bb491  bmcd-53154ed90465b2bd7374c2d04df34a0af68176d4-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

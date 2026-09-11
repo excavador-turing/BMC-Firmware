@@ -129,11 +129,25 @@ jobs:
           shellcheck --shell=busybox --severity=warning \
             tests/gate.sh \
             tests/dashboard.sh \
+            tp2bmc/package/bmcd/generate_self_signedx509.sh \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S00sysrq \
             tp2bmc/board/tp2bmc/overlay/usr/sbin/mdnsd-guard \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/osupdate
+
+  # The board's own certificate is what protects the password typed into the
+  # login page on the management LAN, and the script that issues it can, if it
+  # gets the checks wrong, DELETE an operator's real certificate at boot. That
+  # is not something to discover on hardware.
+  selfsigned:
+    name: self-signed certificate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: what the script must and must not do
+        run: ./tests/selfsigned-cert.sh
 
   # The dashboard is published as a release asset, so a broken one is only
   # discovered by whoever downloads it -- after the release is immutable.

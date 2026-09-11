@@ -15,23 +15,65 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [v2.23.0] — 2026-09-11
 
+TLS, made usable rather than merely present.
+
 ### Changed
 
-- **bmcd v2.30.0 → v2.31.0: the daemon offers TLS 1.3, with 1.2 as the
+- **bmcd v2.30.0 → v2.32.0: the daemon offers TLS 1.3, with 1.2 as the
   fallback** (SQU-136). Its acceptor was built from Mozilla's version 4
   intermediate profile, which pins the maximum protocol version to TLS 1.2.
   The board's OpenSSL is 3.5.7 and was capable of 1.3 the whole time.
 
-  This is a bug fix, not housekeeping. Under TLS 1.2 a client's
-  `supported_groups` extension constrains the curve of the **server's**
-  certificate as well as the key exchange, so a client whose curve list stops
-  at P-256 — Envoy's default — cannot use a P-384 certificate at all. Every
-  certificate in the estate these boards run in is P-384, so the gateway in
-  front of them failed every handshake, and both boards showed as unreachable
-  behind a login page that worked perfectly.
+  Not housekeeping. Under TLS 1.2 a client's `supported_groups` extension
+  constrains the curve of the **server's** certificate as well as the key
+  exchange, so a client whose list stops at P-256 — Envoy's default — cannot
+  use a P-384 certificate at all. Every certificate in the estate these boards
+  run in is P-384, so the gateway in front of them failed every handshake and
+  both boards showed as unreachable behind a login page that worked perfectly.
 
-  No setting changes, the promotion gate is untouched, and TLS 1.2 stays
-  available for whatever client is to hand.
+- **The self-signed certificate is one a client can actually trust, and it
+  renews itself.** The script that issues it, when nobody has installed a real
+  certificate, had four problems, each now fixed:
+
+  - It set **no subjectAltName**. Every browser since 2017 matches on the SAN
+    and ignores the common name, so that certificate could not be accepted by
+    any of them. A self-signed certificate nobody can choose to trust is
+    decoration. It now names the board's hostname, its `.local` name and every
+    global address it holds.
+  - It was valid for **30 days** — openssl's default, never passed — and only
+    ever regenerated when a file was missing. A board left running served an
+    expired certificate for as long as it stayed up; one here did for over a
+    year (SQU-115). It now issues for 825 days and reissues 30 days before
+    expiry, so neither a long uptime nor a month powered off produces an
+    expired certificate.
+  - It generated **RSA 4096** on a board with about 87 MB of usable RAM. Now
+    EC P-384, the estate's standing key type: stronger per bit, faster, smaller.
+  - Its pair check ran `openssl rsa -noout -modulus`, which **fails on any key
+    that is not RSA** — and the failure branch deletes both files and
+    regenerates. An operator installing an EC or Ed25519 certificate could have
+    it destroyed at the next boot. It now compares public keys, which works for
+    every key type, and **refuses to touch any certificate it did not issue**:
+    a certificate from a real CA is left exactly where it is, expired or not,
+    with a warning rather than a replacement.
+
+  Fifteen assertions cover this in CI, including the two that matter most: a
+  certificate this script did not issue comes out byte for byte unchanged.
+
+### Added
+
+- **`/metrics` says when the serving certificate expires** —
+  `bmcd_tls_certificate_expiry_timestamp_seconds` — and which key it is built
+  on, `bmcd_tls_certificate_info{key="ecdsa-p384"}`. A number a scrape can
+  alert on is the difference between noticing an expiry and a calendar
+  reminder somebody stops reading. A date the daemon cannot parse reports no
+  series at all rather than a zero, which would read as 1970 and fire every
+  rule written against it.
+
+### Confirmed
+
+- **Every key an operator might install is served**, over TLS 1.3 and 1.2
+  alike: RSA, EC P-256, P-384 and P-521, and Ed25519. Already true, now a test
+  that performs a real handshake per key type against the real acceptor.
 
 ## [v2.22.0] — 2026-09-11
 
