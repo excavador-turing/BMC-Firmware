@@ -78,4 +78,22 @@
 # cross-check and not the source -- a manifest published beside an asset
 # cannot attest to it. dist/LICENSE is present, and the picker's own string
 # is in the built bundle, so the release carries the feature it claims.
-sha256  8232f1df41121e170df799d44c73aa9468b9699c576d116d5deaaef72e7989ea  bmc-ui-v3.25.0.tar.gz
+# v3.25.0 -> v3.26.0: the temperature moves to Board Health, and the console
+# stops blaming the wrong thing.
+#
+# Board Health showed uptime, load, memory, NAND and the clock, and the board's
+# temperature was two tabs away on Settings inside the fan card -- a READING
+# filed with a CONTROL. It is a row there now, with the fan's step and the trip
+# that explains it: "53.8 °C  fan step 5 of 6  above the 45 °C trip", read off
+# bmc-1. The slider stays on Settings.
+#
+# The console's explanation named a rejected session token and a daemon too old
+# to serve the endpoint. Measured on a fresh login, the browser reports
+# net::ERR_SSL_PROTOCOL_ERROR on the WebSocket while every other tab works --
+# a browser will not open one to a certificate it does not trust, and accepting
+# the page's warning does not extend to it. The hint leads with that now.
+#
+# Measured 2026-09-12: 579793 bytes, summed from the downloaded asset. It
+# agrees with the release's own SHA256SUMS, which is a cross-check and not the
+# source. dist/LICENSE is present and the new strings are in the built bundle.
+sha256  a0ea7ba34da0d91dab7d54a423f78637241c36b7809accad623d0e487e34ab24  bmc-ui-v3.26.0.tar.gz
