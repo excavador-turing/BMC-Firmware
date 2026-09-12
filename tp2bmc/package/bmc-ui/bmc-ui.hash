@@ -96,4 +96,27 @@
 # Measured 2026-09-12: 579793 bytes, summed from the downloaded asset. It
 # agrees with the release's own SHA256SUMS, which is a cross-check and not the
 # source. dist/LICENSE is present and the new strings are in the built bundle.
-sha256  a0ea7ba34da0d91dab7d54a423f78637241c36b7809accad623d0e487e34ab24  bmc-ui-v3.26.0.tar.gz
+# v3.26.0 -> v3.27.0: the fleet's console connects, and Settings can say who
+# may get in.
+#
+# The console refused before opening a socket, because it demanded a bmcd
+# session token the fleet has no reason to hold -- every other tab on the same
+# page was answering while that one said "there is no session token". The
+# certificate was never involved: the browser has always talked to its own
+# origin and never to a board. Holding a token and being able to open a socket
+# are different questions; through the gateway the browser presents nothing and
+# the identity is attached on a hop it is not part of. Proved against bmc-1
+# through a stand-in for Envoy: 101 Switching Protocols, subprotocol
+# bmcd.serial.v1, and "connected" in headless Chrome with zero console errors.
+#
+# The access card needs bmcd 2.36.0. On an older daemon it hides itself -- and
+# getting that right needed a real older board: bmcd serves the web interface
+# from the same listener as the API and falls back to index.html for anything
+# it does not route, so `GET /bmc/access` answers 200 AND A PAGE OF HTML. The
+# query validates the shape now, not the status.
+#
+# Measured 2026-09-12: 582600 bytes, summed from the downloaded asset. It
+# agrees with the release's own SHA256SUMS, which is a cross-check and not the
+# source. dist/LICENSE is present and the access strings are in the built
+# bundle, so the release carries the feature it claims.
+sha256  68abcaa9e36f465d706900ab61c581e828e6a74b33ab355aef2da8b03747a303  bmc-ui-v3.27.0.tar.gz

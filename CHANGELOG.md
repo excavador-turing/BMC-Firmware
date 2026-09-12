@@ -13,6 +13,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.28.0] — 2026-09-12
+
+Pins bmcd 2.36.0 and BMC-UI 3.27.0; tpi is unchanged and already current.
+
+### Added
+
+- **Who may reach a board, from the interface that asks for the password.**
+  Settings gains a card for the two things that decide who gets in and which
+  until now existed only on the filesystem: the local password, and the
+  certificate authority whose client certificates may name an operator. It
+  shows how *you* got here first, because an operator arriving through the
+  fleet is not holding the board's password and the rest of the card reads
+  differently depending on which you are.
+
+  The daemon's rules appear as disabled controls rather than refusals after
+  the fact: the current password is required even from an operator a proxy
+  vouched for, twelve characters counted as characters, and "stop trusting any
+  proxy" is unavailable when you are authenticated by that proxy.
+
+### Fixed
+
+- **The fleet's serial console could not connect.** It refused before opening
+  a socket, demanding a session token the fleet has no reason to hold, while
+  every other tab on the same page answered normally. The certificate was
+  never involved: the browser talks to its own origin and never to a board.
+  Through the gateway the browser presents nothing, and the identity is
+  attached on a hop it is not part of.
+
+  Proved against bmc-1 through a stand-in for the gateway — `101 Switching
+  Protocols`, subprotocol `bmcd.serial.v1` — and then "connected" in a real
+  browser with zero console errors.
+
+### Note
+
+v2.26.0 and v2.27.0 were released without entries here. What they carried is
+recorded in the package hash files, which document every pin bump with its
+measurement: BMC-UI 3.25.0 (the SD card picker and two dead flash buttons) and
+3.26.0 (temperature on Board Health, an honest console hint), and bmcd 2.35.0
+(the catalogue refresh that could wedge for ever, and the on-disk listing).
+
 ## [v2.25.0] — 2026-09-11
 
 ### Fixed
