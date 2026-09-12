@@ -19,83 +19,27 @@
 # tree instead of downloading the pinned archive, so a hash computed with one
 # in place would describe whatever happened to be on the workstation.
 #
-# The version is commit b68d0c2 on excavador-turing/bmcd branch `hive`,
-# released as v2.34.0. Two releases in one pin:
+# The version is commit 8d1e734 on excavador-turing/bmcd branch `hive`,
+# released as v2.36.3. Two fixes:
 #
-# v2.33.0 -- a node's USB bus number is not part of its identity. The port
-# check that stops a flash of node 2 writing node 1 compared the whole path,
-# bus included, against a bus hardcoded to 1. This board pairs an OHCI and an
-# EHCI controller as COMPANIONS for the same physical ports, so the bus a
-# device lands on is decided by its speed: the same hub port is 1-1.2 for a
-# full-speed device and 2-1.2 for a high-speed one. A Rockchip in maskrom is
-# high-speed, so the daemon refused every RK1 it was asked to flash or expose
-# as mass storage. Nothing on this board could be flashed until this release.
+#   2.36.2  a session this daemon issues is one it will take back. OpenSSL
+#           refuses to resume a session on a server that asks for client
+#           certificates unless the context carries a session id context, and
+#           the refusal is a FATAL internal_error, not a cache miss. A third
+#           of all new connections from the fleet gateway died that way.
+#           `load_tls_config` now sets one, derived from the client CA.
 #
-# v2.34.0 -- the daemon can list the microSD card: name, size, modified time,
-# and whether each entry could be written to a node. Path confinement is one
-# function with its own tests, because the same resolver will serve rename and
-# delete later; root and target are both canonicalised, so `../..` and a
-# symlink off the card are refused by the same rule.
+#   2.36.3  /metrics says which module is armed for USB boot, so a module
+#           left in flash mode stops being indistinguishable from dead
+#           hardware.
 #
-# v2.35.0 -- a lost catalogue refresh no longer wedges the board, and the
-# firmware listing survives a reboot.
+# The first of these changes a listener. It adds a call on the acceptor built
+# in `load_tls_config`; it does not move the certificate, the client CA, the
+# protocol versions or the cipher list.
 #
-# The claim that says "a refresh is running" was a flag taken before the work
-# and released by a guard afterwards: correct for a panic, wrong for a task
-# dropped before its first poll or a blocking join that never returns. Either
-# way it stayed set and no later refresh could start. bmc-2 sat that way for
-# three and a half hours on 2026-09-11, `refreshing: true` with nothing
-# running at all. It is a deadline now, which cannot be lost.
-#
-# The listing is kept at /mnt/overlay/firmware-catalog.json, so the person who
-# just flashed a board does not wait through a 75-230 s fan-out to see what it
-# is running. Written only when the offering changes: the overlay is NAND and
-# UBI reports five free eraseblocks of 2040 on this board.
-#
-# No listener change and no gate change in any of them.
-#
-# Measured 2026-09-12 with rust-bin 1.98.1 in the pinned container: `make
-# bmcd-source` reported got bfb577e1 against a zeroed expectation, then re-run
-# to confirm it fetches and verifies cleanly.
-#
-# v2.35.0 -> v2.36.0: who may reach this board, from the interface that asks
-# for the password.
-#
-# Both halves of a board's access control were filesystem-only and arrived over
-# SSH -- the local password through `passwd` on a console, the client CA
-# through a script in another repository. `GET /api/bmc/access` reports the
-# local account, the trust anchor with its fingerprint and expiry, the header
-# an identity is read from and which of config/override/default chose it, and
-# how the ASKING request was authenticated. `POST /access/password` and
-# `PUT`/`DELETE /access/client-ca` change the two.
-#
-# Not through the legacy dispatcher, deliberately: every `opt=set` is written
-# to the audit log with its whole query string, so a password routed that way
-# would be recorded in clear. These take a JSON body.
-#
-# The daemon does not rewrite config.yaml -- it has no YAML writer and that
-# file is the operator's. It owns two small files instead, and config.yaml
-# still wins wherever it speaks. A consequence worth having: client_ca falls
-# back to a fixed path when the FILE EXISTS, so a board whose anchor was
-# removed comes back up rather than refusing to start.
-#
-# Measured 2026-09-12 with rust-bin 1.98.1 in the pinned container: `make
-# bmcd-source` reported got 94e7dc72 against a zeroed expectation, then re-run
-# on a cleaned tree to confirm it fetches and verifies cleanly.
-#
-# v2.36.0 -> v2.36.1: a refusal keeps the status it was built with.
-#
-# Found on bmc-2 within the hour of flashing v2.28.0, by asking the board the
-# questions its new guards refuse. They all refused with the right message and
-# all of them answered 500, because `impl ResponseError for LegacyResponse {}`
-# was empty and actix's default applies to everything. Invisible until now:
-# every other handler comes back through `Responder`, which has always
-# honoured the carried status. 500 is the canonical retryable status, so a
-# client told 500 for "that password is wrong" retries an answer that will
-# never change.
-#
-# Measured 2026-09-12 with rust-bin 1.98.1 in the pinned container: `make
-# bmcd-source` reported got 2fbb2956 against a zeroed expectation, then re-run
-# on a cleaned tree to confirm it fetches and verifies cleanly.
-sha256  2fbb295678f39a57339939260f25489180e8fc1091ed9ee039a352b784a82aad  bmcd-793c9c8e6582f4ffdbd1bdce6f7124a7f2276ce6-cargo2.tar.gz
+# Measured 2026-09-12 with rust-bin 1.98.1 in the pinned container, from a
+# tree with no buildroot/local.mk: `make bmcd-source` reported the sum below
+# against a zeroed expectation, then re-run to confirm it fetches and
+# verifies cleanly.
+sha256  30d88aa95c578bf2fdcdbdaaf8df4ff8fb4b3dc6741247adc3b14005cb9286af  bmcd-8d1e73480e813a8c946b1e85c2498d4fc34c0e8f-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
