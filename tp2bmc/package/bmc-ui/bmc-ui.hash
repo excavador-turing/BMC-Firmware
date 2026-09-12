@@ -112,11 +112,21 @@
 # The access card needs bmcd 2.36.0. On an older daemon it hides itself -- and
 # getting that right needed a real older board: bmcd serves the web interface
 # from the same listener as the API and falls back to index.html for anything
-# it does not route, so `GET /bmc/access` answers 200 AND A PAGE OF HTML. The
-# query validates the shape now, not the status.
+# The version is v3.28.0: a reconnect stops writing a second copy of the
+# scrollback. Pressing Reconnect keeps the terminal, as it is meant to, and
+# then replayed the daemon's whole 16 KiB ring buffer underneath what was
+# already on screen -- the same lines with the same kernel timestamps, twice.
+# Reported from a phone on 2026-09-12 against the fleet AND against a board's
+# own interface, which is one component serving both, so this pin is what
+# carries the fix to the board.
 #
-# Measured 2026-09-12: 582600 bytes, summed from the downloaded asset. It
+# The replay writes only the part of the buffer the terminal has not already
+# been given. Clearing first would have fixed it and cost the scrollback,
+# which is the only place a full boot survives: the daemon keeps 16 KiB and a
+# boot is about 82 KB, measured on board B the same day.
+#
+# Measured 2026-09-12: 582029 bytes, summed from the downloaded asset. It
 # agrees with the release's own SHA256SUMS, which is a cross-check and not the
-# source. dist/LICENSE is present and the access strings are in the built
-# bundle, so the release carries the feature it claims.
-sha256  68abcaa9e36f465d706900ab61c581e828e6a74b33ab355aef2da8b03747a303  bmc-ui-v3.27.0.tar.gz
+# source. dist/LICENSE is present, and the console chunk contains the NUL
+# separator the overlap is built on, so the release carries the fix it claims.
+sha256  72625f16810a930f54661b9c786247e9897ac4a036f1396e0c56d2c3dc1ad1c7  bmc-ui-v3.28.0.tar.gz
