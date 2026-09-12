@@ -13,6 +13,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.29.0] — 2026-09-12
+
+Pins bmcd 2.36.1. BMC-UI stays at 3.27.0 and tpi is unchanged.
+
+### Fixed
+
+- **Every refusal from the access endpoints answered 500.** Found on bmc-2
+  within the hour of flashing v2.28.0, by asking the board the questions its
+  new guards are supposed to refuse: they all refused, with the right message,
+  and all of them came back `500 Internal Server Error`.
+
+  500 is the canonical retryable status, so a client told 500 for "that
+  password is wrong" is invited to retry an answer that will never change, and
+  a person reading it is told the board is broken when the request was. The
+  guards themselves were correct throughout; only the number on them was
+  wrong.
+
 ## [v2.28.0] — 2026-09-12
 
 Pins bmcd 2.36.0 and BMC-UI 3.27.0; tpi is unchanged and already current.

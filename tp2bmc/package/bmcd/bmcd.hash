@@ -82,5 +82,20 @@
 # Measured 2026-09-12 with rust-bin 1.98.1 in the pinned container: `make
 # bmcd-source` reported got 94e7dc72 against a zeroed expectation, then re-run
 # on a cleaned tree to confirm it fetches and verifies cleanly.
-sha256  94e7dc72725bec41220349cebbd4adfc0699285314e62c391e48a7652dd66341  bmcd-cf3a4ba281f9856318712182ce6068c52a7f1977-cargo2.tar.gz
+#
+# v2.36.0 -> v2.36.1: a refusal keeps the status it was built with.
+#
+# Found on bmc-2 within the hour of flashing v2.28.0, by asking the board the
+# questions its new guards refuse. They all refused with the right message and
+# all of them answered 500, because `impl ResponseError for LegacyResponse {}`
+# was empty and actix's default applies to everything. Invisible until now:
+# every other handler comes back through `Responder`, which has always
+# honoured the carried status. 500 is the canonical retryable status, so a
+# client told 500 for "that password is wrong" retries an answer that will
+# never change.
+#
+# Measured 2026-09-12 with rust-bin 1.98.1 in the pinned container: `make
+# bmcd-source` reported got 2fbb2956 against a zeroed expectation, then re-run
+# on a cleaned tree to confirm it fetches and verifies cleanly.
+sha256  2fbb295678f39a57339939260f25489180e8fc1091ed9ee039a352b784a82aad  bmcd-793c9c8e6582f4ffdbd1bdce6f7124a7f2276ce6-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
