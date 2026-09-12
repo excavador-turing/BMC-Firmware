@@ -13,6 +13,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.31.0] — 2026-09-12
+
+Pins BMC-UI 3.28.0. bmcd stays at 2.36.3 and tpi is unchanged.
+
+### Fixed
+
+- **The console wrote a second copy of its scrollback on every reconnect.**
+  Pressing Reconnect keeps the terminal, as it is meant to, and then replayed
+  the daemon's whole 16 KiB ring buffer underneath what was already on screen
+  — the same lines carrying the same kernel timestamps, twice.
+
+  The replay exists because the daemon forwards only what arrives after a
+  subscriber joins; without it a console opened on a module that has been up
+  for hours shows nothing at all. It just never asked whether the terminal
+  already had that output.
+
+  Clearing first would have fixed the duplication and cost the thing the
+  scrollback is for: the daemon keeps only the last 16 KiB and one module boot
+  is about 82 KB, so the terminal is the only place a full boot survives.
+  Instead the replay works out where what it has already shown ends inside the
+  buffer it has just been handed, and writes only what follows. A reconnect
+  with nothing new writes nothing; one after a gap writes exactly the gap.
+
+  Redraw is unchanged and still clears first. It answers a different question.
+
+
 ## [v2.30.0] — 2026-09-12
 
 Pins bmcd 2.36.3. BMC-UI stays at 3.27.0 and tpi is unchanged.
