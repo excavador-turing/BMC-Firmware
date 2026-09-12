@@ -57,5 +57,30 @@
 # Measured 2026-09-12 with rust-bin 1.98.1 in the pinned container: `make
 # bmcd-source` reported got bfb577e1 against a zeroed expectation, then re-run
 # to confirm it fetches and verifies cleanly.
-sha256  bfb577e1bb8e27ad0892594ce0c400208b1279cd11ab00ee1b723a3cccacf364  bmcd-29ab78b1c368b8d76aabe30c56e17e7aaa40db59-cargo2.tar.gz
+#
+# v2.35.0 -> v2.36.0: who may reach this board, from the interface that asks
+# for the password.
+#
+# Both halves of a board's access control were filesystem-only and arrived over
+# SSH -- the local password through `passwd` on a console, the client CA
+# through a script in another repository. `GET /api/bmc/access` reports the
+# local account, the trust anchor with its fingerprint and expiry, the header
+# an identity is read from and which of config/override/default chose it, and
+# how the ASKING request was authenticated. `POST /access/password` and
+# `PUT`/`DELETE /access/client-ca` change the two.
+#
+# Not through the legacy dispatcher, deliberately: every `opt=set` is written
+# to the audit log with its whole query string, so a password routed that way
+# would be recorded in clear. These take a JSON body.
+#
+# The daemon does not rewrite config.yaml -- it has no YAML writer and that
+# file is the operator's. It owns two small files instead, and config.yaml
+# still wins wherever it speaks. A consequence worth having: client_ca falls
+# back to a fixed path when the FILE EXISTS, so a board whose anchor was
+# removed comes back up rather than refusing to start.
+#
+# Measured 2026-09-12 with rust-bin 1.98.1 in the pinned container: `make
+# bmcd-source` reported got 94e7dc72 against a zeroed expectation, then re-run
+# on a cleaned tree to confirm it fetches and verifies cleanly.
+sha256  94e7dc72725bec41220349cebbd4adfc0699285314e62c391e48a7652dd66341  bmcd-cf3a4ba281f9856318712182ce6068c52a7f1977-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
