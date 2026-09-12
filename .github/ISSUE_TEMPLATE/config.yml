@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Propose a feature, or vote on one
+    url: https://github.com/excavador-turing/BMC-Firmware/discussions/categories/ideas
+    about: Ideas carry upvotes; the roadmap is built from them.
+  - name: Ask a question
+    url: https://github.com/excavador-turing/BMC-Firmware/discussions/categories/q-a
+    about: Not a bug, not a feature — how does this work.
+  - name: What is already known to be wrong
+    url: https://turingpi.xyz/reference/known-faults/
+    about: Every open fault, measured, with the ticket that tracks it.
