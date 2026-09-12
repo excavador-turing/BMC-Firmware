@@ -13,6 +13,56 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.30.0] — 2026-09-12
+
+Pins bmcd 2.36.3. BMC-UI stays at 3.27.0 and tpi is unchanged.
+
+### Fixed
+
+- **The board refused every attempt to resume a TLS session, fatally, and that
+  was the intermittent console failure.** A serial console or an API call
+  through the fleet gateway would occasionally fail outright, on both boards,
+  with nothing in the daemon's log and the board healthy either side of it.
+
+  Envoy keeps one TLS session per upstream cluster and offers it on the next
+  connection it opens. On the gateway, a third of all new connections to the
+  two boards died that way — 8 of 28 to one, 19 of 45 to the other — while
+  every connection taken from the pool was fine, which is what made it look
+  random from a browser. Reproduced from a pod on the gateway's own node: 30
+  fresh connections all succeeded, and 30 offering back a saved session all
+  failed with `tlsv1 alert internal error`.
+
+  OpenSSL will not resume a session on a server that asks for client
+  certificates unless the context carries a session id context, and the
+  refusal is not a quiet cache miss — it is `internal_error`, fatal, sent
+  before a byte of HTTP. The error is raised on the server, which never logged
+  it. So the fault arrived with client certificates in 2.30.0 and was
+  invisible for six releases, and it was never specific to the gateway: any
+  client that resumes hit the same wall.
+
+### Added
+
+- **`/metrics` says which module is armed for USB boot.** Two families:
+  `bmcd_node_usb_boot_armed`, one sample per module, and `bmcd_usb_config`,
+  which names the node, mode, route and bus type of the *persisted*
+  configuration.
+
+  `tpi flash` and `tpi advanced msd` leave that configuration at
+  `Flashing(NodeN, …)`, and the daemon re-applies it on every start, which
+  asserts the module's USB-boot pin and stops it booting from its own eMMC.
+  The module keeps running, because it is already booted — so the fault
+  appears at its **next** reboot, possibly weeks later.
+
+  Until now nothing exported that. A module in flash mode is indistinguishable
+  from dead hardware from every remote angle: nothing at all on the serial
+  console, not even a bootloader banner, because the loader does not use the
+  console; nothing on the network; and the BMC reporting the rail on. `tpi usb
+  status` cannot separate the two either — it prints the same route for `UsbA`
+  and `Flashing`. Measured on hive-6 on 2026-09-12: twenty minutes spent on a
+  module that looked dead, with the answer sitting unexported in the daemon's
+  own database.
+
+
 ## [v2.29.0] — 2026-09-12
 
 Pins bmcd 2.36.1. BMC-UI stays at 3.27.0 and tpi is unchanged.
