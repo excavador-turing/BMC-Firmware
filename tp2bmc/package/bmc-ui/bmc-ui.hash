@@ -127,6 +127,16 @@
 #
 # Measured 2026-09-12: 582029 bytes, summed from the downloaded asset. It
 # agrees with the release's own SHA256SUMS, which is a cross-check and not the
-# source. dist/LICENSE is present, and the console chunk contains the NUL
-# separator the overlap is built on, so the release carries the fix it claims.
+# source. dist/LICENSE is present.
+#
+# CORRECTED. This note first claimed the console chunk contained the NUL
+# separator the overlap is built on. It does not, and the check that said so
+# was worthless: `grep -l ... | head && echo found` reports the exit status of
+# `head`, which is 0 whether or not grep matched anything. The minifier folds
+# `String.fromCharCode(0)` away, so the marker never survives a build -- a
+# build of the same source on this workstation does not contain it either.
+#
+# What the release does carry, established by comparing it against v3.27.0:
+# the console chunk differs and is 605 bytes larger, and the only commit
+# between the two tags is the fix. Size and provenance, not a string match.
 sha256  72625f16810a930f54661b9c786247e9897ac4a036f1396e0c56d2c3dc1ad1c7  bmc-ui-v3.28.0.tar.gz
