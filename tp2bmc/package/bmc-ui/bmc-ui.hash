@@ -139,4 +139,31 @@
 # What the release does carry, established by comparing it against v3.27.0:
 # the console chunk differs and is 605 bytes larger, and the only commit
 # between the two tags is the fix. Size and provenance, not a string match.
-sha256  72625f16810a930f54661b9c786247e9897ac4a036f1396e0c56d2c3dc1ad1c7  bmc-ui-v3.28.0.tar.gz
+#
+# The version is v3.29.0, and it carries two things a fleet operator could not
+# see. A toast now names the board it came from: with two boards on one screen
+# "Flashing started" told you an operation began somewhere. And a node armed
+# for USB boot says so on its own liveness line -- a module whose USB-boot pin
+# is held will not boot from its own eMMC, and the reboot that reveals it can
+# be weeks after whatever armed it, by which point it looks exactly like dead
+# hardware.
+#
+# Measured 2026-09-13: 582709 bytes, summed from the downloaded asset. It
+# agrees with the release's own SHA256SUMS, which is a cross-check and not the
+# source. dist/LICENSE is present, 49 entries.
+#
+# Proved the artifact actually carries both changes, in BOTH directions --
+# the previous note on this file had to be corrected for claiming a check that
+# never ran, so this one states what was executed. All six locale strings for
+# the USB-boot warning are present under dist/assets ("armed for USB boot",
+# "preparado para arranque USB", "USB-Boot scharf", "gereed voor USB-boot",
+# "uzbrojony do rozruchu", and the zh-Hans form) and every one of them is
+# ABSENT from v3.28.0. Locale strings are data, so they survive minification;
+# that is why this check works where a grep for a folded-away
+# String.fromCharCode(0) did not.
+#
+# The toast change is code, not a string, so it shows as chunk size instead:
+# against v3.28.0 the `use` chunk goes 311 -> 7072 bytes (use-toast gained the
+# scope), `nodes.lazy` 10997 -> 11375 (the liveness line), `index` 528264 ->
+# 529645.
+sha256  a78edd4d00d3784e2815f64a9a4a4f53bc2a1ff678ad46dac63653e85fae2eb8  bmc-ui-v3.29.0.tar.gz
