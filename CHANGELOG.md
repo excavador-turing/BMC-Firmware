@@ -13,6 +13,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.32.0] — 2026-09-13
+
+Pins BMC-UI 3.29.0. bmcd stays at 2.36.3 and tpi is unchanged.
+
+### Added
+
+- **A node armed for USB boot says so, on its own liveness line.** A module
+  whose USB-boot pin is held will not boot from its own eMMC. The daemon
+  persists that configuration and re-applies it on every start, so a power
+  cycle does not clear it, and the reboot that reveals it can be weeks after
+  whatever armed it. What you get then is indistinguishable from dead
+  hardware: silent on the serial console, off the network, and the board
+  still reporting its rail on. Twenty minutes went into exactly that on
+  2026-09-12.
+
+  bmcd 2.36.3 already exported `bmcd_node_usb_boot_armed`, which reaches
+  whoever armed a module while they still remember doing it. This is the half
+  for the other person — the operator already staring at a node that will not
+  come up. It leads the liveness line, in red, ahead of power state and link
+  state, because both of those read perfectly normal in this failure.
+
+  The USB selector on the same card already showed `Flash` for that node. A
+  select says what you may *set*, not what is *wrong*, and says nothing about
+  the consequence or the remedy; the note beside the warning names both.
+
+### Changed
+
+- **A toast names the board it is about.** With a fleet on one screen,
+  "Flashing started" told you an operation began somewhere, and a
+  notification from one board was indistinguishable from the same
+  notification from another. Toasts raised inside a board's scope now carry
+  that board's name.
+
 ## [v2.31.0] — 2026-09-12
 
 Pins BMC-UI 3.28.0. bmcd stays at 2.36.3 and tpi is unchanged.
