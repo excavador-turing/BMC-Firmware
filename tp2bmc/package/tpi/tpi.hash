@@ -24,5 +24,5 @@
 # Measured 2026-09-12 with the pinned container: `make tpi-source` reported
 # got cc486206 against a zeroed expectation, then re-run to confirm it
 # fetches and verifies cleanly.
-sha256  cc48620669dd7d1802799fa46b1eb754e4e375583b43cc66026cbec70b705be7  tpi-b98c5079c1ed6a56e054b862d51049e25407ae4a-cargo2.tar.gz
+sha256  104fa863c8c84ce2ad9aa167f363c2615e085d646b3bc6b87796caa1aaf95dcd  tpi-0b16d626242d70b3732d18b7a8ae38230584170f-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE

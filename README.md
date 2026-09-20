@@ -200,6 +200,49 @@ REST API to control and manage the board. The packages
 [bmc-ui](https://github.com/turing-machines/BMC-UI) are part of the firmware and
 facilitate most of this functionality.
 
+## Certificates
+
+A BMC is reachable before it is enrolled in anything, so it has to speak TLS
+on its own. That certificate is not a formality: it protects the password
+typed into the login page on the management LAN, which is the break-glass path
+and the whole reason the board keeps its own interface.
+
+**What the board issues itself.** EC P-384, valid 825 days, carrying the
+board's real names — its hostname, its `.local` name and every address it
+currently holds — in the subject-alternative name, so a browser can be told to
+trust it. It **renews itself 30 days before expiry** rather than only when the
+file is missing, and it **reissues when the board's names change**, so renaming
+a board with `tpi hostname` does not leave a certificate every browser rejects
+for the next two years.
+
+Upstream's version had no SAN at all — unusable by any browser since 2017 —
+defaulted to 30 days, regenerated only when a file was missing, and its pair
+check ran `openssl rsa -noout -modulus`, which fails on any non-RSA key and
+landed in the branch that **deletes both files**. One certificate in this
+estate was issued in June 2025, expired in July 2025, and was still being
+served a year later.
+
+**It never touches a certificate it did not issue.** Anything whose issuer is
+not the script's own subject is somebody's real certificate and is left exactly
+where it is, expired or not, with a line in the log saying so.
+
+**Installing your own.** `PUT /api/bmc/tls/certificate` with a PEM certificate
+and key, `tpi tls install --cert --key`, or the card on the Security tab. The
+board checks that the pair matches, that the certificate is valid now, that it
+is marked for server authentication and that it names this board, then installs
+both atomically and serves the new pair **without a restart** — open sessions,
+including the one that installed it, are not dropped. `tpi tls reset` goes back
+to a self-signed one.
+
+The key never reaches a log: this takes a JSON body on its own path rather than
+the legacy query-string interface, which records every mutating call.
+
+**Why it matters for the serial console.** A browser will not open a WebSocket
+to a certificate it does not trust, and clicking through the page's warning
+does not extend to that connection — so on an untrusted certificate every tab
+works except the console. The interface detects that case and says so.
+
+
 ## Table of Contents
 
 - [Table of Contents](#table-of-contents)

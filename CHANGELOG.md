@@ -13,6 +13,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.33.0] — 2026-09-20
+
+Pins **bmcd 2.37.0**, **BMC-UI 3.30.0** and **tpi 1.9.0** — the first release
+carrying the on-board switch, the certificate endpoint and the forced password
+change. Every component's own changelog has the detail; what follows is what
+this image adds on top of them.
+
+### Fixed
+
+- **A renamed board reissues its own certificate.** The generator reissued on
+  four conditions — no certificate, a mismatched pair, expiry within the
+  renewal window, and never for a certificate it did not issue — and none of
+  them was *the board is not called that any more*. Renaming a board, or
+  letting its address move, left the old names in place for up to 825 days
+  while every browser rejected it for a name mismatch.
+
+### Added
+
+- **A Certificates section in the README**: what the board issues itself, that
+  it renews and now reissues on rename, that it never touches a certificate it
+  did not issue, the three ways to install your own, and why the serial console
+  is the one tab that breaks on an untrusted certificate.
+
 ### Fixed
 
 - **A renamed board reissues its own certificate.** The self-signed generator

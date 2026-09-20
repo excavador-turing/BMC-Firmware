@@ -41,5 +41,5 @@
 # tree with no buildroot/local.mk: `make bmcd-source` reported the sum below
 # against a zeroed expectation, then re-run to confirm it fetches and
 # verifies cleanly.
-sha256  30d88aa95c578bf2fdcdbdaaf8df4ff8fb4b3dc6741247adc3b14005cb9286af  bmcd-8d1e73480e813a8c946b1e85c2498d4fc34c0e8f-cargo2.tar.gz
+sha256  aeb44a2020da6a475323010c87c373ff44c40a7c9e62b0a3d4c19fb05c959f4f  bmcd-846baa23f9e68afa756d31275dfe6ef0e9d1b8a2-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

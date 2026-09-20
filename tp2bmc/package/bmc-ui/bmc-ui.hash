@@ -166,4 +166,4 @@
 # against v3.28.0 the `use` chunk goes 311 -> 7072 bytes (use-toast gained the
 # scope), `nodes.lazy` 10997 -> 11375 (the liveness line), `index` 528264 ->
 # 529645.
-sha256  a78edd4d00d3784e2815f64a9a4a4f53bc2a1ff678ad46dac63653e85fae2eb8  bmc-ui-v3.29.0.tar.gz
+sha256  00c0107a98921fc496ec2883882b767480a53907d99d01322f6383c9b9c81d8e  bmc-ui-v3.30.0.tar.gz
