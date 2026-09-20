@@ -179,6 +179,29 @@ measurement: BMC-UI 3.25.0 (the SD card picker and two dead flash buttons) and
 3.26.0 (temperature on Board Health, an honest console hint), and bmcd 2.35.0
 (the catalogue refresh that could wedge for ever, and the on-disk listing).
 
+## [v2.27.0] — 2026-09-12
+
+The first release that carries the latest of all three: BMC-UI 3.26.0, bmcd
+2.34.0 and tpi 1.8.0.
+
+### Fixed
+
+- **The pin gate moved to the workflow that publishes**, so it can actually
+  refuse. It ran where it could report a stale pin and not stop the release,
+  which is how v2.26.0 shipped a `tpi` two versions behind the daemon it was
+  packaged with.
+
+## [v2.26.0] — 2026-09-12
+
+Pins BMC-UI 3.25.0: the SD card picker, and the flash button that threw
+instead of flashing.
+
+### Known at the time
+
+- This release shipped a stale `tpi`. The gate that should have refused it ran
+  in a workflow that could not stop a release; v2.27.0 moved it and carries
+  the right one.
+
 ## [v2.25.0] — 2026-09-11
 
 ### Fixed
