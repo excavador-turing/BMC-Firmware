@@ -53,6 +53,11 @@ CONFIG_INET_IPCOMP=y
 CONFIG_INET_UDP_DIAG=y
 CONFIG_IPV6_TUNNEL=y
 CONFIG_BRIDGE=y
+# The switch driver's VLAN offload needs both: 8021Q for tagged
+# interfaces, and bridge VLAN filtering for the port/PVID rules the
+# driver programs into the RTL8370MB-CG.
+CONFIG_VLAN_8021Q=y
+CONFIG_BRIDGE_VLAN_FILTERING=y
 CONFIG_NET_DSA=y
 CONFIG_NET_DSA_TAG_RTL4_A=y
 CONFIG_NETLINK_DIAG=y
