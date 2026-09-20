@@ -3,13 +3,20 @@
 DAEMON="bmcd"
 BIN="/usr/bin/$DAEMON"
 PIDFILE="/var/run/$DAEMON.pid"
-CERTFILE="/etc/ssl/certs/bmcd_cert.pem"
-KEYFILE="/etc/ssl/certs/bmcd_key.pem"
 
 start() {
     printf 'Starting %s...\n' "$DAEMON"
 
-    [ ! -f "$CERTFILE" ] || [ ! -f "$KEYFILE" ] && /etc/bmcd/generate_self_signedx509.sh 
+    # Unconditionally, on every start. The script decides for itself what is
+    # needed: it issues a certificate when there is none, renews its own 30
+    # days before expiry, and never touches one it did not issue.
+    #
+    # It used to be guarded by "if either file is missing", which meant the
+    # renewal branch could not run on any board past its first boot -- exactly
+    # the boards that have a certificate old enough to need renewing. The
+    # promise that a board never serves an expired certificate was therefore
+    # unkept, and silently: nothing logs a renewal that was never attempted.
+    /etc/bmcd/generate_self_signedx509.sh
 
     start-stop-daemon --start --quiet --background --make-pidfile --pidfile "$PIDFILE" --no-close \
         --exec "$BIN" -- --config "/etc/bmcd/config.yaml"
