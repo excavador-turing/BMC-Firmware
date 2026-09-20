@@ -168,17 +168,33 @@ pair_matches() {
 # name behind, which asserts something untrue but breaks nothing and is gone
 # at the next renewal. A name the board has GAINED is the one that breaks
 # every browser, and it is caught.
+#
+# ON THE ANSWER, NOT THE EXIT STATUS. `openssl x509 -checkhost` does not set
+# its exit code consistently across releases: this workstation's openssl
+# returns 1 for a name that is absent, and the one on GitHub's runners returns
+# 0 and says so only in its output. A check built on the status therefore
+# passed here and silently did nothing there -- which is the same bug this is
+# fixing, in the fix. The printed sentence is "... does match certificate" or
+# "... does NOT match certificate", and the first is not a substring of the
+# second.
+cert_covers() {
+    openssl x509 -in "${cert_file}" -noout "$1" "$2" 2>/dev/null \
+        | grep -q "does match"
+}
+
 names_current() {
+    # No answer at all -- an openssl too old for these options, or a
+    # certificate it cannot read -- is not evidence that the names are wrong.
+    # Reissuing on that would put this script in a loop it cannot leave.
+    if ! openssl x509 -in "${cert_file}" -noout -checkhost localhost 2>/dev/null \
+        | grep -q "does match\|does NOT match"; then
+        return 0
+    fi
+
     for entry in $(build_san | tr ',' ' '); do
         case "$entry" in
-            DNS:*)
-                openssl x509 -in "${cert_file}" -noout \
-                    -checkhost "${entry#DNS:}" >/dev/null 2>&1 || return 1
-                ;;
-            IP:*)
-                openssl x509 -in "${cert_file}" -noout \
-                    -checkip "${entry#IP:}" >/dev/null 2>&1 || return 1
-                ;;
+            DNS:*) cert_covers -checkhost "${entry#DNS:}" || return 1 ;;
+            IP:*) cert_covers -checkip "${entry#IP:}" || return 1 ;;
         esac
     done
     return 0

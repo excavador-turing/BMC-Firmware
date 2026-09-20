@@ -29,7 +29,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and it is detectable, so it should never have needed a button.
 
   The comparison asks openssl one name at a time with `-checkhost` and
-  `-checkip`, rather than comparing the extension as text. Text cannot be made
+  `-checkip`, and reads **what it says** rather than what it returns: this
+  workstation's openssl exits 1 for a name that is not in the certificate, and
+  the one on GitHub's runners exits 0 and says so only in its output. A check
+  built on the status passed here and did nothing there — the same bug being
+  fixed, inside the fix. There is a test that proves the primitive on whatever
+  openssl is present before the rest of the suite trusts it.
+
+  It reads the extension through openssl rather than comparing it as text. Text cannot be made
   to work: the SAN is written `DNS:msa2,IP:fd7a:115c:a1e0::1533:6065` and
   printed back as `DNS:msa2, IP Address:FD7A:115C:A1E0:0:0:0:1533:6065` — a
   different separator, a different label, and an IPv6 address expanded and
