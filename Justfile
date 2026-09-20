@@ -17,7 +17,19 @@ release := "local"
 # calls the same number 45880K, and osupdate's NEWVOL_LEBS must agree.
 slot_bytes := "46981120"
 
-_docker := "docker run --rm -v \"$PWD:/work\" -w /work --user \"$(id -u):$(id -g)\" -e HOME=/work/.home -e BR2_DL_DIR=/work/dl -e BR2_CCACHE_DIR=/work/.ccache -e CCACHE_MAXSIZE=2G " + image_tag
+# The sibling repositories, read-only at /src, so `BMCD_OVERRIDE_SRCDIR` and
+# `BMC_UI_OVERRIDE_SRCDIR` in buildroot/local.mk can point at a working tree
+# that is being edited rather than at a copy.
+#
+# Without this the container mounts only this repository, so an override
+# naming a path on the host fails with "does not exist" from inside -- which
+# is what happens if you write the host path you can see in your shell.
+# Point overrides at /src/bmcd and /src/BMC-UI.
+#
+# Read-only on purpose: Buildroot rsyncs OUT of the override into
+# <pkg>-custom and builds there, so nothing needs to write back, and a build
+# container that cannot touch your source cannot corrupt it.
+_docker := "docker run --rm -v \"$PWD:/work\" -v \"$PWD/..:/src:ro\" -w /work --user \"$(id -u):$(id -g)\" -e HOME=/work/.home -e BR2_DL_DIR=/work/dl -e BR2_CCACHE_DIR=/work/.ccache -e CCACHE_MAXSIZE=2G " + image_tag
 
 default:
     @just --list
