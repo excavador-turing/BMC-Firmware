@@ -20,15 +20,6 @@ carrying the on-board switch, the certificate endpoint and the forced password
 change. Every component's own changelog has the detail; what follows is what
 this image adds on top of them.
 
-### Fixed
-
-- **A renamed board reissues its own certificate.** The generator reissued on
-  four conditions — no certificate, a mismatched pair, expiry within the
-  renewal window, and never for a certificate it did not issue — and none of
-  them was *the board is not called that any more*. Renaming a board, or
-  letting its address move, left the old names in place for up to 825 days
-  while every browser rejected it for a name mismatch.
-
 ### Added
 
 - **A Certificates section in the README**: what the board issues itself, that
@@ -60,8 +51,8 @@ this image adds on top of them.
   openssl is present before the rest of the suite trusts it.
 
   It reads the extension through openssl rather than comparing it as text. Text cannot be made
-  to work: the SAN is written `DNS:msa2,IP:fd7a:115c:a1e0::1533:6065` and
-  printed back as `DNS:msa2, IP Address:FD7A:115C:A1E0:0:0:0:1533:6065` — a
+  to work: the SAN is written `DNS:board,IP:fd00:0:0:0:0:0:1533:6065` and
+  printed back as `DNS:board, IP Address:FD00:0:0:0:0:0:1533:6065` — a
   different separator, a different label, and an IPv6 address expanded and
   upper-cased. Normalising that by hand means writing an IPv6 canonicaliser in
   POSIX sh, and getting it subtly wrong means reissuing on **every run**: a new
