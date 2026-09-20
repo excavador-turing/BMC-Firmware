@@ -42,6 +42,11 @@
 #     not this script's own subject is somebody's real certificate and is left
 #     exactly where it is, expired or not. Saying so loudly and changing
 #     nothing is the correct behaviour for a script that cannot tell why.
+#   * REISSUES WHEN THE BOARD'S NAMES CHANGE. Renaming a board, or letting its
+#     address move, used to leave the old names in the certificate for up to
+#     825 days while every browser rejected it for a name mismatch -- on a
+#     board that was otherwise working perfectly. The names were computed and
+#     used only when issuing, never compared against what was already on disk.
 #
 # Run at boot by S94bmcd when either file is missing, and safe to run at any
 # other time: it decides what is needed and does only that.
@@ -141,6 +146,52 @@ pair_matches() {
     [ "$from_cert" = "$from_key" ] && [ "$from_cert" != "cert-unreadable" ]
 }
 
+# True when the certificate still names this board as it is now.
+#
+# ASKED OF OPENSSL, one name at a time, rather than by comparing the extension
+# as text. Text comparison cannot be made to work here:
+#
+#   written:  DNS:msa2,IP:fd7a:115c:a1e0::1533:6065
+#   printed:  DNS:msa2, IP Address:FD7A:115C:A1E0:0:0:0:1533:6065
+#
+# -- a different separator, a different label, and an IPv6 address expanded and
+# upper-cased. Normalising that by hand in POSIX sh means writing an IPv6
+# canonicaliser, and getting it subtly wrong means reissuing on every single
+# run: a new key at every boot, every client that pinned the old certificate
+# broken daily. That is a far worse failure than the one this check exists to
+# fix. `-checkhost` and `-checkip` are openssl answering the question it is
+# already the authority on, and `-checkip` parses both spellings of an address
+# because it compares addresses rather than strings.
+#
+# The predicate is "every name the board has now is in the certificate", NOT
+# "the two lists are equal". An address the board has dropped leaves a stale
+# name behind, which asserts something untrue but breaks nothing and is gone
+# at the next renewal. A name the board has GAINED is the one that breaks
+# every browser, and it is caught.
+names_current() {
+    for entry in $(build_san | tr ',' ' '); do
+        case "$entry" in
+            DNS:*)
+                openssl x509 -in "${cert_file}" -noout \
+                    -checkhost "${entry#DNS:}" >/dev/null 2>&1 || return 1
+                ;;
+            IP:*)
+                openssl x509 -in "${cert_file}" -noout \
+                    -checkip "${entry#IP:}" >/dev/null 2>&1 || return 1
+                ;;
+        esac
+    done
+    return 0
+}
+
+# What the certificate says its names are, for the log line when they differ.
+cert_names() {
+    openssl x509 -in "${cert_file}" -noout -ext subjectAltName 2>/dev/null \
+        | grep -v 'X509v3 Subject Alternative Name' \
+        | tr -d ' ' \
+        | sed 's/^[[:space:]]*//'
+}
+
 # True when the certificate is still valid for at least the renewal window.
 still_fresh() {
     openssl x509 -in "${cert_file}" -noout \
@@ -179,5 +230,16 @@ if ! still_fresh; then
     exit 0
 fi
 
-log "our certificate is present, paired and current"
+if ! names_current; then
+    # A renamed board, or one whose address moved. Until this existed the
+    # certificate kept the old names until it expired, and every browser
+    # rejected it for a name mismatch in the meantime.
+    log "our certificate no longer names this board; reissuing"
+    log "  it has:   $(cert_names)"
+    log "  it needs: $(build_san)"
+    generate
+    exit 0
+fi
+
+log "our certificate is present, paired, current and names this board"
 exit 0
