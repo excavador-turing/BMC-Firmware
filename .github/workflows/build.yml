@@ -343,6 +343,19 @@ jobs:
       # so), and every hive.N tag is a prerelease. A draft accepts assets,
       # and `gh release edit --draft=false` publishes it once they are all
       # there -- also atomic from a downloader's point of view.
+      # The notes are composed from CHANGELOG.md, which is where the story of
+      # a release is actually written. Until now the body was a fixed
+      # paragraph in this file: v2.28.0 and v2.32.0, four days and fourteen
+      # entries apart, published byte-identical notes, and both linked
+      # turing.excavador.xyz, which has answered 502 since the docs moved.
+      #
+      # It runs BEFORE the release step so a standard tag with no changelog
+      # section fails here, with nothing published, rather than after the
+      # assets are up.
+      - name: compose the release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python3 scripts/release-notes.py "${GITHUB_REF_NAME}" > "${RUNNER_TEMP}/notes.md"
+
       - name: release (draft, with assets)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
@@ -353,24 +366,7 @@ jobs:
           draft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}
-          body: |
-            Turing Pi 2 BMC firmware, built from the `hive` branch.
-
-            **Not a Turing Pi release.** Upstream is dormant: last release
-            v2.1.0 (2025-02-05), last commit 2025-08-28, and the lead
-            maintainer stated on 2026-06-16 that he has moved on.
-
-            Includes the unmerged versioning fix (upstream PR #242), so
-            `/etc/os-release` reports the actual firmware version instead of
-            Buildroot's, and bmcd moves v2.3.4 -> v2.3.7.
-
-            `.tpu` is the OTA package, `.img` the recovery SD image.
-            Verify with `sha256sum -c SHA256SUMS`.
-
-            `turingpi-bmc-dashboard.json` is a Grafana dashboard over the
-            metrics this build's daemon emits. Import it and pick your
-            Prometheus-compatible datasource; see
-            https://turing.excavador.xyz/guides/monitor-it/
+          body_path: ${{ runner.temp }}/notes.md
 
       - name: publish release
         if: startsWith(github.ref, 'refs/tags/')
