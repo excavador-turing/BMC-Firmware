@@ -67,12 +67,63 @@ openssl ecparam -genkey -name secp384r1 -out "$K" >/dev/null 2>&1
 old=$(fp); sh "$SCRIPT" >/dev/null 2>&1
 [ "$(fp)" != "$old" ] && ok "reissues a mismatched pair" || bad "kept a mismatched pair"
 
+# THE BUG THIS CASE EXISTS FOR. The script reissued on four conditions -- no
+# certificate, a mismatched pair, expiry within the window, and never for a
+# certificate it did not issue -- and NONE of them was "the board is not called
+# that any more". `build_san` computed the names and used them only when
+# issuing. So renaming a board, or letting its address move, left the old names
+# in place for up to 825 days while every browser rejected the certificate for
+# a name mismatch, on a board that was otherwise perfectly healthy. That is the
+# one trigger a "reissue now" button would have been for, and it is detectable,
+# so it should never have needed a button.
+# The check above is built on what openssl SAYS, because what it RETURNS is not
+# consistent: this workstation's openssl exits 1 for a name that is not in the
+# certificate, and the one on GitHub's runners exits 0 and says so only in its
+# output. The first version of case 7 passed here and did nothing there. So
+# prove the primitive on whatever openssl is present, before trusting it.
+echo "7. openssl can be asked whether a name is in a certificate"
+rm -f "$C" "$K"; sh "$SCRIPT" >/dev/null 2>&1
+here=$(hostname 2>/dev/null || echo turingpi)
+# Captured rather than piped: openssl's exit code for an absent name is 1 on
+# some builds and 0 on others -- which is the whole reason the script reads the
+# answer instead of the status -- and `pipefail` in this file would hand the
+# pipeline openssl's status rather than grep's.
+said=$(openssl x509 -in "$C" -noout -checkhost "$here" 2>/dev/null || true)
+echo "$said" | grep -q "does match" \
+  && ok "says 'does match' for a name it has" || bad "cannot confirm a name it has: $said"
+said=$(openssl x509 -in "$C" -noout -checkhost "not-this-board.invalid" 2>/dev/null || true)
+echo "$said" | grep -q "does NOT match" \
+  && ok "says 'does NOT match' for one it has not" || bad "cannot deny a name it has not: $said"
+
+echo "8. the board is renamed"
+before=$(fp)
+# The script asks `hostname` for the board's name, so a hostname on PATH that
+# answers differently is a renamed board as far as it can tell.
+fake="$work/bin"; mkdir -p "$fake"
+printf '#!/bin/sh
+echo bmc-renamed
+' > "$fake/hostname"; chmod +x "$fake/hostname"
+out=$(PATH="$fake:$PATH" sh "$SCRIPT" 2>&1)
+[ "$(fp)" != "$before" ] && ok "reissues when the board's name changes" || bad "kept a certificate naming the wrong board"
+echo "$out" | grep -q "no longer names this board" && ok "says why" || bad "silent about it: $out"
+openssl x509 -in "$C" -noout -ext subjectAltName 2>/dev/null | grep -q "bmc-renamed" \
+  && ok "the new certificate carries the new name" || bad "the new certificate does not name the board"
+
+# And the other half, which is the one that would break a board daily: openssl
+# PRINTS the extension as `IPAddress:` while it is WRITTEN as `IP:`, so a naive
+# text comparison finds a difference every time and reissues on every run --
+# a new key at every boot, and every pinned client broken.
+echo "9. and then left alone"
+steady=$(fp)
+PATH="$fake:$PATH" sh "$SCRIPT" >/dev/null 2>&1
+[ "$(fp)" = "$steady" ] && ok "does not reissue when nothing changed" || bad "reissues on every run"
+
 # The script above is only as good as its caller, and case 5 passes whether or
 # not anything ever runs it on a board that already has a certificate. That is
 # the regression this case exists for: the invocation in S94bmcd was guarded by
 # "if either file is missing", so on every board past its first boot the
 # renewal branch was unreachable and the certificate quietly ran to expiry.
-echo "7. the init scripts run it unconditionally"
+echo "10. the init scripts run it unconditionally"
 for init in tp2bmc/package/bmcd/S94bmcd \
             tp2bmc/board/tp2bmc/factory_overlay/upper/etc/init.d/S94bmcd; do
   line=$(grep -n 'generate_self_signedx509.sh' "$init" | grep -v '^\s*#' || true)
