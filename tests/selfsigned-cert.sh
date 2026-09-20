@@ -67,6 +67,24 @@ openssl ecparam -genkey -name secp384r1 -out "$K" >/dev/null 2>&1
 old=$(fp); sh "$SCRIPT" >/dev/null 2>&1
 [ "$(fp)" != "$old" ] && ok "reissues a mismatched pair" || bad "kept a mismatched pair"
 
+# The script above is only as good as its caller, and case 5 passes whether or
+# not anything ever runs it on a board that already has a certificate. That is
+# the regression this case exists for: the invocation in S94bmcd was guarded by
+# "if either file is missing", so on every board past its first boot the
+# renewal branch was unreachable and the certificate quietly ran to expiry.
+echo "7. the init scripts run it unconditionally"
+for init in tp2bmc/package/bmcd/S94bmcd \
+            tp2bmc/board/tp2bmc/factory_overlay/upper/etc/init.d/S94bmcd; do
+  line=$(grep -n 'generate_self_signedx509.sh' "$init" | grep -v '^\s*#' || true)
+  if [ -z "$line" ]; then
+    bad "$init calls the generator"
+  elif echo "$line" | grep -qE '\[ *!? *-[fse]|&&|\|\|'; then
+    bad "$init calls it unguarded, not behind a file test: $line"
+  else
+    ok "$(basename "$(dirname "$init")")/$(basename "$init") calls it unguarded"
+  fi
+done
+
 echo
 echo "  $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
