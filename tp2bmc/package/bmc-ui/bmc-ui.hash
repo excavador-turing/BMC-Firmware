@@ -167,3 +167,23 @@
 # scope), `nodes.lazy` 10997 -> 11375 (the liveness line), `index` 528264 ->
 # 529645.
 sha256  00c0107a98921fc496ec2883882b767480a53907d99d01322f6383c9b9c81d8e  bmc-ui-v3.30.0.tar.gz
+#
+# v3.30.0 -> v3.32.0, two releases. v3.31.0 is the fleet's own: it says which
+# version of itself it is (the Dockerfile exported the tag without the VITE_
+# prefix Vite reads, so the value arrived at the build and stopped there),
+# gains the footer the board interface already had, and points its docs link
+# at turingpi.xyz. Nothing of it reaches a board's bundle, which is why no
+# firmware pinned it. v3.32.0 does: Console, USB and Flash each opened with a
+# drop-down that unfolded to show four fixed modules, one already chosen. The
+# three tabs now share one NodePicker -- Node 1 to 4 side by side, the chosen
+# one green, a radio group for the keyboard. Asked for from the fleet's
+# console on 2026-09-21; it is one component serving both, so this pin is
+# what carries it to the board.
+#
+# Measured 2026-09-21: 600069 bytes, downloaded from the release and summed
+# from those bytes. It agrees with the release's own SHA256SUMS, which is a
+# cross-check and not the source. dist/LICENSE is present, 53 entries. The
+# picker is shared code, so it lands in the index chunk rather than a tab's:
+# the string "radio" is in dist/assets/index-DifQtqNw.js of this archive,
+# which is the role the pills carry.
+sha256  bd64279ebaceaf4f69c921747e94248de0e405c2d6c92906db98219100ed19f8  bmc-ui-v3.32.0.tar.gz
