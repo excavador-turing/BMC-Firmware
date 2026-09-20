@@ -151,8 +151,8 @@ pair_matches() {
 # ASKED OF OPENSSL, one name at a time, rather than by comparing the extension
 # as text. Text comparison cannot be made to work here:
 #
-#   written:  DNS:msa2,IP:fd7a:115c:a1e0::1533:6065
-#   printed:  DNS:msa2, IP Address:FD7A:115C:A1E0:0:0:0:1533:6065
+#   written:  DNS:board,IP:fd00::1533:6065
+#   printed:  DNS:board, IP Address:FD00:0:0:0:0:0:1533:6065
 #
 # -- a different separator, a different label, and an IPv6 address expanded and
 # upper-cased. Normalising that by hand in POSIX sh means writing an IPv6
