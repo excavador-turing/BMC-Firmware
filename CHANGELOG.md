@@ -13,6 +13,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.34.0] — 2026-09-21
+
+Pins **BMC-UI 3.32.0**. bmcd stays at 2.37.0 and tpi at 1.9.0.
+
+### Changed
+
+- **Which module: four pills, not a drop-down.** Console, USB and Flash each
+  opened with a list that unfolded to show four fixed entries, one already
+  chosen. The three tabs now share one picker, Node 1 to 4 side by side with
+  the chosen one green — the same change the fleet shows, because it is one
+  component serving both.
+
 ## [v2.33.0] — 2026-09-20
 
 Pins **bmcd 2.37.0**, **BMC-UI 3.30.0** and **tpi 1.9.0** — the first release
