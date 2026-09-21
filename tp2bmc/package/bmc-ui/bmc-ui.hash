@@ -187,3 +187,29 @@ sha256  00c0107a98921fc496ec2883882b767480a53907d99d01322f6383c9b9c81d8e  bmc-ui
 # the string "radio" is in dist/assets/index-DifQtqNw.js of this archive,
 # which is the role the pills carry.
 sha256  bd64279ebaceaf4f69c921747e94248de0e405c2d6c92906db98219100ed19f8  bmc-ui-v3.32.0.tar.gz
+#
+# v3.32.0 -> v3.34.1, three releases. v3.33.0 is the fleet's own (a fresh
+# board's first login lands on the password change, not the switch card) and
+# nothing of it reaches a board's bundle. v3.34.0 is the release this pin is
+# for: an Address card beside Hostname on the Network tab -- DHCP or static,
+# every rule the board's via /network/address/validate, Apply and Try it as
+# on the switch card, kept only when the reloaded page confirms from the new
+# address -- and a Time card that prints chrony's verdict per source,
+# including "unresolved" for the board with no resolver that started all of
+# this. Also: "Reset network" renamed to "Reset the switch chip", the Time and
+# Hostname boxes no longer blank on a second visit, and a countdown that had
+# been reading the daemon's {secs_since_epoch, nanos_since_epoch} as a date.
+# v3.34.1 fixes the demo build only: v3.34.0's captured.json was not JSON
+# because the capture script wanted a `v` on a version that read `local`.
+# The board bundle is unaffected, but v3.34.0 cannot be pinned by a site that
+# builds the demo from the same tag, and the rule is one pin for both.
+#
+# Measured 2026-09-21: 606668 bytes, downloaded from the release and summed
+# from those bytes. It agrees with the release's own SHA256SUMS, which is a
+# cross-check and not the source. dist/LICENSE is present, 53 entries. The
+# new strings are in the built bundle: "unresolved" in
+# settings.lazy-CRLqjvDH.js and index-CUJYxzOR.js, "Reset the switch chip"
+# and "Try it" each in one chunk -- locale strings are data, so they survive
+# minification, which is why this check works where a folded-away constant
+# would not.
+sha256  fac5b37399ac09c9efc21a2e67e11d1a76a8cf19254fe54e105c095d09495eb0  bmc-ui-v3.34.1.tar.gz

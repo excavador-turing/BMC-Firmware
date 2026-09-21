@@ -13,6 +13,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.35.0] — 2026-09-21
+
+Pins **bmcd 2.38.0**, **BMC-UI 3.34.1** and **tpi 1.10.0**. All three come
+from one Discord report on 2026-09-21: a user on a 2.4 board — the second
+2.4 board confirmed on this fork — had set the Split layout up, given the
+BMC a fixed address over SSH, and then found the clock saying "NOT
+synchronised" with nothing to act on. Every component's own changelog has
+the detail; what follows is what this image adds on top of them.
+
+### Added
+
+- **The board's own address, from the Network tab.** DHCP or a static
+  address with its prefix, gateway, resolvers and search domain, beside the
+  hostname. The rules are the board's: it refuses what could never be reached
+  (a gateway off the subnet, the network or broadcast address) and warns
+  about what is merely unwise — a static address with no resolver, which is
+  exactly the state the reporter's board was in. **Apply** puts the address
+  on the bridge and keeps it only when a confirmation reaches the board *at
+  the new address*; otherwise the old one comes back by itself after the
+  window. The bridge is never brought down, so the modules' ports stay in it
+  throughout. `tpi network address` does the same from a shell. Only a
+  confirmed address is written to `/etc/network/interfaces` — in the same
+  stanza this image ships and migrates, so nothing about boot changed.
+
+- **The clock says why.** The Time card, `tpi ntp` and `GET ?type=ntp` carry
+  chrony's verdict on every source — selected, combined, excluded,
+  unreachable, falseticker — and, when chrony has nothing at all, the
+  configured names as *unresolved*. That last state is what "no resolver"
+  looks like from the outside, and it is what an empty `chronyc sources`
+  had been hiding.
+
+### Changed
+
+- **"Reset network" is now "Reset the switch chip"**, which is what it does
+  and always did; it never touched the address.
+
+### Fixed
+
+- **The Time and Hostname boxes are no longer blank on a second visit** to
+  the tab; both cards seed from the query now. Reported from the same 2.4
+  board.
+- **A countdown that could not count**: the switch card read the daemon's
+  `{secs_since_epoch, nanos_since_epoch}` as a date and showed NaN.
+
 ## [v2.34.0] — 2026-09-21
 
 Pins **BMC-UI 3.32.0**. bmcd stays at 2.37.0 and tpi at 1.9.0.
