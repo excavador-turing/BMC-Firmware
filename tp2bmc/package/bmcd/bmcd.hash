@@ -41,5 +41,33 @@
 # tree with no buildroot/local.mk: `make bmcd-source` reported the sum below
 # against a zeroed expectation, then re-run to confirm it fetches and
 # verifies cleanly.
-sha256  d01026a84ef6c49000a6ad3241caa9ec3f6e8c953e42a6601b92a2155fd6861f  bmcd-ccdf88f4146e01ffdb91a5d4cdc68834d5183d1a-cargo2.tar.gz
+# v2.37.0 -> v2.38.0 (ebed91fa). Two additions, both from one Discord report
+# on 2026-09-21 -- a user on a 2.4 board who had set the Split layout up and
+# then had to give the BMC a fixed address over SSH, after which his clock
+# said NOT synchronised and `chronyc sources` was empty.
+#
+#   The board's own address: GET/PUT /api/bmc/network/address, plus confirm,
+#   revert, validate and limits. Applied on a bridge that is never brought
+#   down (ifdown br0 would take the modules' ports with it), kept only when
+#   a confirmation reaches the daemon AT THE NEW ADDRESS, reverted otherwise;
+#   a confirmation from the board itself is refused. Only a confirmed
+#   document reaches /etc/network/interfaces, as the v2.1 stanza the image
+#   ships and S00dsa migrates. The daemon refuses what could never be
+#   reached and warns about what is merely unwise -- no resolver being the
+#   one that bit the reporter.
+#
+#   GET ?type=ntp carries chrony's verdict on every source: selected,
+#   combined, excluded, unreachable, falseticker, too_variable -- and, when
+#   chrony has nothing at all, the configured names as `unresolved`, which
+#   is what "no resolver" looks like from the outside.
+#
+# Proved on board B with a local image before this pin: static apply and
+# confirm from the new address, DHCP apply with the confirm refused from the
+# board's own shell and the address put back on silence, then DHCP applied
+# and confirmed; udhcpc stopped and started; the file written only on confirm.
+#
+# Measured 2026-09-21 with the pinned container, from a worktree with no
+# buildroot/local.mk: `make bmcd-source` reported got 66f388b6 against a
+# zeroed expectation.
+sha256  66f388b6880bb831e382c3d5d62403b0ef6dceec3e753f7545a8fe7848c76c48  bmcd-ebed91fa93890a02592f1eb3607c47bb4049f27c-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
