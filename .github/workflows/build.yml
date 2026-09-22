@@ -125,17 +125,24 @@ jobs:
   # fragment that tells Buildroot where the compiler is
   # (docs/architecture.md, "The toolchain is built once per change to it").
   #
-  # A pull request from a fork has no token that can push a package, so it
-  # skips this and the build job builds the toolchain itself, as before.
-  # Nothing is silently different: the build report names which it was.
-  # (`!= true` rather than `!(...)`: the grouped negation evaluated false on
-  # a same-repository pull request and skipped this job -- measured on the
-  # first run of the PR that added it. `!= true` is also null-safe on a push,
-  # where there is no pull_request in the event at all.)
+  # A pull request from ANOTHER repository has no token that can push a
+  # package, so it skips this and the build job builds the toolchain itself,
+  # as before. Nothing is silently different: the build report names which
+  # it was.
+  #
+  # "Another repository" is spelled out as a name comparison, and not as
+  # `head.repo.fork`, because THIS repository is a fork -- of
+  # turing-machines/BMC-Firmware -- so `head.repo.fork` is true for every
+  # pull request opened here, and the job skipped on all of them (measured
+  # on #55's own runs, twice: first with `!(...)`, then with `!= true`).
+  # The comparison is null-safe on a push, where there is no pull_request.
   toolchain:
     name: prebuilt toolchain image
     needs: gate
-    if: needs.gate.outputs.build == 'true' && github.event.pull_request.head.repo.fork != true
+    if: >-
+      needs.gate.outputs.build == 'true' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
       contents: read
