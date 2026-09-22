@@ -13,6 +13,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.37.0] — 2026-09-22
+
+Pins **BMC-UI 3.36.0**. bmcd stays at 2.38.2 and tpi at 1.10.0. One fix, and
+it is the one a new board meets first.
+
+### Fixed
+
+- **The password form would not accept typing, in any of its three boxes.**
+  The interface's shared text field dropped the change handler for password
+  inputs, and a React field that holds its value but cannot report a change
+  is read-only: every keystroke was reverted, silently, with markup that
+  looks perfect. It hit the password card on Access **and the page a board
+  still on its shipped password shows instead of everything else** — so such
+  a board could not be taken off that password from a browser at all, only
+  over SSH. Logging in was unaffected, which is why it went unnoticed: that
+  form reads the page on submit rather than holding state.
+
+  Reported as [#48](https://github.com/excavador-turing/BMC-Firmware/issues/48)
+  by a user on v2.34.0, and present since long before this fork. The release
+  also adds the gate that would have caught it: the interface's CI now types
+  into every visible box of every tab and fails on one that does not keep
+  what was typed. Nothing that existed could see it — it builds, it lints,
+  it renders, and the page-length gate measures height.
+
 ## [v2.36.0] — 2026-09-22
 
 Pins **bmcd 2.38.2** and **BMC-UI 3.35.0**; tpi stays at 1.10.0. Two fixes,
