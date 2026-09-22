@@ -11,7 +11,16 @@ BMCD_LICENSE_FILES = LICENSE
 # dependencies' host tools are visible to this package's build.
 BMCD_DEPENDENCIES += host-pkgconf libopenssl
 BMCD_CARGO_ENV := PKG_CONFIG_ALLOW_CROSS=1
-BMCD_CARGO_ENV += CC_armv7_unknown_linux_gnueabi="arm-linux-gcc"
+# The C compiler openssl-sys's build script uses, by the name Buildroot's own
+# cargo infrastructure uses for the linker: the tuple-prefixed one, which
+# every toolchain kind provides. It used to say "arm-linux-gcc", a
+# convenience symlink that only the INTERNAL toolchain build creates -- so
+# the package could not build against an external toolchain at all
+# (measured 2026-09-22: `ToolNotFound: failed to find tool "arm-linux-gcc"`
+# from openssl-sys, with a Buildroot-built SDK consumed as
+# BR2_TOOLCHAIN_EXTERNAL). A package should not depend on a symlink one
+# toolchain kind happens to create.
+BMCD_CARGO_ENV += CC_armv7_unknown_linux_gnueabi="$(notdir $(TARGET_CROSS))gcc"
 
 # A copy of the default build commands with --path amended, because bmcd's
 # root Cargo.toml is a VIRTUAL manifest from v2.3.5 onward: `feat: split
