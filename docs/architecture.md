@@ -79,6 +79,31 @@ work — and also how any process on the board can power off a module. The
 replacement is a Unix socket authenticated by peer credentials, so the loopback
 bypass can be removed rather than narrowed. Planned, not shipped (SQU-165).
 
+**The toolchain is built once per change to it.** Every CI run spent its first
+eleven minutes on binutils, gcc, glibc and the kernel headers — with a warm
+ccache, since what remains is extraction, configure and link — and no target
+package could start until it was done; the toolchain itself changes a few times
+a year. Now `scripts/toolchain-id.sh` hashes everything that decides what
+`make toolchain` produces (the container image, the Buildroot release and its
+patches, the architecture and toolchain lines of the defconfig, the fragment
+below), and a `toolchain` job builds the toolchain, packages it as a
+relocatable SDK and pushes `ghcr.io/excavador-turing/bmc-toolchain:tc-<hash>`
+only when no image exists for that hash. The build runs inside that image with
+a CI-only config fragment (`tp2bmc/configs/ci-external-toolchain.fragment`)
+that switches Buildroot to the external toolchain at `/opt/sdk`. Everything
+else — every host tool, every target package, the image — is still built from
+source in the run, so the artefact differs from a developer's build in nothing
+but where the compiler came from, and the compiler is the same binary, built
+from the same defconfig in the same container. Buildroot checks the fragment's
+every claim against the toolchain at configure time and refuses on a
+mismatch; `tests/toolchain-fragment.sh` checks them against the defconfig
+offline. Declined: consuming the full SDK, host tools included — Buildroot can
+take a toolchain from an SDK but not host packages; caching Buildroot's output
+tree between runs — its stamps do not see a config change, and that is a
+stale package in a release; Bootlin's prebuilt toolchains — none is EABI
+soft-float with vfpv4-d16. The shape is OpenWrt's: tools and toolchain as
+container images, rebuilt when their inputs change and pulled otherwise.
+
 **Code-first API.** The Rust types are the contract; `bmcd --openapi` derives
 the OpenAPI 3.1 document from them; the document is published with each bmcd
 release; the interface's TypeScript types are generated from it, and CI fails

@@ -111,13 +111,138 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: ./tests/pins-are-current.sh
 
+  # The cross-toolchain, built once per change to it.
+  #
+  # Every run used to spend its first eleven minutes on binutils, gcc, glibc
+  # and the kernel headers -- with a WARM ccache, since what is left is
+  # extraction, configure and link -- and nothing target-side could start
+  # until it was done. The toolchain changes a few times a year. So this job
+  # hashes everything that decides what `make toolchain` produces
+  # (scripts/toolchain-id.sh), and when no image exists for that hash, builds
+  # the toolchain, packages it as a relocatable SDK (scripts/toolchain-sdk.sh)
+  # and pushes ghcr.io/<owner>/bmc-toolchain:tc-<hash>. Every other run finds
+  # the image and does nothing. The build job runs inside it, with a config
+  # fragment that tells Buildroot where the compiler is
+  # (docs/architecture.md, "The toolchain is built once per change to it").
+  #
+  # A pull request from a fork has no token that can push a package, so it
+  # skips this and the build job builds the toolchain itself, as before.
+  # Nothing is silently different: the build report names which it was.
+  # (`!= true` rather than `!(...)`: the grouped negation evaluated false on
+  # a same-repository pull request and skipped this job -- measured on the
+  # first run of the PR that added it. `!= true` is also null-safe on a push,
+  # where there is no pull_request in the event at all.)
+  toolchain:
+    name: prebuilt toolchain image
+    needs: gate
+    if: needs.gate.outputs.build == 'true' && github.event.pull_request.head.repo.fork != true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: name the image this toolchain would be
+        id: name
+        run: |
+          id=$(sh scripts/toolchain-id.sh)
+          echo "image=ghcr.io/${{ github.repository_owner }}/bmc-toolchain:tc-${id}" >> "$GITHUB_OUTPUT"
+          echo "toolchain id: ${id}"
+
+      - name: log in to the registry
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: does it exist already
+        id: have
+        run: |
+          if docker manifest inspect "${{ steps.name.outputs.image }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "toolchain: ${{ steps.name.outputs.image }} exists; nothing to build" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "toolchain: ${{ steps.name.outputs.image }} does not exist; building it" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The same two caches the build uses, restore only: the sources of
+      # gcc, glibc and binutils are in dl/, and ccache knows their objects.
+      - name: restore Buildroot downloads
+        if: steps.have.outputs.exists == 'false'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: dl
+          key: br-dl-toolchain-${{ github.run_id }}
+          restore-keys: |
+            br-dl-
+
+      - name: restore ccache
+        if: steps.have.outputs.exists == 'false'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache
+          key: br-ccache-toolchain-${{ github.run_id }}
+          restore-keys: |
+            br-ccache-
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        if: steps.have.outputs.exists == 'false'
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        if: steps.have.outputs.exists == 'false'
+        with:
+          context: .
+          tags: buildroot_local:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          push: false
+        env:
+          DOCKER_BUILD_SUMMARY: false
+
+      - name: build the toolchain and package it
+        if: steps.have.outputs.exists == 'false'
+        uses: addnab/docker-run-action@4f65fabd2431ebc8d299f8e5a018d79a769ae185 # v3
+        with:
+          image: buildroot_local:latest
+          options: >-
+            -v ${{ github.workspace }}:/work
+            -e BR2_DL_DIR=/work/dl
+            -e BR2_CCACHE_DIR=/work/.ccache
+            -e CCACHE_MAXSIZE=2G
+          run: |
+            set -e
+            /work/scripts/configure.sh
+            /work/scripts/toolchain-sdk.sh
+
+      # Plain `docker build`, not buildx: the toolchain image is FROM the
+      # image loaded above, which the buildx container driver cannot see.
+      - name: push the toolchain image
+        if: steps.have.outputs.exists == 'false'
+        run: |
+          docker build -f Dockerfile.toolchain --build-arg BASE=buildroot_local:latest \
+            -t "${{ steps.name.outputs.image }}" .
+          docker push "${{ steps.name.outputs.image }}"
+          echo "pushed ${{ steps.name.outputs.image }}" | tee -a "$GITHUB_STEP_SUMMARY"
+
   build:
-    needs: [gate, pins]
-    if: needs.gate.outputs.build == 'true'
+    # always(): `toolchain` is skipped for a fork's pull request, and a
+    # skipped need would skip this job too. The conditions below say what
+    # must actually hold.
+    needs: [gate, pins, toolchain]
+    if: >-
+      always() &&
+      needs.gate.outputs.build == 'true' &&
+      needs.pins.result == 'success' &&
+      (needs.toolchain.result == 'success' || needs.toolchain.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write   # the release step; nothing else writes
+      packages: read    # the toolchain image
     env:
+      # Empty when the toolchain job did not run (a fork's pull request);
+      # then the build image is built here and the toolchain from source.
+      TOOLCHAIN_IMAGE: ${{ needs.toolchain.outputs.image }}
       RUST_LOG: ${{ inputs.logLevel }}
 
     # Actions are pinned by commit (the moving tag is in the comment):
@@ -231,8 +356,20 @@ jobs:
           restore-keys: |
             br-sccache-
 
+      # The toolchain image carries the build image, so with one there is
+      # nothing to build here; without one (a fork's pull request) the
+      # build image is built as it always was.
+      - name: pull the toolchain image
+        if: env.TOOLCHAIN_IMAGE != ''
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull "$TOOLCHAIN_IMAGE"
+          docker tag "$TOOLCHAIN_IMAGE" buildroot_local:latest
+
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        if: env.TOOLCHAIN_IMAGE == ''
       - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        if: env.TOOLCHAIN_IMAGE == ''
         with:
           context: .
           tags: buildroot_local:latest
@@ -246,8 +383,11 @@ jobs:
       # BR2_DL_DIR and BR2_CCACHE_DIR are the two Buildroot knobs that take
       # the ENVIRONMENT over .config (Makefile: "set this before including
       # .config"), so the defconfig stays exactly what developers use.
-      # ccache stats are printed even when the build fails -- that is when
-      # you want them.
+      # TP2BMC_CONFIG_FRAGMENT is build.sh's own knob: set, the CI fragment
+      # is appended after the defconfig and Buildroot takes the compiler
+      # from /opt/sdk in the toolchain image; empty, the toolchain is built
+      # from source. ccache stats are printed even when the build fails --
+      # that is when you want them.
       - name: build firmware
         uses: addnab/docker-run-action@4f65fabd2431ebc8d299f8e5a018d79a769ae185 # v3
         with:
@@ -256,6 +396,7 @@ jobs:
             -v ${{ github.workspace }}:/work
             -e BR2_DL_DIR=/work/dl
             -e BR2_CCACHE_DIR=/work/.ccache
+            -e TP2BMC_CONFIG_FRAGMENT=${{ env.TOOLCHAIN_IMAGE && '/work/tp2bmc/configs/ci-external-toolchain.fragment' || '' }}
             -e CCACHE_MAXSIZE=2G
             -e RUSTC_WRAPPER=/usr/local/bin/sccache
             -e SCCACHE_DIR=/work/.sccache
@@ -323,6 +464,12 @@ jobs:
             echo '```'
             df -h / | sed -n '1,2p'
             echo '```'
+            echo
+            if [ -n "$TOOLCHAIN_IMAGE" ]; then
+              echo "toolchain: prebuilt, $TOOLCHAIN_IMAGE"
+            else
+              echo "toolchain: built from source in this run"
+            fi
             log=buildroot/output/build/build-time.log
             if [ -f "$log" ]; then
               echo

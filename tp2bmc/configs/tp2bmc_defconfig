@@ -62,6 +62,12 @@ BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.109"
 # packages (dosfstools, f2fs-tools, iproute2, libgpiod, parted, ...) vanish
 # from the image. Name the series so the pin is a pin.
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12=y
+# gcc 13 is this Buildroot release's default and was never named here. It is
+# named now because CI's prebuilt toolchain (tp2bmc/configs/
+# ci-external-toolchain.fragment) must state the gcc it carries, and
+# tests/toolchain-fragment.sh checks that statement against THIS file. A
+# default cannot be checked; a line can. No change to what is built.
+BR2_GCC_VERSION_13_X=y
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/linux_defconfig"
