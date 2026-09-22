@@ -220,6 +220,17 @@ jobs:
           restore-keys: |
             br-ccache-
 
+      # sccache, the same shape as ccache above: a per-run key so the save
+      # always happens, restore-keys to pick up the newest. This is what
+      # covers the Rust packages, which ccache never sees. ~320 MB.
+      - name: restore sccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .sccache
+          key: br-sccache-${{ github.run_id }}
+          restore-keys: |
+            br-sccache-
+
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -246,6 +257,9 @@ jobs:
             -e BR2_DL_DIR=/work/dl
             -e BR2_CCACHE_DIR=/work/.ccache
             -e CCACHE_MAXSIZE=2G
+            -e RUSTC_WRAPPER=/usr/local/bin/sccache
+            -e SCCACHE_DIR=/work/.sccache
+            -e SCCACHE_CACHE_SIZE=1G
             -e BUILD_VERSION=${{ env.BUILD_VERSION }}
           run: |
             set -e
@@ -254,6 +268,11 @@ jobs:
             /work/scripts/build.sh --release "${BUILD_VERSION}" || rc=$?
             BR_CACHE_DIR=/work/.ccache /work/buildroot/output/host/bin/ccache -s \
               > /work/ccache-stats.txt 2>&1 || true
+            # In the log as well as the summary: the summary is not readable
+            # by any API, and the hit rate is what says whether this works.
+            sccache --show-stats > /work/sccache-stats.txt 2>&1 || true
+            echo "--- sccache:"; cat /work/sccache-stats.txt
+            sccache --stop-server > /dev/null 2>&1 || true
             exit $rc
 
       # The build runs as root inside the container, so dl/ and .ccache come
@@ -263,7 +282,7 @@ jobs:
       # the step green. Hand both trees back before saving.
       - name: make the caches readable by the runner
         if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" dl .ccache 2>/dev/null || true
+        run: sudo chown -R "$(id -u):$(id -g)" dl .ccache .sccache 2>/dev/null || true
 
       - name: note which Rust toolchain this dl/ was vendored under
         if: always()
@@ -284,6 +303,13 @@ jobs:
         with:
           path: .ccache
           key: br-ccache-${{ github.run_id }}
+
+      - name: save sccache
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .sccache
+          key: br-sccache-${{ github.run_id }}
 
       # Where the time went. build-time.log is what `make graph-build`
       # reads; its top in the step summary turns the next slow build into
@@ -318,6 +344,14 @@ jobs:
               echo
               echo '```'
               cat ccache-stats.txt
+              echo '```'
+            fi
+            if [ -s sccache-stats.txt ]; then
+              echo
+              echo 'sccache (rustc):'
+              echo
+              echo '```'
+              cat sccache-stats.txt
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
