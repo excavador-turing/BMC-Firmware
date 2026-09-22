@@ -69,5 +69,22 @@
 # Measured 2026-09-21 with the pinned container, from a worktree with no
 # buildroot/local.mk: `make bmcd-source` reported got 66f388b6 against a
 # zeroed expectation.
-sha256  66f388b6880bb831e382c3d5d62403b0ef6dceec3e753f7545a8fe7848c76c48  bmcd-ebed91fa93890a02592f1eb3607c47bb4049f27c-cargo2.tar.gz
+#
+# v2.38.0 -> v2.38.1 (1f409c91). One fix, found by the same reader a day
+# after 2.38.0 shipped: the `up` hook the address card wrote into
+# /etc/network/interfaces carried a literal '#' (udhcpc's own tag on
+# resolv.conf lines), and ifupdown-ng reads '#' anywhere on a line as a
+# comment -- so the hook was cut mid-string, /bin/sh refused the
+# unterminated quote, and `ifup br0` exited 1 at every boot, after the
+# address was already on the bridge. The board came up reachable and with
+# no resolvers. The hook now spells the hash as \043, which printf turns
+# back into '#'; proved on board B, where the old line fails and the new
+# one writes the file byte-for-byte. Boards 2.38.0 already wrote are
+# repaired at the daemon's first start: the stanza rewritten, the missing
+# resolvers written.
+#
+# Measured 2026-09-22 with the pinned container, from a worktree with no
+# buildroot/local.mk: `make bmcd-source` reported got 52023c84 against a
+# zeroed expectation.
+sha256  52023c841267c958cb546a5d8ca12905be401a27ca6f81bdecc72fa8bdb251d2  bmcd-1f409c9167671f7149d298263f9570d65ba545c5-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

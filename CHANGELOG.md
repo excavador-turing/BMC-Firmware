@@ -13,6 +13,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.36.0] — 2026-09-22
+
+Pins **bmcd 2.38.1** and **BMC-UI 3.35.0**; tpi stays at 1.10.0. One fix,
+found the day after v2.35.0 shipped by the same reader whose report shaped
+it, on the same 2.4 board.
+
+### Fixed
+
+- **A static address came back from every reboot with no resolvers.** The
+  stanza the address card writes carried a `#` — the tag the DHCP client
+  puts on its own resolv.conf lines, kept so a later lease can replace them
+  — and the board's `ifup` reads `#` anywhere on a line as a comment. The
+  hook that rebuilds `/etc/resolv.conf` (a link into memory on this image,
+  empty at every boot) was cut off, the shell refused it, and `ifup br0`
+  failed at every boot after the address was already on the bridge. The
+  board came up reachable, with a clock that could not find its server. The
+  hook now spells the character so it survives; a board the old stanza was
+  already written to is repaired the first time this daemon starts, without
+  waiting for the address to be changed again.
+
+### Changed
+
+- **BMC-UI 3.35.0 changes nothing on a board.** It teaches the site's demo
+  to run the address flow — apply, the window, confirm, revert — so a
+  reader can try it. Pinned because a release ships the latest of every
+  component, the rule this image has kept since v2.26.0.
+
 ## [v2.35.0] — 2026-09-21
 
 Pins **bmcd 2.38.0**, **BMC-UI 3.34.1** and **tpi 1.10.0**. All three come
