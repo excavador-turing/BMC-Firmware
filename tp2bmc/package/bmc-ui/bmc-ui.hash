@@ -252,3 +252,17 @@ sha256  e77c62b69853e4e205401a7a331e8ff91afada3957736d6a3f416305590e9578  bmc-ui
 # password form's own field name is in the built bundle
 # (index-tyBdLgum.js), so the release carries the form this fixes.
 sha256  dcff2283b33b58d87d749e3f3e9c9877c5b020cd23fbbfdee063fe764130562c  bmc-ui-v3.36.0.tar.gz
+#
+# v3.36.0 -> v3.37.0: installing a firmware image says what it is doing, and
+# for how long. The daemon does the whole install inside one request --
+# download, sum, write to the spare slot, arm -- and the page showed a
+# greyed button for the whole of that; a reader on Discord wondered whether
+# to refresh. Now the button reads "Installing..." and a status line gives
+# "about 26 s, now at N", the number measured on board B (a real install of
+# v2.37.0 from GitHub, 26 s wall, 2026-09-23), the same shape as the reboot
+# banner. Interface only; the daemon is unchanged.
+#
+# Measured 2026-09-23: 607006 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 53 entries.
+sha256  3da2669bc0cdaf7dd1d0a846ce967b3465409914a4ad28d6c4d87df8177cefff  bmc-ui-v3.37.0.tar.gz

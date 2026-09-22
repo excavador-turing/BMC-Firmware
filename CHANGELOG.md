@@ -13,6 +13,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.38.0] — 2026-09-23
+
+Pins **BMC-UI 3.37.0**. bmcd stays at 2.38.2 and tpi at 1.10.0. One change,
+from a reader who had just done an update for the first time.
+
+### Changed
+
+- **The Firmware tab now says what the board is doing while it installs.**
+  Installing from a source took about half a minute of silence — a greyed
+  button and nothing else — because the daemon does the whole job inside one
+  request (download the image, check its sum, write it to the spare slot,
+  arm the next boot) and answers when it is done. A reader wondered whether
+  to refresh; he did not need to, and now the page says so: the button reads
+  *Installing…* and a status line counts "about 26 s, now at N", the number
+  measured on a real board like the reboot banner's. Past it the line says
+  the board is still working and that a slow link takes longer. Nothing is
+  armed until the board says staged, and the page says that too.
+
+  This is also the first release built with the new CI: the cross-toolchain
+  comes prebuilt from an image, the Rust packages from a compiler cache, and
+  a firmware build takes about eleven minutes instead of twenty-four. Nothing
+  in the image changes because of that — the compiler is the same binary,
+  built from the same defconfig in the same container — and both boards
+  here are the check.
+
 ## [v2.37.0] — 2026-09-22
 
 Pins **BMC-UI 3.36.0**. bmcd stays at 2.38.2 and tpi at 1.10.0. One fix, and
