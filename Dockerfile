@@ -9,6 +9,15 @@ FROM mcr.microsoft.com/devcontainers/base:ubuntu24.04@sha256:456e33716a8570448b7
 # host-lzip (129 s) whenever the host lacks them
 # (support/dependencies/check-host-{cmake,lzip}.mk). Noble ships cmake 3.28.3,
 # the exact version Buildroot 2024.05.1 would otherwise compile from source.
+#
+# bison and zstd, for the same reason as cmake and lzip: Buildroot takes them
+# from the host when present (support/dependencies/check-host-bison-flex.mk
+# checks `bison` and `flex` separately; check-host-zstd.mk wants a zstdcat)
+# and otherwise builds host-bison (43 s) and host-zstd (42 s) every run. flex
+# was already here; bison was not, so host-bison was built anyway. Measured
+# on the v2.37.0 release build, 2026-09-22. Both are hidden under the
+# toolchain chain today; they stop being hidden once the toolchain is not
+# built here.
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -38,6 +47,8 @@ RUN apt-get update && apt-get install -y \
     shellcheck \
     cmake \
     lzip \
+    bison \
+    zstd \
     && rm -rf /var/lib/apt/ \
     && rm -rf /var/cache/apt/
 

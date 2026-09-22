@@ -137,6 +137,16 @@ jobs:
         run: |
           echo "BUILD_VERSION=$(git describe --tags --always)" >> $GITHUB_ENV
 
+      # What `cargo vendor` will run under: the Buildroot release names the
+      # rust-bin version, and a patch to Buildroot could change it. Anything
+      # else in the key (the defconfig, a package bump) does not touch the
+      # vendored bytes.
+      - name: name the Rust toolchain the vendored archives depend on
+        run: |
+          ver=$(sed -n 's/^BUILDROOT_VER="\(.*\)"$/\1/p' scripts/configure.sh)
+          patches=$(cat buildroot_patches/* 2>/dev/null | sha256sum | cut -c1-12)
+          echo "VENDORED_UNDER=buildroot-${ver}+patches-${patches}" >> $GITHUB_ENV
+
       - name: conditional bmcd version injection
         if: inputs.bmcd_version != ''
         run: |
@@ -155,27 +165,41 @@ jobs:
           restore-keys: |
             br-dl-
 
-      # A cache restored from a FALLBACK key cannot be trusted to hold the
-      # cargo-vendored archives, and this is not theoretical -- it broke a
-      # release build.
+      # The cargo-vendored archives are the one thing in dl/ whose NAME does
+      # not pin its CONTENTS. `bmcd-<commit>-cargo2.tar.gz` is named for the
+      # package commit, but `cargo vendor` runs under the Rust toolchain, so a
+      # Rust bump changes the bytes and keeps the filename. It broke a release
+      # once: the primary key missed, restore-keys handed back the previous
+      # cache, Buildroot found an archive with the right name and the wrong
+      # contents, and every Rust package failed its hash check reporting the
+      # PREVIOUS release's sum as what it "got".
       #
-      # `bmcd-<commit>-cargo2.tar.gz` is named for the package commit and
-      # nothing else. Its CONTENTS also depend on the Rust toolchain, because
-      # `cargo vendor` runs under it. So bumping Rust changes the bytes while
-      # leaving the filename identical: the primary key misses (the patch file
-      # changed), restore-keys hand back the previous cache, Buildroot finds an
-      # archive with the right name and the wrong contents, and every Rust
-      # package fails its hash check reporting the PREVIOUS release's sum as
-      # what it "got".
+      # The first fix dropped the archives on EVERY fallback restore. That was
+      # safe and too broad: a tag run can only see caches from the default
+      # branch (GitHub's rule), and the push-to-hive run that would refresh
+      # that scope is cancelled by the tag's concurrency group, so every
+      # release run fell back, re-vendored three crates from crates.io, and
+      # re-saved 2.3 GB -- one to two minutes and a network dependency at
+      # exactly the moment nobody wants one, for a Rust toolchain that had
+      # not moved.
       #
-      # Only these three are affected -- every other entry in dl/ is an
-      # upstream tarball whose name pins its contents. Dropping them on a
-      # fallback restore costs one re-vendor and removes the whole class.
-      - name: drop stale vendored archives on a fallback cache restore
+      # So the cache now carries a note of the toolchain it was vendored
+      # under: the Buildroot release (which pins rust-bin) and the patches
+      # applied to it (which could change that pin). The archives are dropped
+      # only when the note disagrees with this checkout. A cache with no note
+      # is treated as disagreeing, so the first run after this change still
+      # re-vendors once.
+      - name: drop the vendored archives if the Rust toolchain moved
         if: steps.dl.outputs.cache-hit != 'true'
         run: |
-          if compgen -G 'dl/*-cargo2.tar.gz' > /dev/null; then
-            echo "cache restored from a fallback key; re-vendoring these:"
+          have=$(cat dl/.vendored-under 2>/dev/null || echo "none")
+          want="$VENDORED_UNDER"
+          echo "cache vendored under: $have"
+          echo "this checkout:        $want"
+          if [ "$have" = "$want" ]; then
+            echo "same toolchain; the vendored archives are kept"
+          elif compgen -G 'dl/*-cargo2.tar.gz' > /dev/null; then
+            echo "different toolchain; re-vendoring these:"
             ls -1 dl/*-cargo2.tar.gz
             rm -f dl/*-cargo2.tar.gz
           else
@@ -240,6 +264,10 @@ jobs:
       - name: make the caches readable by the runner
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" dl .ccache 2>/dev/null || true
+
+      - name: note which Rust toolchain this dl/ was vendored under
+        if: always()
+        run: echo "$VENDORED_UNDER" > dl/.vendored-under
 
       # Save both caches even when the build failed: the three failed runs
       # of 2026-09-06 each re-downloaded 0.7 GB and rebuilt the toolchain.
