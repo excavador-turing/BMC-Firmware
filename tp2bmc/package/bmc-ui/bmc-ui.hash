@@ -228,3 +228,27 @@ sha256  fac5b37399ac09c9efc21a2e67e11d1a76a8cf19254fe54e105c095d09495eb0  bmc-ui
 # ABSENT from every chunk under dist/assets -- checked on the downloaded
 # archive -- which is the claim above, tested rather than assumed.
 sha256  e77c62b69853e4e205401a7a331e8ff91afada3957736d6a3f416305590e9578  bmc-ui-v3.35.0.tar.gz
+#
+# v3.35.0 -> v3.36.0: the password form would not accept typing, in any of
+# its three boxes. The shared Input dropped the caller's onChange for
+# type="password", and a controlled React field with `value` and no way to
+# report a change is read-only -- every keystroke reverted, silently, with
+# markup that looks perfect. It hit the password card on Access AND the
+# factory-password page a board shows before it will do anything else, so a
+# board still on its shipped password could not be taken off it from a
+# browser at all. Login was unaffected because it reads the DOM on submit
+# rather than holding state, which is why it survived since the Tailwind
+# move. Reported as BMC-Firmware#48 by a user on v2.34.0.
+#
+# The release also adds the gate that would have caught it: `npm run
+# type-test` drives the demo over the DevTools protocol, types into every
+# visible box on every tab and reads the value back. Nothing that existed
+# could see this -- it builds, it lints, it renders, and the screens gate
+# measures height.
+#
+# Measured 2026-09-22: 606681 bytes, downloaded from the release and summed
+# from those bytes. It agrees with the release's own SHA256SUMS, which is a
+# cross-check and not the source. dist/LICENSE is present, 53 entries. The
+# password form's own field name is in the built bundle
+# (index-tyBdLgum.js), so the release carries the form this fixes.
+sha256  dcff2283b33b58d87d749e3f3e9c9877c5b020cd23fbbfdee063fe764130562c  bmc-ui-v3.36.0.tar.gz
