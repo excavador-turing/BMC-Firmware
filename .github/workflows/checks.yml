@@ -132,6 +132,7 @@ jobs:
             tests/gate.sh \
             tests/dashboard.sh \
             tests/pins-are-current.sh \
+            tests/toolchain-fragment.sh \
             tp2bmc/package/bmcd/generate_self_signedx509.sh \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S00sysrq \
             tp2bmc/board/tp2bmc/overlay/usr/sbin/mdnsd-guard \
@@ -182,3 +183,15 @@ jobs:
 
       - name: validate the published dashboard
         run: sh tests/dashboard.sh
+
+  # The CI fragment states what the prebuilt toolchain IS; a stale
+  # statement is refused by Buildroot twelve minutes into a build. This
+  # reads the same facts from the defconfig, offline.
+  toolchain-fragment:
+    name: the toolchain fragment matches the defconfig
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: fragment against defconfig
+        run: sh tests/toolchain-fragment.sh

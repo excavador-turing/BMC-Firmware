@@ -1,0 +1,20 @@
+# The prebuilt toolchain image: the build container plus the cross-toolchain
+# it would otherwise spend the first eleven minutes of every run building.
+# Built by the `toolchain` job in build.yml when scripts/toolchain-id.sh
+# names an image that does not exist yet; every other run pulls it.
+#
+# BASE is the ordinary build image, built in the same job from ./Dockerfile,
+# so the toolchain runs on exactly the host libc it was linked against.
+ARG BASE=buildroot_local:latest
+FROM ${BASE}
+
+COPY sdk-toolchain.tar.gz /tmp/sdk-toolchain.tar.gz
+# Relocation rewrites the paths Buildroot baked in at build time (gcc's
+# sysroot, pkg-config files) to /opt/sdk. The consumer's Buildroot then copies
+# the sysroot out of here into its own staging tree, as it does with any
+# external toolchain, so /opt/sdk is read at configure time and not after.
+RUN set -eu; \
+    tar -xzf /tmp/sdk-toolchain.tar.gz -C /opt; \
+    /opt/sdk/relocate-sdk.sh; \
+    rm -f /tmp/sdk-toolchain.tar.gz; \
+    /opt/sdk/bin/arm-buildroot-linux-gnueabi-gcc --version | head -1

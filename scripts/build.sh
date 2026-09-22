@@ -78,6 +78,24 @@ cd "${build_root}" || exit 1
 # Prepare buildroot
 make BR2_EXTERNAL=../tp2bmc tp2bmc_defconfig
 
+# A config fragment appended after the defconfig, for CI's prebuilt
+# toolchain: the workflow points this at
+# tp2bmc/configs/ci-external-toolchain.fragment when it runs inside the
+# toolchain image, and Buildroot then takes the compiler from /opt/sdk
+# instead of building it. Unset -- every developer container -- nothing
+# here runs and the defconfig is used exactly as written. The toolchain
+# symbols are printed so the log says which kind this build used.
+if [[ -n "${TP2BMC_CONFIG_FRAGMENT:-}" ]]; then
+    if [[ ! -f "${TP2BMC_CONFIG_FRAGMENT}" ]]; then
+        echo "TP2BMC_CONFIG_FRAGMENT names no file: ${TP2BMC_CONFIG_FRAGMENT}" >&2
+        exit 1
+    fi
+    cat "${TP2BMC_CONFIG_FRAGMENT}" >> .config
+    make olddefconfig
+    echo "toolchain, after ${TP2BMC_CONFIG_FRAGMENT}:"
+    grep -E '^BR2_TOOLCHAIN_(EXTERNAL|BUILDROOT)(=|_PATH=|_CUSTOM_PREFIX=)' .config
+fi
+
 # Top-level parallel build: with BR2_PER_PACKAGE_DIRECTORIES=y in the
 # defconfig, independent packages build concurrently; without -j here that
 # option buys nothing. Per-package -j stays at Buildroot's default (nproc+1).

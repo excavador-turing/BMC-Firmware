@@ -1,0 +1,31 @@
+# CI ONLY. Appended to the defconfig by scripts/build.sh when
+# TP2BMC_CONFIG_FRAGMENT names this file, which the workflow does when it
+# runs inside the prebuilt toolchain image (docs/architecture.md,
+# "The toolchain is built once per change to it"). A developer's container
+# never sets it and builds the toolchain from source as before.
+#
+# Every line states what the prebuilt toolchain IS. Buildroot checks each
+# against the binaries at configure time and refuses the toolchain on a
+# mismatch, so a wrong line here fails the build, never the board. The
+# toolchain is built from the SAME defconfig this is appended to, in the
+# same container image, so the two can only disagree if this file is stale
+# -- and tests/toolchain-fragment.sh checks that offline, from the defconfig.
+# BR2_TOOLCHAIN_BUILDROOT is not set
+BR2_TOOLCHAIN_EXTERNAL=y
+BR2_TOOLCHAIN_EXTERNAL_CUSTOM=y
+BR2_TOOLCHAIN_EXTERNAL_PREINSTALLED=y
+BR2_TOOLCHAIN_EXTERNAL_PATH="/opt/sdk"
+BR2_TOOLCHAIN_EXTERNAL_CUSTOM_PREFIX="arm-buildroot-linux-gnueabi"
+BR2_TOOLCHAIN_EXTERNAL_GCC_13=y
+BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_12=y
+BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y
+# BR2_TOOLCHAIN_EXTERNAL_CXX is not set
+# BR2_TOOLCHAIN_EXTERNAL_LOCALE is not set
+# glibc 2.41 carries no Sun RPC. Left unstated, olddefconfig defaults this
+# ON and the toolchain check then refuses the whole toolchain (measured).
+# BR2_TOOLCHAIN_EXTERNAL_INET_RPC is not set
+BR2_TOOLCHAIN_EXTERNAL_HAS_SSP=y
+BR2_TOOLCHAIN_EXTERNAL_HAS_SSP_STRONG=y
+BR2_TOOLCHAIN_EXTERNAL_HAS_THREADS=y
+BR2_TOOLCHAIN_EXTERNAL_HAS_THREADS_DEBUG=y
+BR2_TOOLCHAIN_EXTERNAL_HAS_THREADS_NPTL=y

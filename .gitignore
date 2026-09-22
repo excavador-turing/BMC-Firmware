@@ -12,3 +12,5 @@ ccache-stats.txt
 output
 .sccache
 sccache-stats.txt
+sdk-toolchain.tar.gz
+sdk

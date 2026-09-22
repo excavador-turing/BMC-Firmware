@@ -323,6 +323,13 @@ available in the [Commands](#commands) section.
 > Before starting a build the `configure.sh` script must be run, this script must also be
 > rerun everything buildroot is updated.
 
+CI does one thing a developer's container does not: it takes the cross-toolchain
+from a prebuilt image rather than building it, which is where the first eleven
+minutes of every run went. `scripts/build.sh` applies
+`tp2bmc/configs/ci-external-toolchain.fragment` only when `TP2BMC_CONFIG_FRAGMENT`
+names it, so a local build is unaffected. The reasoning and the checks are in
+[docs/architecture.md](docs/architecture.md).
+
 ## Quickstart
 
 1. Clone repository
