@@ -107,8 +107,11 @@ esac
 #
 # The tag this board is running, from the VERSION key post_build.sh writes.
 #
+# OS_RELEASE is overridable for the contract tests only (tests/listing.sh),
+# which run on a workstation with no board and must not depend on the host's
+# own /etc/os-release carrying a VERSION key. Nothing on a board sets it.
 running_version() {
-	sed -n 's/^VERSION=//p' /etc/os-release | tr -d '"' | head -1
+	sed -n 's/^VERSION=//p' "${OS_RELEASE:-/etc/os-release}" | tr -d '"' | head -1
 }
 
 #
@@ -390,10 +393,27 @@ fi
 running=$(running_version)
 [ -n "$running" ] || die "cannot read VERSION from /etc/os-release"
 
+# A LISTING THAT FAILED MUST NOT LOOK LIKE AN EMPTY ONE.
+#
+# `http_versions` and `list_releases` call `die` when curl cannot reach the
+# source, and `die` exits -- but on the left of a pipe it exits only its own
+# subshell. The JSON opening had already been printed, the loop then read
+# nothing, and the script closed the array and exited 0: a well-formed
+# `"releases":[]` with the real reason on stderr, which nobody was reading.
+# bmcd took that as "this source offers nothing" and the firmware page said
+# there was no update, on a board that simply had no DNS. Reported from a 2.4
+# board on 2026-09-22, and reproduced on board B: `curl: (6) Could not
+# resolve host: api.github.com` on stderr, `{"releases":[]}` on stdout,
+# exit 0.
+#
+# So the listing is collected FIRST, in a command substitution, where a
+# non-zero exit is visible -- and nothing is printed on stdout unless it
+# succeeded.
 if [ "$LIST_ONLY" -eq 1 ] && [ -n "$SOURCE_URL" ]; then
+	versions=$(http_versions) || exit 1
 	printf '{"url":"%s","running":"%s","releases":[' "$SOURCE_URL" "$running"
 	first=1
-	http_versions | while IFS= read -r tag; do
+	printf '%s\n' "$versions" | while IFS= read -r tag; do
 		[ -n "$tag" ] || continue
 		relation=$(relation_to "$tag" "$running")
 		case "$relation" in
@@ -413,9 +433,10 @@ if [ "$LIST_ONLY" -eq 1 ] && [ -n "$SOURCE_URL" ]; then
 fi
 
 if [ "$LIST_ONLY" -eq 1 ]; then
+	releases=$(list_releases) || exit 1
 	printf '{"repo":"%s","running":"%s","releases":[' "$REPO" "$running"
 	first=1
-	list_releases | while IFS="$(printf '\t')" read -r tag pre; do
+	printf '%s\n' "$releases" | while IFS="$(printf '\t')" read -r tag pre; do
 		[ -n "$tag" ] || continue
 		relation=$(relation_to "$tag" "$running")
 		case "$relation" in

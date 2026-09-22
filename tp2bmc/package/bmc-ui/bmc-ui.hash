@@ -213,3 +213,18 @@ sha256  bd64279ebaceaf4f69c921747e94248de0e405c2d6c92906db98219100ed19f8  bmc-ui
 # minification, which is why this check works where a folded-away constant
 # would not.
 sha256  fac5b37399ac09c9efc21a2e67e11d1a76a8cf19254fe54e105c095d09495eb0  bmc-ui-v3.34.1.tar.gz
+#
+# v3.34.1 -> v3.35.0: the site's demo learned the address flow -- apply, a
+# window, confirm, revert -- from an in-memory stand-in for the board, so a
+# reader can run the sequence instead of reading about it. NOTHING of it
+# reaches a board: the simulation lives under src/demo/ and ships only with
+# VITE_DEMO=1. Pinned here because the pin gate requires the latest release,
+# not because a board gains anything; v3.33.0 was the same case.
+#
+# Measured 2026-09-22: 606680 bytes, downloaded from the release and summed
+# from those bytes. It agrees with the release's own SHA256SUMS, which is a
+# cross-check and not the source. dist/LICENSE is present, 53 entries. The
+# demo's strings ("stand-in for the board", DemoAddress, verdictFor) are
+# ABSENT from every chunk under dist/assets -- checked on the downloaded
+# archive -- which is the claim above, tested rather than assumed.
+sha256  e77c62b69853e4e205401a7a331e8ff91afada3957736d6a3f416305590e9578  bmc-ui-v3.35.0.tar.gz
