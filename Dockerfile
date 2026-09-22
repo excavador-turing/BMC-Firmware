@@ -68,6 +68,32 @@ RUN set -eu; \
     echo "${sum}  /usr/bin/hadolint" | sha256sum -c -; \
     chmod 755 /usr/bin/hadolint
 
+# sccache, for the three Rust packages (bmcd, tpi, bmc_installer). ccache
+# covers every C compile in the build, but rustc is not C: with a warm
+# ccache the kernel takes a minute and bmcd still takes four, every run,
+# from nothing, on the critical path to the image. sccache is ccache's idea
+# for rustc -- it hashes the source, the flags and the target, so a crate
+# that has not changed is a lookup. Measured 2026-09-22 on equal runners
+# (the C yardsticks within 2 s of each other): bmcd 233 s -> 119 s, tpi
+# 117 s -> 81 s, bmc_installer 30 s -> 16 s. A hit still pays for build
+# scripts, proc-macros and the link, which is the floor.
+#
+# The build only uses it when the workflow sets RUSTC_WRAPPER; a
+# developer's container never does. Pinned the way hadolint is: the sum is
+# the one published beside the release asset, checked against the bytes.
+ARG SCCACHE_VERSION=v0.18.0
+RUN set -eu; \
+    case "$(uname -m)" in \
+      x86_64)  arch=x86_64;  sum=45f1447fbe231e3037bde351ef70677dd212216c8d62ae7ca409fecc4d6acc89 ;; \
+      *) echo "sccache: not pinned for $(uname -m); RUSTC_WRAPPER stays unset" >&2; exit 0 ;; \
+    esac; \
+    name="sccache-${SCCACHE_VERSION}-${arch}-unknown-linux-musl"; \
+    wget -q -O /tmp/sccache.tar.gz "https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/${name}.tar.gz"; \
+    echo "${sum}  /tmp/sccache.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/sccache.tar.gz -C /tmp "${name}/sccache"; \
+    install -m 755 "/tmp/${name}/sccache" /usr/local/bin/sccache; \
+    rm -rf /tmp/sccache.tar.gz "/tmp/${name}"
+
 # Persists command history
 ENV HISTFILE=/work/.devcontainer/.bash_history
 ENV PROMPT_COMMAND="history -a"

@@ -10,3 +10,5 @@ dl
 ccache-stats.txt
 .home
 output
+.sccache
+sccache-stats.txt
