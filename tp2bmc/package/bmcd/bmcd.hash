@@ -83,8 +83,17 @@
 # repaired at the daemon's first start: the stanza rewritten, the missing
 # resolvers written.
 #
+# v2.38.1 -> v2.38.2 (02252d1c). The second half of the same report: a
+# firmware source the board could not reach was reported as offering
+# nothing rather than as unreachable, because `list_remote` read the
+# updater's stdout and ignored how the process ended. The updater printed
+# `{"releases":[]}` and exited 0; the reason went to stderr. The daemon
+# reads the exit status first now, and the updater in this image (see
+# tests/listing.sh) no longer claims success -- two halves, because either
+# alone leaves the page able to lie again.
+#
 # Measured 2026-09-22 with the pinned container, from a worktree with no
-# buildroot/local.mk: `make bmcd-source` reported got 52023c84 against a
+# buildroot/local.mk: `make bmcd-source` reported got 262c5371 against a
 # zeroed expectation.
-sha256  52023c841267c958cb546a5d8ca12905be401a27ca6f81bdecc72fa8bdb251d2  bmcd-1f409c9167671f7149d298263f9570d65ba545c5-cargo2.tar.gz
+sha256  262c537127ecbfcfb74679d3e3e90c90d3e2ce611fd7adcd17d8fdec1ea918ff  bmcd-02252d1c120d5e804271d8c81b2d071c9a3630a7-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE

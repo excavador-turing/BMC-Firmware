@@ -15,9 +15,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [v2.36.0] — 2026-09-22
 
-Pins **bmcd 2.38.1** and **BMC-UI 3.35.0**; tpi stays at 1.10.0. One fix,
-found the day after v2.35.0 shipped by the same reader whose report shaped
-it, on the same 2.4 board.
+Pins **bmcd 2.38.2** and **BMC-UI 3.35.0**; tpi stays at 1.10.0. Two fixes,
+both from one report the day after v2.35.0 shipped, by the same reader whose
+report shaped it, on the same 2.4 board: a static address that lost its
+resolvers at every reboot, and a firmware check that said "nothing new" on a
+board that could not resolve anything at all. They share a cause — the board
+had no DNS — and neither of them said so.
 
 ### Fixed
 
@@ -32,6 +35,25 @@ it, on the same 2.4 board.
   hook now spells the character so it survives; a board the old stanza was
   already written to is repaired the first time this daemon starts, without
   waiting for the address to be changed again.
+
+- **A firmware source it could not reach said "nothing new".**
+  `tpi-selfupdate --list` calls `die` when curl cannot reach the source, and
+  `die` exits — but on the left of a pipe it exits only its own subshell.
+  The JSON array had already been opened, the loop then read nothing, and
+  the script closed the array and exited 0: a well-formed `"releases":[]`
+  with the real reason on stderr, which nobody was reading. bmcd took that
+  as "this source offers nothing" and the firmware page said there was no
+  update, on a board that simply had no DNS. Reported alongside the clock,
+  from the same board; reproduced on board B with an empty `resolv.conf` —
+  four sources, no candidates, no errors.
+
+  Both listing branches now collect into a variable first, where a non-zero
+  exit is visible, and print nothing on stdout unless they succeeded.
+  `tests/listing.sh` stubs `curl` and covers it in dash, busybox ash and
+  sh; run against the original script it reports five failures, which is
+  how it was checked. bmcd 2.38.2 is the other half: it reads the exit
+  status before the output, so the next script that fails cheerfully cannot
+  put the page back to lying.
 
 ### Changed
 

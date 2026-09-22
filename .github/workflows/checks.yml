@@ -48,11 +48,13 @@ jobs:
         run: |
           dash tests/gate.sh
           dash tests/version.sh
+          dash tests/listing.sh
 
       - name: contract tests (busybox ash, as on the board)
         run: |
           busybox ash tests/gate.sh
           busybox ash tests/version.sh
+          busybox ash tests/listing.sh
 
       # The gate is only as good as its ability to say no. If a mutation that
       # removes a rejection still passes the suite, the suite is decorative.
