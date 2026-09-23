@@ -266,3 +266,14 @@ sha256  dcff2283b33b58d87d749e3f3e9c9877c5b020cd23fbbfdee063fe764130562c  bmc-ui
 # from those bytes, agreeing with the release's own SHA256SUMS as a
 # cross-check. dist/LICENSE present, 53 entries.
 sha256  3da2669bc0cdaf7dd1d0a846ce967b3465409914a4ad28d6c4d87df8177cefff  bmc-ui-v3.37.0.tar.gz
+#
+# v3.37.0 -> v3.38.0: a refused validate request shows the daemon's words
+# instead of "this board cannot check a configuration". One sentence stood
+# for a daemon with no validate endpoint and for one that rejected the
+# request; only the first is true of the board, and a reader went looking
+# at his board revision. BMC-Firmware#59, with bmcd 2.38.3.
+#
+# Measured 2026-09-23: 607635 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 53 entries.
+sha256  97ffe17141804eccc820bebfd0f61cb938cea58720ed9e22b80f014518bfffba  bmc-ui-v3.38.0.tar.gz

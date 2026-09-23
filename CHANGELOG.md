@@ -13,6 +13,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.39.0] — 2026-09-23
+
+Pins **bmcd 2.38.3** and **BMC-UI 3.38.0**; tpi stays at 1.10.0. One bug,
+from a reader who named a VLAN.
+
+### Fixed
+
+- **Naming a VLAN greyed out *Try it* and *Apply*, under a line blaming the
+  board.** Type a word beside a VLAN number in the switch card and the
+  buttons went grey with *"This board cannot check a configuration before
+  it is applied."* — a sentence true of neither the board nor the layout.
+  The daemon had refused the request over a corner of how it reads one:
+  `validate` and `PUT` accept either a preset or a whole document, and the
+  type that says "either" buffers the body before deciding; in the buffered
+  form a map key `"50"` never becomes the number the names table is keyed
+  by. So a document with no names read fine and a document with one name
+  was refused, on both endpoints, on every release since names existed
+  (v2.33.0). Reported as
+  [#59](https://github.com/excavador-turing/BMC-Firmware/issues/59) and
+  reproduced on a board with the same document twice.
+
+  bmcd 2.38.3 reads the names by their wire form, so both paths agree, with
+  a test that fails on the old code with the reporter's exact message. And
+  BMC-UI 3.38.0 stops standing one sentence in for two failures: a rejected
+  request now shows the daemon's own words — *"The board refused the
+  question rather than the layout: …"* — and *cannot check* is kept for the
+  one case it was written for, no answer at all.
+
 ## [v2.38.0] — 2026-09-23
 
 Pins **BMC-UI 3.37.0**. bmcd stays at 2.38.2 and tpi at 1.10.0. One change,
