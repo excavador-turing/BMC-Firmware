@@ -97,3 +97,15 @@
 # zeroed expectation.
 sha256  262c537127ecbfcfb74679d3e3e90c90d3e2ce611fd7adcd17d8fdec1ea918ff  bmcd-02252d1c120d5e804271d8c81b2d071c9a3630a7-cargo2.tar.gz
 sha256  809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0  LICENSE
+
+# 2.38.3 (5be75271): a switch document with a VLAN name was refused by
+# validate and by PUT -- "did not match any variant of untagged enum
+# Proposal" -- while the same document with names: {} passed. The untagged
+# enum buffers the body, and in the buffered form a map key "50" never
+# becomes the u16 the names table is keyed by. Names are now read from
+# their wire form; the test fails on the old code with the reporter's
+# exact message. BMC-Firmware#59.
+#
+# Measured 2026-09-23: `make bmcd-source` in the build container against a
+# placeholder line reported got bdf57aa3; this is that value.
+sha256  bdf57aa3794906390b9f36c856939338eb022819d38cd947805f2d8dc503918b  bmcd-5be75271883da3c80c6f0efc476210aad1bc0acb-cargo2.tar.gz
