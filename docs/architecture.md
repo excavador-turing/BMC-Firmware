@@ -181,3 +181,36 @@ placement as SQU-185.
   see the README's "trap when a package's file set shrinks".
 - **Anything that must survive a rollback** goes on `/mnt/overlay`, and must
   tolerate being read by the *previous* image after one.
+
+## When you release
+
+A change reaches a reader through up to eight places, in this order, and a
+release is not done until each has moved or been checked. Written down on
+2026-09-23 after the fleet was found four interface releases behind.
+
+1. **bmcd** — a test that fails on the old code (put the old file back and
+   watch it fail), `just check`, changelog, version, lockfile, tag; the squash
+   commit on `hive` is the firmware pin.
+2. **BMC-UI** — `npm ci` first, `tsc`/`eslint`/`prettier`, the screens and
+   typing gates, changelog (the site reads it), tag; download the asset and
+   sum the bytes yourself, with the release's `SHA256SUMS` as the cross-check.
+3. **this repository** — pins, hashes (bmcd's vendored archive from a
+   placeholder line and `make bmcd-source`'s `got:`), changelog,
+   `tests/pins-are-current.sh`, tag; stage on both boards.
+4. **the boards** — leadership off the board's control-plane node, board B,
+   the gate (every module's uptime grew, version, promoted, address kept),
+   then board A; then prove the fix on a board, not on the demo build.
+5. **turing-fleet** — nothing moves it by itself. In `opwerm/nexus`
+   (`master`), `kubernetes/infra/turing-fleet.yaml`: `targetRevision` to the
+   interface version, `supportedBmcd.max` to the daemon version, with the
+   firmware pull request rather than after the flash. Verify the deployment's
+   image, not the merge.
+6. **the site** — the editorial entry and whatever pages the change earns;
+   after the release `just refresh`, `just check`, merge; then check the post
+   is live and `/demo/fork/VERSION` and `/demo/fleet/VERSION` name the latest
+   interface tag (rebuilt from the latest release on deploy and hourly).
+7. **tracking** — the Linear issue with reproduction, cause, fix and links,
+   Done only once the boards are flashed.
+8. **the people** — the issue and the thread, drafted in the owner's voice and
+   posted by the owner; an interim comment with the affected range and a
+   workaround before the release, the version and the hardware check after.
