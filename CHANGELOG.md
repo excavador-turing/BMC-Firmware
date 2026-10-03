@@ -13,6 +13,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.40.0] — 2026-10-03
+
+Pins **BMC-UI 4.0.0**; bmcd stays at 2.38.3 and tpi at 1.10.0. The web
+interface, redesigned.
+
+### Changed
+
+- **A new web interface, by Sven van Ginkel
+  ([@svenvg93](https://github.com/svenvg93)).** The tab strip across the top
+  is replaced by a sidebar — Board, Configuration and System — with a
+  breadcrumb above every page, and every page is redrawn in stock shadcn/ui
+  on Base UI. The Dashboard now carries the board's facts, its health and
+  the four node tiles, and takes in what the separate About page used to
+  say; Cooling and Switch are pages of their own; on a phone the sidebar is
+  a sheet. The fleet gains a Switch tab to match. Contributed in
+  [BMC-UI#46](https://github.com/excavador-turing/BMC-UI/pull/46) — thank
+  you, Sven.
+
+  Nothing the interface asks the daemon changed, so a board's behaviour is
+  the same; only how it is shown moved. Two addresses are gone: a bookmark
+  to `/nodes` or `/about` now shows "page not found" — Power Control and the
+  Dashboard replace them.
+
 ## [v2.39.0] — 2026-09-23
 
 Pins **bmcd 2.38.3** and **BMC-UI 3.38.0**; tpi stays at 1.10.0. One bug,

@@ -277,3 +277,19 @@ sha256  3da2669bc0cdaf7dd1d0a846ce967b3465409914a4ad28d6c4d87df8177cefff  bmc-ui
 # from those bytes, agreeing with the release's own SHA256SUMS as a
 # cross-check. dist/LICENSE present, 53 entries.
 sha256  97ffe17141804eccc820bebfd0f61cb938cea58720ed9e22b80f014518bfffba  bmc-ui-v3.38.0.tar.gz
+#
+# v3.38.0 -> v4.0.0: the whole interface, redesigned by Sven van Ginkel
+# (@svenvg93) in BMC-UI#46 -- stock shadcn/ui on Base UI, a sidebar with
+# Board / Configuration / System and a breadcrumb in place of the tab strip,
+# a Dashboard that folds in About, Cooling and Switch as pages of their own.
+# Nothing the interface asks the daemon changed. Major because two addresses
+# are gone: /nodes and /about now show "page not found".
+#
+# Measured 2026-10-03: 658327 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 63 entries; the archive is the board
+# build (the demo's "a recording, not a live stream" is absent). The same
+# tag's board bundle was walked read-only on both boards before tagging:
+# login, all eleven pages, every visible box accepts typing, no API or
+# console errors.
+sha256  a7be5dbc17e4d99a85faaaa8649628c3dbc965cf61fcd812e1cadd0ed850e792  bmc-ui-v4.0.0.tar.gz
