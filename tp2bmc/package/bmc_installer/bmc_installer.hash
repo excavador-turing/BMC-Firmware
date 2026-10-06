@@ -1,5 +1,5 @@
 # Cargo package: the sum is of Buildroot's vendored, re-packed archive
 # (see bmcd.hash). Pinned to the excavador-turing fork, master (merge of PR #1).
 # Taken from the CI build log (the "got" line) on 2026-10-06:
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmc_installer-cd86ef888e1262e48dc9050f30425d14a4552b2b-cargo2.tar.gz
+sha256  e307ae4bdda5e0a42a3f9668f1df897e8d5b080b45224a09fea735aa0a232708  bmc_installer-cd86ef888e1262e48dc9050f30425d14a4552b2b-cargo2.tar.gz
 sha256  c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4  LICENSE
