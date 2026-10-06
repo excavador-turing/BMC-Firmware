@@ -13,6 +13,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Installing from the SD card now keeps the board's settings.** A user
+  report on Discord: they installed from the card to upgrade and found the
+  root password back at `turing`, a new certificate, and their settings gone.
+  The installer formatted the whole flash overlay every time, so every card
+  install was a factory reset, and nothing said so beforehand.
+
+  The installer (now our fork, `excavador-turing/BMC-Installer`) keeps the
+  overlay: the password, the certificate, the network and node settings. It
+  keeps them only when it can verify they are intact; if it cannot, it erases
+  them as before and says why on the serial console, rather than carry
+  something it cannot vouch for into the new image.
+
+  **To force a factory reset,** put a file named `factory-reset.txt` next to
+  `install.txt` on the card (its contents are ignored). The installer's
+  serial prompt still accepts ERASE as well.
+
+  The `.tpu` over-the-air upgrade is still the normal way to upgrade; the
+  card is for recovery and first installs.
+
+  The staged-firmware and rollback notes on the overlay are now dropped at
+  boot when the volume they describe no longer exists, which is the state a
+  card install leaves behind.
+
 ## [v2.41.0] — 2026-10-06
 
 Pins **bmcd 2.38.4** and **BMC-UI 4.0.1**; tpi stays at 1.10.0. One fix,

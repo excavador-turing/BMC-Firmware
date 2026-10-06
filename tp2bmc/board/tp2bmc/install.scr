@@ -2,6 +2,7 @@
 # Copyright (C) 2023 Sam Edwards <CFSworks@gmail.com>
 
 installer_marker=/install.txt
+factory_reset_marker=/factory-reset.txt
 
 # The installer doesn't have any concept of "safe mode," so if this is
 # requested, the user is most likely trying to say that the installer should
@@ -21,6 +22,12 @@ if test "${bootmode}" != "safemode"; then
 			&& load ${devtype} ${devnum}:${distro_bootpart} ${ramdisk_addr_r} /boot/install.img
 		then
 			env set bootargs loglevel=4
+			# The installer keeps the board's settings unless the kernel
+			# command line says factory_reset. The word is a bare one.
+			if test -e ${devtype} ${devnum}:${distro_bootpart} ${factory_reset_marker}; then
+				echo ${factory_reset_marker} exists: a factory reset was requested
+				env set bootargs ${bootargs} factory_reset
+			fi
             bootm ${loadaddr}#config-${tpi_hw_version:-v2.4.0} ${ramdisk_addr_r}
 		fi
 	else
