@@ -117,4 +117,7 @@ sha256  bdf57aa3794906390b9f36c856939338eb022819d38cd947805f2d8dc503918b  bmcd-5
 # index.html (and every client route) is `no-cache`, /assets/* is
 # `immutable`, a missing asset is a 404, and 304s carry the same rules.
 # Reported by a reader on the Turing Pi Discord after v2.40.0.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-490ee4fb39afd3fb751272c07f424461f42443fb-cargo2.tar.gz
+#
+# Measured 2026-10-06: the PR build in CI's own container, against a
+# placeholder line, reported got 9eaaf283; this is that value.
+sha256  9eaaf283af60b8118a800ca495eaf780d3ef2e9551800ad0f098067ce7570409  bmcd-490ee4fb39afd3fb751272c07f424461f42443fb-cargo2.tar.gz
