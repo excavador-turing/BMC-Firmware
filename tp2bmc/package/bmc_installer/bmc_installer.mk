@@ -4,9 +4,8 @@
 #
 ###########################################################
 
-# Pinned to the fork's keep-settings branch until its PR merges; then
-# re-pinned to the merge commit on master.
-BMC_INSTALLER_VERSION = 266192b9016978f22ddc5e3a14287bcb2abfa6ce
+# Pinned to the fork's master, the merge of excavador-turing/BMC-Installer#1.
+BMC_INSTALLER_VERSION = cd86ef888e1262e48dc9050f30425d14a4552b2b
 BMC_INSTALLER_SITE = $(call github,excavador-turing,BMC-Installer,$(BMC_INSTALLER_VERSION))
 BMC_INSTALLER_LICENSE = Apache-2.0
 BMC_INSTALLER_LICENSE_FILES = LICENSE
