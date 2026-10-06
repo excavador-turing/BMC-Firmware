@@ -13,13 +13,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.42.0] — 2026-10-06
+
+bmcd 2.38.4, BMC-UI 4.0.1 and tpi 1.10.0 are unchanged; what changed is the
+SD-card installer and the scripts around it.
+
 ### Changed
 
 - **Installing from the SD card now keeps the board's settings.** A user
-  report on Discord: they installed from the card to upgrade and found the
-  root password back at `turing`, a new certificate, and their settings gone.
-  The installer formatted the whole flash overlay every time, so every card
-  install was a factory reset, and nothing said so beforehand.
+  reported on Discord that after an upgrade the root password was back at
+  `turing` and the certificate was new. That is exactly what an install from
+  the card did: the installer formatted the whole flash, overlay included, so
+  every card install was a factory reset, and nothing said so beforehand.
 
   The installer (now our fork, `excavador-turing/BMC-Installer`) keeps the
   overlay: the password, the certificate, the network and node settings. It
