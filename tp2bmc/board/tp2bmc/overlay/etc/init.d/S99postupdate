@@ -332,7 +332,27 @@ postupdate() {
 	clear_staged_note
 }
 
+#
+# drop_stale_notes
+#
+# The notes in /mnt/overlay describe UBI volumes, and the overlay can outlive
+# them: the SD-card installer deletes rootfs_new and rootfs_prev but keeps the
+# overlay. A note whose volume is gone would name a version that does not
+# exist (bmcd reports the staged note without checking for the volume).
+# Runs on every boot, before the postupdate check below; never fatal.
+#
+drop_stale_notes() {
+	if ! ubi_exists rootfs_new; then
+		rm -f "$STAGED_NOTE" 2>/dev/null || true
+	fi
+	if ! ubi_exists "$ROOTFS_SECONDARY"; then
+		rm -f "$ROLLBACK_VERSION" 2>/dev/null || true
+	fi
+}
+
 start() {
+	drop_stale_notes
+
 	if ! grep -q 'postupdate' /proc/cmdline; then
 		return 0
 	fi
