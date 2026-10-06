@@ -293,3 +293,15 @@ sha256  97ffe17141804eccc820bebfd0f61cb938cea58720ed9e22b80f014518bfffba  bmc-ui
 # login, all eleven pages, every visible box accepts typing, no API or
 # console errors.
 sha256  a7be5dbc17e4d99a85faaaa8649628c3dbc965cf61fcd812e1cadd0ed850e792  bmc-ui-v4.0.0.tar.gz
+#
+# v4.0.0 -> v4.0.1: a page that fails to load one of its own files reloads
+# itself once (Vite's preloadError), so a browser holding an old copy after
+# an upgrade lands on the new interface instead of a half-broken old one;
+# a second failure within a minute shows a Reload banner instead of looping.
+# The fleet's nginx gains the same cache rules bmcd 2.38.4 gives the board.
+#
+# Measured 2026-10-06: 659010 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 63 entries; the reload guard's
+# sessionStorage key is in the built bundle; the archive is the board build.
+sha256  27746cfed1c3c0693527cf266f5b3e78feed5c57a96f25b79075bc00e921e067  bmc-ui-v4.0.1.tar.gz
