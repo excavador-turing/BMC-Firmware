@@ -3,6 +3,8 @@
 
 installer_marker=/install.txt
 factory_reset_marker=/factory-reset.txt
+# Windows with hidden extensions saves "factory-reset.txt" under this name.
+factory_reset_marker2=/factory-reset.txt.txt
 
 # The installer doesn't have any concept of "safe mode," so if this is
 # requested, the user is most likely trying to say that the installer should
@@ -26,6 +28,9 @@ if test "${bootmode}" != "safemode"; then
 			# command line says factory_reset. The word is a bare one.
 			if test -e ${devtype} ${devnum}:${distro_bootpart} ${factory_reset_marker}; then
 				echo ${factory_reset_marker} exists: a factory reset was requested
+				env set bootargs ${bootargs} factory_reset
+			elif test -e ${devtype} ${devnum}:${distro_bootpart} ${factory_reset_marker2}; then
+				echo ${factory_reset_marker2} exists: a factory reset was requested
 				env set bootargs ${bootargs} factory_reset
 			fi
             bootm ${loadaddr}#config-${tpi_hw_version:-v2.4.0} ${ramdisk_addr_r}

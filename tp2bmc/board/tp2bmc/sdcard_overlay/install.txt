@@ -7,7 +7,8 @@ card, for recovering and/or updating the firmware on the Turing Pi 2 board.
 By default the installer keeps the board's settings (root password,
 certificate, network and node settings) when it can verify that they are
 intact, and erases them when it cannot.  To force a factory reset instead, put
-a file named "factory-reset.txt" next to this one (its contents are ignored).
+a file named "factory-reset.txt" next to this one (its contents are ignored).  The name must be exactly that; the common
+mistake "factory-reset.txt.txt" (Windows hides the extension) is tolerated.
 
 If you would rather use this SD card *as* your BMC's root+boot drive instead of
 the builtin flash, then delete or rename this file.
