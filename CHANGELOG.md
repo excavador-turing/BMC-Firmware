@@ -13,6 +13,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.41.0] — 2026-10-06
+
+Pins **bmcd 2.38.4** and **BMC-UI 4.0.1**; tpi stays at 1.10.0. One fix,
+from a reader on the Turing Pi Discord.
+
+### Fixed
+
+- **After an upgrade the browser could keep running the old interface.** A
+  reader upgraded to v2.40.0 and saw the upgrade page report a problem, the
+  password page appear, and the nodes shown as off, until they cleared their
+  browser's cache. The board served its web pages without saying how long a
+  browser may keep them, so browsers kept the old page by their own guess,
+  and when that old page asked for its files, which the new firmware no
+  longer has, the board answered with the new page instead of "not found".
+  The old interface ran half-broken against the new board.
+
+  bmcd 2.38.4 tells the browser to check the page on every visit (cheaply,
+  with an ETag), lets it keep the numbered files under `/assets/` for a year,
+  and answers a missing file with "not found". BMC-UI 4.0.1 reloads itself
+  once when one of its files fails to load, so a browser holding an old copy
+  lands on the current interface, and shows a Reload button rather than
+  looping if that is not enough. The fleet's web server gets the same rules.
+
+  **Upgrading from v2.40.0 or older:** your browser may still hold the old
+  page once more after this upgrade, because that old page was cached under
+  the old rules. If anything looks wrong, reload the page once
+  (Ctrl+Shift+R, or Cmd+Shift+R on a Mac). From this version on, upgrades
+  do not need that.
+
 ## [v2.40.0] — 2026-10-03
 
 Pins **BMC-UI 4.0.0**; bmcd stays at 2.38.3 and tpi at 1.10.0. The web
