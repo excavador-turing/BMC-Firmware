@@ -305,3 +305,14 @@ sha256  a7be5dbc17e4d99a85faaaa8649628c3dbc965cf61fcd812e1cadd0ed850e792  bmc-ui
 # cross-check. dist/LICENSE present, 63 entries; the reload guard's
 # sessionStorage key is in the built bundle; the archive is the board build.
 sha256  27746cfed1c3c0693527cf266f5b3e78feed5c57a96f25b79075bc00e921e067  bmc-ui-v4.0.1.tar.gz
+#
+# v4.0.1 -> v4.1.0: flashing a node from the SD card works (the interface no
+# longer sends the card path as an upload); "Skip CRC" is sent as skip_crc=1
+# only when ticked, so the CRC check runs otherwise (needs bmcd 2.39.0); the
+# SD-card picker's Choose button stays visible; a failed flash shows the
+# daemon's message instead of raw JSON.
+#
+# Measured 2026-10-15: 658860 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 62 entries; the archive is the board build.
+sha256  5c796b653a1d0904e91a9e41cbebd72e0e1ed8afbbbba05dfd34728e88ae01e7  bmc-ui-v4.1.0.tar.gz
