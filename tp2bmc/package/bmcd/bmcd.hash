@@ -127,5 +127,6 @@ sha256  9eaaf283af60b8118a800ca495eaf780d3ef2e9551800ad0f098067ce7570409  bmcd-4
 # sdcard and local flashes; skip_crc=false no longer skips the CRC check.
 # Reported by a user on Discord.
 #
-# Measured: placeholder, to be replaced by CI's got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-f21db3fe9a5b411ff4cfe97f81069bccea05b299-cargo2.tar.gz
+# Measured 2026-10-15: the PR build in CI's own container, against a
+# placeholder line, reported got a8dbd6a1; this is that value.
+sha256  a8dbd6a1aaa746ed76112be847e2f97fce4e34b4eab5712ee6fba19dd994a739  bmcd-f21db3fe9a5b411ff4cfe97f81069bccea05b299-cargo2.tar.gz
