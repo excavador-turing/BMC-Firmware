@@ -121,3 +121,11 @@ sha256  bdf57aa3794906390b9f36c856939338eb022819d38cd947805f2d8dc503918b  bmcd-5
 # Measured 2026-10-06: the PR build in CI's own container, against a
 # placeholder line, reported got 9eaaf283; this is that value.
 sha256  9eaaf283af60b8118a800ca495eaf780d3ef2e9551800ad0f098067ce7570409  bmcd-490ee4fb39afd3fb751272c07f424461f42443fb-cargo2.tar.gz
+#
+# 2.39.0 (f21db3fe): a node can be flashed from an image on the SD card
+# (sdcard=1&file=<path>, confined to the card); sha256 is now checked for
+# sdcard and local flashes; skip_crc=false no longer skips the CRC check.
+# Reported by a user on Discord.
+#
+# Measured: placeholder, to be replaced by CI's got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-f21db3fe9a5b411ff4cfe97f81069bccea05b299-cargo2.tar.gz

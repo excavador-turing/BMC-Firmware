@@ -13,6 +13,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.43.0] — 2026-10-15
+
+bmcd 2.39.0 and BMC-UI 4.1.0; tpi 1.10.0 is unchanged.
+
+### Fixed
+
+- **Flashing a node from an image on the SD card works from the web
+  interface.** It never did since BMC-UI 3.25.0: choosing an image on the card
+  and pressing flash was refused with 411 "Invalid `length` query parameter".
+  The interface now asks the daemon to read the file from the card, and the
+  progress bar shows a real percentage. Reported by a user on Discord.
+- **The web interface skipped the image CRC check on every node flash since
+  BMC-UI 3.25.0.** It sent `skip_crc=false`, and the daemon read the key's
+  presence rather than its value. The check now runs unless "Skip CRC" is
+  ticked (BMC-UI 4.1.0 sends `skip_crc` only then; bmcd 2.39.0 reads the
+  value).
+- **A sha256 given for an image on the BMC or the SD card is now verified.** It
+  was accepted and ignored; only uploads and URLs were checked.
+- **The SD-card picker's "Choose" button stays visible,** on desktop and phone;
+  a long filename no longer pushes it out of the dialog.
+- **A failed flash says why in words** instead of showing the daemon's raw JSON.
+
+### Added
+
+- bmcd: `sdcard=1&file=<path>` flashes a node (or upgrades the firmware) from a
+  file on the card, confined to the card; an absolute path, a `..` or symlink
+  leaving the card, a missing file, a directory and an unmounted card are
+  refused with a 400 that says which.
+
 ## [v2.42.0] — 2026-10-06
 
 bmcd 2.38.4, BMC-UI 4.0.1 and tpi 1.10.0 are unchanged; what changed is the
