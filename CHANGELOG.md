@@ -13,6 +13,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.44.0] — 2026-10-15
+
+bmcd 2.40.0; BMC-UI 4.1.0 and tpi 1.10.0 are unchanged.
+
+### Changed
+
+- **Flashing a node waits up to 15 s for the module's USB boot device** instead
+  of looking once, a second after power-on, and giving up. A module that
+  enumerates slowly, or that fails high-speed enumeration and is retried by the
+  kernel, was refused with "Compute module's USB interface not found or
+  supported"; the daemon now looks every 250 ms. Found from a user report on
+  Discord.
+- **When the boot device does not appear, the error names what is in the
+  way.** It lists the other USB devices seen on the node's lines (root hubs
+  excluded), with a hint: a USB device in the mini-PCIe slot of node 1 or 2
+  shares the USB lines used for flashing, so remove it, or flash the module in
+  slot 3 or 4.
+
+### Fixed
+
+- **A failed or cancelled flash now powers the node off and restores the USB
+  route,** and cancelling stops the wait for the boot device at once.
+
 ## [v2.43.0] — 2026-10-15
 
 bmcd 2.39.0 and BMC-UI 4.1.0; tpi 1.10.0 is unchanged.
