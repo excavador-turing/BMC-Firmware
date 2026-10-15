@@ -130,3 +130,6 @@ sha256  9eaaf283af60b8118a800ca495eaf780d3ef2e9551800ad0f098067ce7570409  bmcd-4
 # Measured 2026-10-15: the PR build in CI's own container, against a
 # placeholder line, reported got a8dbd6a1; this is that value.
 sha256  a8dbd6a1aaa746ed76112be847e2f97fce4e34b4eab5712ee6fba19dd994a739  bmcd-f21db3fe9a5b411ff4cfe97f81069bccea05b299-cargo2.tar.gz
+#
+# 2.40.0 (2027ba5e): placeholder, to be replaced by CI's got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-2027ba5e4eacb0baf76b1f68aadc0b5a5469ec3c-cargo2.tar.gz
