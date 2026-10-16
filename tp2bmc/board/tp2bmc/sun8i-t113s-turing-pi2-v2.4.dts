@@ -44,6 +44,15 @@
 				  "node4-usbotg-dev", "node4-rpiboot";
 	};
 
+	/*
+	 * EXPERIMENTAL (2026-10-13). v2.4 has no latch between the SoC and the
+	 * node rails. Without perserve-boot-state the kernel drives PD3-PD7 low
+	 * when the regulators probe, so every BMC reboot power-cycles the nodes.
+	 * With it, regulator-fixed requests the GPIO as-is (GPIOD_ASIS) and the
+	 * rails are left as the hardware holds them across the SoC reset.
+	 * Whether the board's own pulls hold them is what a test on a v2.4
+	 * board measures.
+	 */
 	reg_atx_psu: regulator-atx-psu {
 		compatible = "regulator-fixed";
 
@@ -54,6 +63,7 @@
 
 		gpio = <&pio 3 3 GPIO_ACTIVE_HIGH>;	/* PD3 */
 		enable-active-high;
+		perserve-boot-state;
 	};
 
 	reg_slot1: regulator-slot1 {
@@ -66,6 +76,7 @@
 
 		gpio = <&pio 3 7 GPIO_ACTIVE_HIGH>;	/* PD7 */
 		enable-active-high;
+		perserve-boot-state;
 
 		vin-supply = <&reg_atx_psu>;
 	};
@@ -85,6 +96,7 @@
 
 		gpio = <&pio 3 6 GPIO_ACTIVE_HIGH>;	/* PD6 */
 		enable-active-high;
+		perserve-boot-state;
 
 		vin-supply = <&reg_atx_psu>;
 	};
@@ -104,6 +116,7 @@
 
 		gpio = <&pio 3 5 GPIO_ACTIVE_HIGH>;	/* PD5 */
 		enable-active-high;
+		perserve-boot-state;
 
 		vin-supply = <&reg_atx_psu>;
 	};
@@ -123,6 +136,7 @@
 
 		gpio = <&pio 3 4 GPIO_ACTIVE_HIGH>;	/* PD4 */
 		enable-active-high;
+		perserve-boot-state;
 
 		vin-supply = <&reg_atx_psu>;
 	};
