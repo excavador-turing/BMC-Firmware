@@ -136,6 +136,8 @@ jobs:
             tp2bmc/package/bmcd/generate_self_signedx509.sh \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S00sysrq \
             tp2bmc/board/tp2bmc/overlay/usr/sbin/mdnsd-guard \
+            tp2bmc/board/tp2bmc/overlay/etc/default/mdnsd \
+            tp2bmc/board/tp2bmc/overlay/sbin/preinit \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/osupdate

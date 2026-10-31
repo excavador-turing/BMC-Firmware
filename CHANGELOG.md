@@ -13,6 +13,60 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.46.0] — 2026-10-31
+
+bmcd 2.42.0 and BMC-UI 4.3.0; tpi 1.10.0 is unchanged.
+
+A reader's board kept forgetting its settings after every reboot. The kernel
+log showed `UBIFS error (ubi0:2): ubifs_recover_leb: LEB 16 scanning failed`:
+the flash volume that holds the board's settings had a damaged journal, so
+the board started on a temporary, in-memory copy instead -- and said nothing.
+
+### Changed
+
+- **If the board's settings storage cannot be mounted, it now records why.**
+  The board still starts on temporary settings (every reboot is then a
+  factory reset, as before), but it writes `/etc/safemode.reason` once it is
+  running: the first line is `reason=requested` (KEY1 held at power-on) or
+  `reason=mount_failed`, followed by what the mount step printed and the
+  related `ubi`/`ubifs`/`mtd` kernel lines. The file lives in memory and is
+  gone after a reboot; a normal start writes nothing, so there is no extra
+  flash wear. Failing to write the note never stops the boot. The reason is
+  also printed on the serial console.
+- **The kernel log keeps 8x more.** The in-memory kernel log grows from 16 KiB
+  to 128 KiB, so the messages that explain a failed start (which come early
+  and used to be pushed out by later chatter) are still there when you run
+  `dmesg`. The serial console during early boot now shows errors and worse
+  (`loglevel=4` prints levels below 4) instead of everything, matching the SD
+  installer; the full log is still in `dmesg`. This only changes that early
+  window: `S93startup` already sets the console level to 3 later in boot.
+- **mDNS (the `.local` name) now works on boards whose bridge is not `br0`.**
+  The name service is still bound to exactly one interface -- binding several
+  was measured to cause a reload storm (825 reloads in 12 s) because the
+  switch ports share one address. It now picks that interface when it
+  starts: `br0` if there is one, otherwise the default route's interface if
+  that is a bridge, otherwise the first bridge, otherwise a single plain
+  default-route interface, otherwise `br0` as before. A network split by hand
+  into, for example, `br-wan` and `br-lan` is covered. If the default route
+  only comes up after mDNS has started, the existing five-minute check
+  moves it to the right bridge (at most about five minutes later).
+- **The web interface says when the board is not keeping its settings, and
+  can repair it (bmcd 2.42.0, BMC-UI 4.3.0).** A banner appears when the
+  settings storage could not be mounted, or when safe mode was requested with
+  KEY1 (the two reasons the firmware now records). For a storage fault it
+  offers "Repair settings storage": this permanently erases the settings
+  volume and reboots the BMC into factory settings, so it asks for
+  confirmation and suggests a plain reboot first. KEY1 always wins: a board
+  held in safe mode by the button is reported as requested. The
+  factory-password gate lets exactly these two storage requests through, so a
+  board on the factory password can see the banner and repair itself.
+
+### Fixed
+
+- **The reboot dialog no longer tells v2.4 owners their nodes keep running.**
+  On a v2.4 board a BMC reboot power-cycles all four compute nodes; the dialog
+  said otherwise. It now says to shut the nodes down first (BMC-UI 4.3.0).
+
 ## [v2.45.0] — 2026-10-31
 
 bmcd 2.41.0 and BMC-UI 4.2.0; tpi 1.10.0 is unchanged.

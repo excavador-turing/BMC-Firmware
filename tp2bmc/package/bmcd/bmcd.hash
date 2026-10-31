@@ -150,3 +150,16 @@ sha256  5befd834500dff12f36136ee36db58987cf4715280e25a61ebe0bf7ced1631fe  bmcd-2
 # Measured 2026-10-31: the PR build in CI's own container (run 41205461509),
 # against a placeholder line, reported got 271d843e; this is that value.
 sha256  271d843e04be2d24af3c254b6c058e9478dfb4db01989656d68ce67abde11e26  bmcd-ed5d997ca7fb16b450fd8cfa2bf9811f49110a55-cargo2.tar.gz
+#
+# 2.42.0 (6011cfd8, tag v2.42.0): says when the board is not keeping its
+# settings, and repairs it. GET /api/bmc/storage reports the state, reading
+# /etc/safemode.reason (written by /sbin/preinit); KEY1 always wins, so a
+# board held in safe mode by the button is reported as requested whatever the
+# file says; the factory-password gate opens
+# only the two storage endpoints (status and repair); POST
+# /api/bmc/storage/repair erases the settings volume and reboots. Needs the
+# firmware that writes /etc/safemode.reason (v2.46.0) for the detail.
+#
+# Measured 2026-10-31: the PR build in CI's own container (run 41223040725),
+# against a placeholder line, reported got 090165eb; this is that value.
+sha256  090165eba78dcf71305fdff9e08965ace8d71f901e907ed7537f926257393d1e  bmcd-6011cfd85e8eb65e91839df59069b9ff5e626469-cargo2.tar.gz
