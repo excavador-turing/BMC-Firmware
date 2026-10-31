@@ -332,3 +332,18 @@ sha256  5c796b653a1d0904e91a9e41cbebd72e0e1ed8afbbbba05dfd34728e88ae01e7  bmc-ui
 # cross-check. dist/LICENSE present, 65 archive entries; the archive is the
 # board build ("hand-written" is in the built bundle).
 sha256  7848589d19ecf48867e68018e385e010470e498d5c56cefc72aff525fbd73ed1  bmc-ui-v4.2.0.tar.gz
+#
+# v4.2.0 -> v4.3.0: a banner tells the user when the board could not mount its
+# settings storage (or was held in safe mode with KEY1) and offers the repair
+# that bmcd 2.42.0 provides, behind a confirmation: it erases the volume and
+# reboots, and a plain reboot is suggested first. The reboot dialog is
+# corrected: owners of a v2.4 board were told their nodes keep running when the
+# BMC reboots, but on v2.4 a BMC reboot power-cycles all four nodes, and the
+# dialog now says to shut them down first. Needs bmcd 2.42.0 for the storage
+# fields (older daemons: the page behaves as before).
+#
+# Measured 2026-10-31: 666734 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 63 archive entries; the archive is the
+# board build ("could not be mounted" is in the built bundle).
+sha256  2979cdb3c500d4c40e8552f0041067fc406179aa770278fb55f1db02c7568280  bmc-ui-v4.3.0.tar.gz
