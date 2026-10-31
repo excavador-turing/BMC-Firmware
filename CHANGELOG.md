@@ -13,6 +13,53 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.45.0] — 2026-10-31
+
+bmcd 2.41.0 and BMC-UI 4.2.0; tpi 1.10.0 is unchanged.
+
+The network page assumed the board's only bridge is `br0`. A user report on
+Discord came from a board whose `/etc/network/interfaces` was split by hand
+into `br-wan` and `br-lan`, with no `br0`: the page showed no address, every
+change failed with a 500, and `tpi info` printed "Unknown" for the IP.
+
+### Changed
+
+- **The dashboard, the Network page and `tpi info` work on any bridge
+  layout.** The board's address is read from its primary interface: `br0`
+  when it exists and has an address, otherwise the interface holding the
+  default route, otherwise the first up interface with a global IPv4 address.
+  The dashboard lists each interface with an address (default route first),
+  and the Network page lists every interface with its addresses, MAC and
+  default route, read-only.
+- **A board without `br0` gets an explanation, not a 500.** The Network
+  page manages `br0` only; on a board without it the card is read-only,
+  says so, lists the interfaces the board has and points to SSH for changes.
+  The daemon refuses the change with a clear message and touches nothing.
+- **A hand-written `/etc/network/interfaces` is replaced only after you
+  agree.** The card explains that a confirmed change replaces the whole file
+  and asks first; the old file is kept as
+  `/etc/network/interfaces.hand-written.<time>` (the newest five copies), and
+  the page says where. If the copy cannot be made, the file is not touched.
+- **The red "put back" banner says when and why, and goes away.** It shows
+  the time of the failure and the daemon's reason, and clears after ten
+  minutes (or after the next successful change) instead of staying until the
+  daemon restarts.
+- **A file restored by hand is noticed.** The daemon re-reads the interfaces
+  file when it changes, so restoring it over SSH needs no restart.
+- **A refused change shows the daemon's own message** (the command that
+  failed and what it printed) instead of "Request failed with status code
+  500"; reverting, which had no error message at all, has one now.
+
+### Fixed
+
+- **Confirming an address change no longer silently destroys a hand-edited
+  `/etc/network/interfaces`.** It used to rewrite the file with only `lo` and
+  `br0`, losing any second bridge, VLAN or `post-up` hook for good. A confirm
+  whose file write failed also no longer reports success: the change stays
+  pending and the window puts the old address back.
+
+Reported by a user on Discord.
+
 ## [v2.44.0] — 2026-10-15
 
 bmcd 2.40.0; BMC-UI 4.1.0 and tpi 1.10.0 are unchanged.
