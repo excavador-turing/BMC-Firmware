@@ -13,6 +13,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.46.1] — 2026-10-31
+
+bmcd 2.42.1; BMC-UI 4.3.0 and tpi 1.10.0 are unchanged.
+
+### Fixed
+
+- **The settings-storage repair added in v2.46.0 is now offered on a real
+  board.** bmcd 2.42.0 never offered it, because the board's root device
+  shows up as `/dev/root` and bmcd could not tell what it was backed by
+  (`backing: unknown`). bmcd 2.42.1 resolves it from the kernel's `root=`
+  argument. Nothing else changed.
+
 ## [v2.46.0] — 2026-10-31
 
 bmcd 2.42.0 and BMC-UI 4.3.0; tpi 1.10.0 is unchanged.
