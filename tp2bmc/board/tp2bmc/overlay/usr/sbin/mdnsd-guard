@@ -3,9 +3,9 @@
 # Restart mdnsd when it has grown too large.
 #
 # mdnsd 0.12 leaks on every config reload, and the real fix is not here: it is
-# /etc/default/mdnsd, which binds it to br0 so it stops treating its own
-# announcements on the switch ports as name conflicts and reloading 69 times a
-# second. With that in place the leak is gone -- measured at 8 kB over 90
+# /etc/default/mdnsd, which binds it to a single interface so it stops
+# treating its own announcements on the switch ports as name conflicts and
+# reloading 69 times a second. With that in place the leak is gone -- measured at 8 kB over 90
 # seconds, against 956 kB a minute before (SQU-175).
 #
 # This is the net under that. The leak itself is upstream's and still present;

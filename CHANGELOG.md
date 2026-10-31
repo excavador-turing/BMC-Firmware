@@ -13,6 +13,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.46.0] — unreleased (draft)
+
+TODO at release: fill in the bmcd and BMC-UI versions this release ships with
+(bmcd needs to read `/etc/safemode.reason` to show the reason below; the
+firmware side is complete without it). tpi is unchanged.
+
+A reader's board kept forgetting its settings after every reboot. The kernel
+log showed `UBIFS error (ubi0:2): ubifs_recover_leb: LEB 16 scanning failed`:
+the flash volume that holds the board's settings had a damaged journal, so
+the board started on a temporary, in-memory copy instead -- and said nothing.
+
+### Changed
+
+- **If the board's settings storage cannot be mounted, it now records why.**
+  The board still starts on temporary settings (every reboot is then a
+  factory reset, as before), but it writes `/etc/safemode.reason` once it is
+  running: the first line is `reason=requested` (KEY1 held at power-on) or
+  `reason=mount_failed`, followed by what the mount step printed and the
+  related `ubi`/`ubifs`/`mtd` kernel lines. The file lives in memory and is
+  gone after a reboot; a normal start writes nothing, so there is no extra
+  flash wear. Failing to write the note never stops the boot. The reason is
+  also printed on the serial console.
+- **The kernel log keeps 8x more.** The in-memory kernel log grows from 16 KiB
+  to 128 KiB, so the messages that explain a failed start (which come early
+  and used to be pushed out by later chatter) are still there when you run
+  `dmesg`. To keep the slow serial console quiet, it now shows warnings and
+  worse (`loglevel=4`) instead of everything; the full log is still in
+  `dmesg`.
+- **mDNS (the `.local` name) now works on boards whose bridge is not `br0`.**
+  The name service is still bound to exactly one interface -- binding several
+  was measured to cause a reload storm (825 reloads in 12 s) because the
+  switch ports share one address. It now picks that interface when it starts:
+  `br0` if there is one, otherwise the interface of the IPv4 default route,
+  otherwise the first bridge, otherwise `br0` as before. A network split by
+  hand into, for example, `br-wan` and `br-lan` is covered. The choice is made
+  again each time the service is restarted.
+
 ## [v2.45.0] — 2026-10-31
 
 bmcd 2.41.0 and BMC-UI 4.2.0; tpi 1.10.0 is unchanged.

@@ -2,7 +2,7 @@
 # Copyright (C) 2023 Sam Edwards <CFSworks@gmail.com>
 
 # Set bootargs:
-setenv bootargs loglevel=8 cma=8M init=/sbin/preinit rootwait=5
+setenv bootargs loglevel=4 cma=8M init=/sbin/preinit rootwait=5
 
 if test ${devtype} = mmc; then
 	setenv bootargs ${bootargs} root=PARTUUID=${distro_bootpart_uuid}

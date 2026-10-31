@@ -48,12 +48,76 @@ pivot_overlay() {
 }
 
 #
+# note_safemode REASON
+#
+# Remembers why the board is on temporary settings, for write_safemode_reason.
+# REASON is "requested" (KEY1 held at power-on, or "safemode" on the kernel
+# command line) or "mount_failed" (the overlay volume could not be mounted).
+#
+# Runs BEFORE the pivot, while the evidence is at hand: the output that
+# mount_overlay produced and the kernel's own account of why UBIFS refused.
+# Nothing is written here -- the file belongs in the new root, see below.
+#
+note_safemode() {
+	SAFEMODE_REASON=$1
+	SAFEMODE_DETAIL=
+
+	case "$1" in
+	requested)
+		SAFEMODE_DETAIL="Safe mode was requested at power-on (KEY1 held, or 'safemode' on the kernel command line)."
+		;;
+	mount_failed)
+		# What mount_overlay printed is the only thing that says which step
+		# failed. It was captured instead of shown, so show it here.
+		if [ -n "${MOUNT_OUT:-}" ]; then
+			printf '%s\n' "$MOUNT_OUT" | tail -n 40 | while IFS= read -r line; do
+				log "mount_overlay: $line"
+			done
+		fi
+		SAFEMODE_DETAIL=$(
+			printf '%s\n' "mount_overlay output:"
+			printf '%s\n' "${MOUNT_OUT:-}" | tail -n 40
+			printf '%s\n' "kernel messages (ubi, ubifs, mtd; last 40):"
+			dmesg 2>/dev/null | grep -iE 'ubi|ubifs|mtd' | tail -n 40
+		) || true
+		;;
+	esac
+
+	log "Safemode reason: $SAFEMODE_REASON"
+}
+
+#
+# write_safemode_reason
+#
+# Records in /etc/safemode.reason why the board is on temporary settings.
+# bmcd reads this file and tells the user; the format is its contract:
+#   line 1:  reason=requested | reason=mount_failed
+#   line 2+: free text detail
+#
+# Call this only in safemode and only AFTER pivot_overlay. By then /etc is the
+# overlay's upper layer, which in safemode is a tmpfs, so the file disappears
+# on reboot exactly like everything else the board does in this mode. On a
+# normal boot nothing is written, so the persistent path gains no flash write.
+#
+# Never fatal: the board must reach init whether or not this works.
+#
+write_safemode_reason() {
+	{
+		printf 'reason=%s\n' "$SAFEMODE_REASON"
+		printf '%s\n' "$SAFEMODE_DETAIL"
+	} > /etc/safemode.reason 2>/dev/null
+}
+
+#
 # preinit
 #
 # Main function
 #
 preinit() {
 	OVERLAY=/mnt/overlay
+	SAFEMODE_REASON=
+	SAFEMODE_DETAIL=
+	MOUNT_OUT=
 
 	log Starting
 
@@ -63,13 +127,28 @@ preinit() {
 	mount -t tmpfs /tmp /tmp
 	mount -t sysfs /sys /sys
 
-	if is_safemode || ! mount_overlay; then
+	if is_safemode; then
+		note_safemode requested
+	elif MOUNT_OUT=$(mount_overlay 2>&1); then
+		# Mounted. mount_overlay is quiet on success; keep what it said anyway.
+		[ -z "$MOUNT_OUT" ] || printf '%s\n' "$MOUNT_OUT"
+	else
+		note_safemode mount_failed
+	fi
+
+	if [ -n "$SAFEMODE_REASON" ]; then
 		log Entering safemode
 		OVERLAY=/tmp/safemode
 		export IS_SAFEMODE=1
 	fi
 
 	pivot_overlay $OVERLAY
+
+	# After the pivot, so the file lands in the (tmpfs) upper layer.
+	# A failure here is ignored: init must run regardless.
+	if [ -n "$SAFEMODE_REASON" ]; then
+		write_safemode_reason || true
+	fi
 
 	log Beginning init
 	exec /sbin/init

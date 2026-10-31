@@ -1,4 +1,4 @@
-# Bind mdnsd to the bridge, and to nothing else.
+# Bind mdnsd to exactly one interface, and to nothing else.
 #
 # Left to itself it binds every interface it can see. On this board that means
 # the DSA switch ports -- node1..node4, ge0, dsa -- which all share one MAC and
@@ -10,7 +10,59 @@
 # on 2026-09-09. Each reload leaks (SQU-175), which is what consumed the board
 # twice that day, and the log spam lands in /var/log on a 58 MB tmpfs.
 #
-# br0 is the only interface with an address and the one the default route uses,
-# so it is the only one anyone can reach the board on. Announcing there is both
-# correct and sufficient.
-MDNSD_ARGS="-i br0"
+# So the rule is one interface, never zero and never several. Which one is
+# decided here, at the moment this file is sourced, because the stock layout
+# has a bridge called br0 but a hand-split network may not (br-wan and br-lan,
+# say). Binding a name that does not exist leaves mdnsd announcing nowhere.
+# In order:
+#
+#   1. br0, when it exists. This is the stock layout and the common case.
+#   2. the interface holding the IPv4 default route: it is the one the rest of
+#      the network reaches the board on.
+#   3. the first bridge (an interface with a bridge/ directory in sysfs). This
+#      covers a board whose default route is not up yet -- DHCP still pending
+#      when S50mdnsd runs -- and a bridge is never one of the switch ports.
+#   4. br0 anyway, which is what this file always said before.
+#
+# This file is sourced as shell by /etc/init.d/S50mdnsd on every start and
+# restart, including the restarts /usr/sbin/mdnsd-guard triggers, so a restart
+# re-evaluates the choice. A running mdnsd is never moved to another interface
+# on its own.
+
+mdnsd_pick_iface() {
+	# Variables are prefixed: this file is sourced into the init script's own
+	# namespace, and there is no `local` in busybox ash scripts here.
+	mdnsd_net=/sys/class/net
+
+	# 1. the stock bridge
+	if [ -e "$mdnsd_net/br0" ]; then
+		echo br0
+		return 0
+	fi
+
+	# 2. the interface of the IPv4 default route
+	for mdnsd_dev in $(ip -4 route show 2>/dev/null | awk '
+		$1 == "default" {
+			for (i = 2; i < NF; i++)
+				if ($i == "dev") { print $(i + 1); break }
+		}'); do
+		if [ -e "$mdnsd_net/$mdnsd_dev" ]; then
+			echo "$mdnsd_dev"
+			return 0
+		fi
+	done
+
+	# 3. the first bridge
+	for mdnsd_dir in "$mdnsd_net"/*; do
+		if [ -d "$mdnsd_dir/bridge" ]; then
+			echo "${mdnsd_dir##*/}"
+			return 0
+		fi
+	done
+
+	# 4. today's behaviour
+	echo br0
+}
+
+MDNSD_IFACE=$(mdnsd_pick_iface)
+MDNSD_ARGS="-i ${MDNSD_IFACE:-br0}"
