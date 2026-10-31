@@ -163,3 +163,15 @@ sha256  271d843e04be2d24af3c254b6c058e9478dfb4db01989656d68ce67abde11e26  bmcd-e
 # Measured 2026-10-31: the PR build in CI's own container (run 41223040725),
 # against a placeholder line, reported got 090165eb; this is that value.
 sha256  090165eba78dcf71305fdff9e08965ace8d71f901e907ed7537f926257393d1e  bmcd-6011cfd85e8eb65e91839df59069b9ff5e626469-cargo2.tar.gz
+#
+# 2.42.1 (cac4adb2, tag v2.42.1): the storage repair added in 2.42.0 is
+# offered on a real board. The kernel mounts the read-only image itself, so
+# /proc/mounts names the root /dev/root, which is not a device node, and 2.42.0
+# reported backing "unknown" and never offered the repair. When the mount
+# source of the read-only root is /dev/root (or not a device node), bmcd now
+# resolves the kernel's root= from /proc/cmdline (MAJOR:MINOR through
+# /sys/class/block/*/dev, or /dev/<name> as it stands). Anything unresolvable
+# stays unknown and still blocks the repair. Nothing else changed.
+#
+# Measured 2026-10-31: placeholder, to be replaced with the value CI reports.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-cac4adb2477348ee265dd250cf2b98a6ca4f1ae4-cargo2.tar.gz
