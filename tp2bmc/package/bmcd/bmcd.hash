@@ -173,5 +173,6 @@ sha256  090165eba78dcf71305fdff9e08965ace8d71f901e907ed7537f926257393d1e  bmcd-6
 # /sys/class/block/*/dev, or /dev/<name> as it stands). Anything unresolvable
 # stays unknown and still blocks the repair. Nothing else changed.
 #
-# Measured 2026-10-31: placeholder, to be replaced with the value CI reports.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-cac4adb2477348ee265dd250cf2b98a6ca4f1ae4-cargo2.tar.gz
+# Measured 2026-10-31: the PR build in CI's own container (run 41227540168),
+# against a placeholder line, reported got d5622c55; this is that value.
+sha256  d5622c55fcb7b84a7c0cd693a3134a104cdfc9f69394a3616e864c4a87ffed18  bmcd-cac4adb2477348ee265dd250cf2b98a6ca4f1ae4-cargo2.tar.gz
