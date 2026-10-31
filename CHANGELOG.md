@@ -15,9 +15,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [v2.46.0] — unreleased (draft)
 
-TODO at release: fill in the bmcd and BMC-UI versions this release ships with
-(bmcd needs to read `/etc/safemode.reason` to show the reason below; the
-firmware side is complete without it). tpi is unchanged.
+bmcd 2.42.0 and BMC-UI 4.3.0 (pending); tpi is unchanged. bmcd reads
+`/etc/safemode.reason` to show the reason below; the firmware side is complete
+without it.
 
 A reader's board kept forgetting its settings after every reboot. The kernel
 log showed `UBIFS error (ubi0:2): ubifs_recover_leb: LEB 16 scanning failed`:
@@ -38,17 +38,20 @@ the board started on a temporary, in-memory copy instead -- and said nothing.
 - **The kernel log keeps 8x more.** The in-memory kernel log grows from 16 KiB
   to 128 KiB, so the messages that explain a failed start (which come early
   and used to be pushed out by later chatter) are still there when you run
-  `dmesg`. To keep the slow serial console quiet, it now shows warnings and
-  worse (`loglevel=4`) instead of everything; the full log is still in
-  `dmesg`.
+  `dmesg`. The serial console during early boot now shows errors and worse
+  (`loglevel=4` prints levels below 4) instead of everything, matching the SD
+  installer; the full log is still in `dmesg`. This only changes that early
+  window: `S93startup` already sets the console level to 3 later in boot.
 - **mDNS (the `.local` name) now works on boards whose bridge is not `br0`.**
   The name service is still bound to exactly one interface -- binding several
   was measured to cause a reload storm (825 reloads in 12 s) because the
-  switch ports share one address. It now picks that interface when it starts:
-  `br0` if there is one, otherwise the interface of the IPv4 default route,
-  otherwise the first bridge, otherwise `br0` as before. A network split by
-  hand into, for example, `br-wan` and `br-lan` is covered. The choice is made
-  again each time the service is restarted.
+  switch ports share one address. It now picks that interface when it
+  starts: `br0` if there is one, otherwise the default route's interface if
+  that is a bridge, otherwise the first bridge, otherwise a single plain
+  default-route interface, otherwise `br0` as before. A network split by hand
+  into, for example, `br-wan` and `br-lan` is covered. If the default route
+  only comes up after mDNS has started, the existing five-minute check
+  moves it to the right bridge (at most about five minutes later).
 
 ## [v2.45.0] — 2026-10-31
 

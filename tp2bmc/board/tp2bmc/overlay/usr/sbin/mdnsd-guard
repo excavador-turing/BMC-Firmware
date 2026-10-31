@@ -5,8 +5,8 @@
 # mdnsd 0.12 leaks on every config reload, and the real fix is not here: it is
 # /etc/default/mdnsd, which binds it to a single interface so it stops
 # treating its own announcements on the switch ports as name conflicts and
-# reloading 69 times a second. With that in place the leak is gone -- measured at 8 kB over 90
-# seconds, against 956 kB a minute before (SQU-175).
+# reloading 69 times a second. With that in place the leak is gone --
+# measured at 8 kB over 90 seconds, against 956 kB a minute before (SQU-175).
 #
 # This is the net under that. The leak itself is upstream's and still present;
 # only its trigger has been removed, and a board with 118 MB of RAM, no swap
@@ -23,28 +23,65 @@
 # blind hourly restart would have thrown away.
 #
 # Delete this when mdnsd no longer leaks.
+#
+# A second job, which is not about the leak and stays when the first goes:
+# keep mdnsd on the interface /etc/default/mdnsd would pick now. That file
+# chooses once per start, and on a hand-split network (br-wan/br-lan, no br0)
+# the default route can come up after S50mdnsd has started, leaving mdnsd on
+# the first bridge -- the nodes' side -- until something restarts it. cron
+# runs this every five minutes, so a board corrects itself within five
+# minutes of the route appearing (plus the two seconds the restart takes).
+# Nothing in /etc/default/mdnsd waits or sleeps: it is sourced on stop and
+# status too.
 set -eu
 
 THRESHOLD_KB="${MDNSD_GUARD_THRESHOLD_KB:-20480}"   # 20 MB of a 118 MB board
 PIDFILE=/var/run/mdnsd.pid
 
+# restart_mdnsd MESSAGE
+#
+# Logs MESSAGE, restarts through the init script (the one path that applies
+# /etc/default/mdnsd), and logs what came back.
+restart_mdnsd() {
+	logger -t mdnsd-guard "$1"
+
+	/etc/init.d/S50mdnsd restart >/dev/null 2>&1 || true
+
+	sleep 2
+	newpid=$(cat "$PIDFILE" 2>/dev/null || echo "")
+	newrss=""
+	[ -n "$newpid" ] && [ -d "/proc/$newpid" ] && \
+		newrss=$(awk '/^VmRSS:/ { print $2 }' "/proc/$newpid/status" 2>/dev/null)
+	newavail=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo 2>/dev/null)
+	logger -t mdnsd-guard "restarted: mdnsd ${newrss:-?} kB, MemAvailable ${newavail:-?} kB"
+}
+
 [ -r "$PIDFILE" ] || exit 0
 pid=$(cat "$PIDFILE" 2>/dev/null) || exit 0
 [ -n "$pid" ] && [ -d "/proc/$pid" ] || exit 0
+
+# The interface the running mdnsd was started with: the word after -i in its
+# command line (arguments are NUL-separated in /proc).
+have=$(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | \
+	awk 'p { print; exit } $0 == "-i" { p = 1 }') || have=""
+
+# The interface /etc/default/mdnsd picks now. Sourced in a subshell so none of
+# its variables or functions leak in here.
+want=$(
+	MDNSD_IFACE=""
+	if [ -r /etc/default/mdnsd ]; then . /etc/default/mdnsd; fi
+	echo "${MDNSD_IFACE:-}"
+) || want=""
+
+# Either one unknown means there is nothing to compare, not a difference.
+if [ -n "$have" ] && [ -n "$want" ] && [ "$have" != "$want" ]; then
+	restart_mdnsd "mdnsd is bound to ${have} but /etc/default/mdnsd now picks ${want}: restarting"
+	exit 0
+fi
 
 rss=$(awk '/^VmRSS:/ { print $2 }' "/proc/$pid/status" 2>/dev/null) || exit 0
 [ -n "$rss" ] || exit 0
 [ "$rss" -gt "$THRESHOLD_KB" ] || exit 0
 
 avail=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo 2>/dev/null)
-logger -t mdnsd-guard "mdnsd ${rss} kB exceeds ${THRESHOLD_KB} kB, MemAvailable ${avail:-?} kB: restarting"
-
-/etc/init.d/S50mdnsd restart >/dev/null 2>&1 || true
-
-sleep 2
-newpid=$(cat "$PIDFILE" 2>/dev/null || echo "")
-newrss=""
-[ -n "$newpid" ] && [ -d "/proc/$newpid" ] && \
-	newrss=$(awk '/^VmRSS:/ { print $2 }' "/proc/$newpid/status" 2>/dev/null)
-newavail=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo 2>/dev/null)
-logger -t mdnsd-guard "restarted: mdnsd ${newrss:-?} kB, MemAvailable ${newavail:-?} kB"
+restart_mdnsd "mdnsd ${rss} kB exceeds ${THRESHOLD_KB} kB, MemAvailable ${avail:-?} kB: restarting"

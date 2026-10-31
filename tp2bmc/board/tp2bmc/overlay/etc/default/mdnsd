@@ -17,21 +17,27 @@
 # In order:
 #
 #   1. br0, when it exists. This is the stock layout and the common case.
-#   2. the interface holding the IPv4 default route: it is the one the rest of
-#      the network reaches the board on.
-#   3. the first bridge (an interface with a bridge/ directory in sysfs). This
-#      covers a board whose default route is not up yet -- DHCP still pending
-#      when S50mdnsd runs -- and a bridge is never one of the switch ports.
-#   4. br0 anyway, which is what this file always said before.
+#   2. the interface holding the IPv4 default route, but only if it is a
+#      bridge (it has a bridge/ directory in sysfs). A default route can also
+#      sit on a switch port (node1..node4, ge0, ge1) or the dsa conduit, and
+#      those are exactly the interfaces the storm comes from.
+#   3. the first bridge. This covers a default route that is not up yet (DHCP
+#      still pending when S50mdnsd runs) or that is not on a bridge.
+#   4. the default-route interface itself, if it exists and is not dsa: a
+#      single plain interface, e.g. ge0 configured directly with no bridge.
+#   5. br0 anyway, which is what this file always said before.
 #
-# This file is sourced as shell by /etc/init.d/S50mdnsd on every start and
-# restart, including the restarts /usr/sbin/mdnsd-guard triggers, so a restart
-# re-evaluates the choice. A running mdnsd is never moved to another interface
-# on its own.
+# This file is sourced as shell by /etc/init.d/S50mdnsd on every invocation --
+# start, stop, restart -- so it must stay quick and must never wait. The choice
+# is made once per start. If the default route comes up later and the answer
+# changes, /usr/sbin/mdnsd-guard (run from cron every five minutes) notices
+# that the running mdnsd is on a different interface than this file now picks
+# and restarts it. A running mdnsd is never moved any other way.
 
+# Prefixed names: this file is sourced into S50mdnsd's own namespace, and the
+# init script's variables (DAEMON, MDNSD, PIDFILE, status, ...) must not be
+# overwritten by a helper.
 mdnsd_pick_iface() {
-	# Variables are prefixed: this file is sourced into the init script's own
-	# namespace, and there is no `local` in busybox ash scripts here.
 	mdnsd_net=/sys/class/net
 
 	# 1. the stock bridge
@@ -40,17 +46,24 @@ mdnsd_pick_iface() {
 		return 0
 	fi
 
-	# 2. the interface of the IPv4 default route
-	for mdnsd_dev in $(ip -4 route show 2>/dev/null | awk '
+	# The IPv4 default-route interface(s), first one first. Globbing is off
+	# for the unquoted expansion: device names are data, not patterns.
+	set -f
+	mdnsd_defs=$(ip -4 route show 2>/dev/null | awk '
 		$1 == "default" {
 			for (i = 2; i < NF; i++)
 				if ($i == "dev") { print $(i + 1); break }
-		}'); do
-		if [ -e "$mdnsd_net/$mdnsd_dev" ]; then
+		}')
+
+	# 2. the default-route interface, if it is a bridge
+	for mdnsd_dev in $mdnsd_defs; do
+		if [ -d "$mdnsd_net/$mdnsd_dev/bridge" ]; then
+			set +f
 			echo "$mdnsd_dev"
 			return 0
 		fi
 	done
+	set +f
 
 	# 3. the first bridge
 	for mdnsd_dir in "$mdnsd_net"/*; do
@@ -60,9 +73,21 @@ mdnsd_pick_iface() {
 		fi
 	done
 
-	# 4. today's behaviour
+	# 4. a single non-bridge default-route interface, never the DSA conduit
+	set -f
+	for mdnsd_dev in $mdnsd_defs; do
+		if [ "$mdnsd_dev" != dsa ] && [ -e "$mdnsd_net/$mdnsd_dev" ]; then
+			set +f
+			echo "$mdnsd_dev"
+			return 0
+		fi
+	done
+	set +f
+
+	# 5. today's behaviour
 	echo br0
 }
 
 MDNSD_IFACE=$(mdnsd_pick_iface)
+# shellcheck disable=SC2034 # read by /etc/init.d/S50mdnsd, which sources this
 MDNSD_ARGS="-i ${MDNSD_IFACE:-br0}"

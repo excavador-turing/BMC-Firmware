@@ -127,6 +127,11 @@ preinit() {
 	mount -t tmpfs /tmp /tmp
 	mount -t sysfs /sys /sys
 
+	# mount_overlay's output is captured, not streamed, so the console says
+	# nothing between here and its exit. That includes the first-boot
+	# ubimkvol/mkfs.ubifs, which can take a while. Accepted: the output is
+	# replayed through log below, and the reason is worth more than the
+	# progress lines.
 	if is_safemode; then
 		note_safemode requested
 	elif MOUNT_OUT=$(mount_overlay 2>&1); then
