@@ -13,8 +13,75 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.47.0] — 2026-11-01
+
+bmcd 2.42.2 and BMC-UI 4.4.0; tpi 1.10.0 is unchanged.
+
+New firmware releases now show up in the Firmware page's list, the "Update
+available" badge installs what it names, an upload works on a board without an
+SD card, a board without a card stops showing an SD warning, and the (i) help
+links reach turingpi.xyz.
+
+If your Firmware page does not show v2.47.0 (boards on v2.46.1 or earlier can
+take minutes to list it): on the BMC over SSH run
+`tpi-selfupdate --tag v2.47.0 --reboot`. It downloads the image, checks its
+checksum, stages it and reboots; if the new image fails its health gate, the
+board goes back to the previous one by itself. Or leave the Firmware page open
+for about four minutes and reload. On a Turing Pi 2 v2.4 a BMC reboot
+power-cycles the nodes; on a v2.5 they keep running.
+
+### Added
+
+- **The "Update available" badge installs the version it names (BMC-UI
+  4.4.0).** Pressing it opens the same confirmation as the list's Install
+  button, which says which source and repository it installs from. If no
+  configured source is the repository the update check named, the badge is
+  information only and says why. It is disabled while an install, an upload
+  or a flash runs, or an update is already staged.
+
 ### Fixed
 
+- **The Firmware page keeps checking until the list arrives (BMC-UI 4.4.0).**
+  The page polled the catalogue for two minutes and then stuck on "checking
+  the sources now" with a greyed-out Check now, until it was reloaded. It now
+  keeps asking while the daemon says it is refreshing, for up to eleven
+  minutes (every 2 s at first, then every 5 s after 30 s and every 10 s after
+  two minutes, and not at all while the tab is hidden). If it does give up it
+  says "Still checking — the list may be out of date. Reload later." and
+  Check now works again.
+- **One slow or hung firmware source no longer costs the others (bmcd
+  2.42.2).** Each source has its own 360 s deadline instead of the whole check
+  being cut off after ten minutes with nothing kept. A source that overruns
+  reports `timed out after 360 s` and the rest are cached as usual; the
+  updater and its `curl` are killed as a group, so hung downloads do not pile
+  up on the board. When the only errors are slow sources (or a card that is
+  inserted but not mounted), the retry waits 15 minutes instead of 2, so a
+  slow board does not hammer GitHub's 60 requests an hour. Concurrent
+  requests with nothing cached now share one refresh instead of each
+  starting their own.
+- **Uploading a `.tpu` to a board with no SD card works (BMC-UI 4.4.0, bmcd
+  2.42.2).** The dialog always asked to park the image on the card, and a
+  card-less board refused with a toast and nothing else. When the board has
+  no card the dialog now says so and installs directly, written to the spare
+  slot and staged for the next boot, with the same reboot warning as the
+  slots panel. With a card nothing changes. If the daemon still refuses, the
+  reason stays in the dialog with "Install directly instead" beside it. The
+  daemon's message no longer tells the web interface to "insert one, or
+  upload without parking", and a successful park now shows up in the list
+  straight away instead of up to 30 minutes later.
+- **A board without an SD card no longer shows an SD warning (bmcd 2.42.2).**
+  The `SD card` source answered an error when no card was mounted (or the
+  card had no `firmware` folder), which shortened the catalogue's cache to two
+  minutes, kept it off the flash, and left "SD card: This source returned
+  nothing usable" on the page for ever. It now reports nothing. A card that
+  is there and unreadable, or inserted but not mounted (unsupported or damaged
+  filesystem), is still reported. `GET /api/bmc/info` also says whether the
+  card is mounted (`mounted` on the "SD card" entry); the interface no longer
+  draws an unmounted card as a second storage row.
+- **The (i) notes reach turingpi.xyz (BMC-UI 4.4.0).** Every "Read more" link
+  on the Firmware, Fan, Console and Nodes pages went to the dead docs host
+  and ended in an error; they now go to `https://turingpi.xyz`, and the two
+  Console notes land on the right section.
 - **New releases never appeared in the Firmware page's list on a board.**
   Listing the 44 releases of this repository took about three minutes on a
   real board (170 s for `tpi-selfupdate --list`, measured 2026-11-01 on

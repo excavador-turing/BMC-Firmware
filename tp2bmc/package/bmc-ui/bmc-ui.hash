@@ -347,3 +347,17 @@ sha256  7848589d19ecf48867e68018e385e010470e498d5c56cefc72aff525fbd73ed1  bmc-ui
 # cross-check. dist/LICENSE present, 63 archive entries; the archive is the
 # board build ("could not be mounted" is in the built bundle).
 sha256  2979cdb3c500d4c40e8552f0041067fc406179aa770278fb55f1db02c7568280  bmc-ui-v4.3.0.tar.gz
+#
+# v4.3.0 -> v4.4.0: the firmware page keeps asking while the daemon says it is
+# refreshing (up to eleven minutes, backing off, paused while the tab is
+# hidden) instead of giving up after two; the "Update available" badge opens
+# the install confirmation for the version it names; an upload to a board with
+# no SD card installs directly instead of failing on the park; the (i) notes
+# link to turingpi.xyz instead of the dead docs host. Reads `mounted` on the
+# SD card from bmcd 2.42.2 (older daemons: it falls back to comparing sizes).
+#
+# Measured 2026-11-01: 671315 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 63 archive entries; the archive is the
+# board build ("Still checking" and "turingpi.xyz" are in the built bundle).
+sha256  ea84d811f9b916eededcc0bf3441e7cbbc77404d20f617328ef3e23dbdf342bf  bmc-ui-v4.4.0.tar.gz
