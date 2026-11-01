@@ -31,6 +31,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   real response (`tests/fixtures/github-releases.json`) and fails if a
   listing scales with the number of lines.
 
+- **The Grafana dashboard's description linked to the dead docs host.**
+  `dashboards/turingpi-bmc.json` sent readers to the metrics catalogue at
+  `turing.excavador.xyz`, which answers a Cloudflare 502; it now points at
+  `https://turingpi.xyz/reference/metrics/`. The dashboard is not part of the
+  image.
+
 ## [v2.46.1] — 2026-10-31
 
 bmcd 2.42.1; BMC-UI 4.3.0 and tpi 1.10.0 are unchanged.
