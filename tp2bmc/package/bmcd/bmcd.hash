@@ -187,5 +187,6 @@ sha256  d5622c55fcb7b84a7c0cd693a3134a104cdfc9f69394a3616e864c4a87ffed18  bmcd-c
 # discards the others' answers. GET /api/bmc/info gains `mounted` on the
 # "SD card" storage entry. Nothing else changed.
 #
-# PLACEHOLDER: to be replaced by the "got" value of CI's own build.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-3c15da5d42cd57ee417922166bfb5059aa3d7172-cargo2.tar.gz
+# Measured 2026-11-01: the PR build in CI's own container (run 41316762877),
+# against a placeholder line, reported got 1c380695; this is that value.
+sha256  1c380695c12c18023d31ed89c47fc4dd0661851733fee26581d8d0280d4f50cd  bmcd-3c15da5d42cd57ee417922166bfb5059aa3d7172-cargo2.tar.gz
