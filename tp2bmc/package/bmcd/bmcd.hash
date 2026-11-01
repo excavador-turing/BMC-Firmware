@@ -176,3 +176,16 @@ sha256  090165eba78dcf71305fdff9e08965ace8d71f901e907ed7537f926257393d1e  bmcd-6
 # Measured 2026-10-31: the PR build in CI's own container (run 41227540168),
 # against a placeholder line, reported got d5622c55; this is that value.
 sha256  d5622c55fcb7b84a7c0cd693a3134a104cdfc9f69394a3616e864c4a87ffed18  bmcd-cac4adb2477348ee265dd250cf2b98a6ca4f1ae4-cargo2.tar.gz
+#
+# 2.42.2 (3c15da5d, tag v2.42.2): a board with no SD card (or a card without a
+# firmware folder) no longer retries the whole firmware check every two
+# minutes with a warning: the SD card source reports nothing when the card is
+# not mounted. The "no card" refusal for parking says installing directly is
+# the way out. A successful park marks the cached catalogue stale. Each
+# firmware source has its own 360 s deadline (the updater runs in its own
+# process group and is killed as a group), so one hung source no longer
+# discards the others' answers. GET /api/bmc/info gains `mounted` on the
+# "SD card" storage entry. Nothing else changed.
+#
+# PLACEHOLDER: to be replaced by the "got" value of CI's own build.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-3c15da5d42cd57ee417922166bfb5059aa3d7172-cargo2.tar.gz
