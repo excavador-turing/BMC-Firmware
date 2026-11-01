@@ -13,6 +13,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.48.0] — 2026-11-01
+
+BMC-UI 4.5.0; bmcd 2.42.2 and tpi 1.10.0 are unchanged.
+
+Console, Flash Node and USB show the four nodes side by side, so choosing one
+is a single click instead of opening a dropdown first. Nothing else changes.
+
+### Changed
+
+- **Choosing a node is one click (BMC-UI 4.5.0).** The three pages that asked
+  which node to act on now share one control: a row of Node 1 to Node 4 you can
+  click, or move through with the arrow keys. The node you arrived with from
+  another page (`?node=`) is still preselected, and what each page sends to
+  the board is unchanged.
+
 ## [v2.47.0] — 2026-11-01
 
 bmcd 2.42.2 and BMC-UI 4.4.0; tpi 1.10.0 is unchanged.
