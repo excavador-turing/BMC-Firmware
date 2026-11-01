@@ -361,3 +361,15 @@ sha256  2979cdb3c500d4c40e8552f0041067fc406179aa770278fb55f1db02c7568280  bmc-ui
 # cross-check. dist/LICENSE present, 63 archive entries; the archive is the
 # board build ("Still checking" and "turingpi.xyz" are in the built bundle).
 sha256  ea84d811f9b916eededcc0bf3441e7cbbc77404d20f617328ef3e23dbdf342bf  bmc-ui-v4.4.0.tar.gz
+#
+# v4.4.0 -> v4.5.0: Console, Flash Node and USB choose a node with a row of
+# four radio buttons (Node 1 to 4) instead of a dropdown; one click, arrow
+# keys move the choice. Interface only; the value, the ?node= preselection and
+# every API call are unchanged.
+#
+# Measured 2026-11-01: 673501 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 67 archive entries; the archive is the
+# board build ("node-picker" is in dist/assets/NodePicker-*.js, "Still
+# checking" and "turingpi.xyz" are still in the built bundle).
+sha256  762969597c88efda974c51e76c69040110736739686ed7e83662a57e6e9d33f4  bmc-ui-v4.5.0.tar.gz
