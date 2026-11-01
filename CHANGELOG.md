@@ -13,6 +13,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **New releases never appeared in the Firmware page's list on a board.**
+  Listing the 44 releases of this repository took about three minutes on a
+  real board (170 s for `tpi-selfupdate --list`, measured 2026-11-01 on
+  v2.46.1), and the page stops waiting after two, so the list came back
+  without the GitHub source and the newest releases were never shown.
+  `tpi-selfupdate` split the response on `},{`, which only exists in compact
+  JSON; GitHub sends it pretty-printed (about 690 KB and 11,000 lines), so
+  every line became its own piece and cost five forks, and the time grew with
+  every release published. It is now one `awk` pass over the whole response
+  (0.12 s against 6.1 s before on a workstation, same 44 releases), and the
+  same pass now reads `prerelease`, which sits on a line the old code never
+  looked at, so a pre-release is finally listed as one. Output and ordering
+  are unchanged. `tests/listing.sh` now runs against a trimmed copy of the
+  real response (`tests/fixtures/github-releases.json`) and fails if a
+  listing scales with the number of lines.
+
 ## [v2.46.1] — 2026-10-31
 
 bmcd 2.42.1; BMC-UI 4.3.0 and tpi 1.10.0 are unchanged.

@@ -344,40 +344,78 @@ http_asset() {
 #
 # list_releases
 #
-# Every release the repository offers, newest first, as a JSON array.
+# Every release the repository offers, newest first, as `tag<TAB>prerelease`
+# lines (the caller turns them into JSON).
 #
-# GitHub returns one object per release; splitting on the `},{` boundary gives
-# one chunk each, which is enough to read a tag and its flags without a JSON
-# parser -- and there is none on this board, no jq and no python3, only awk
-# and sed.
+# There is no JSON parser on this board, no jq and no python3, only awk and
+# sed -- so this is ONE awk pass over the whole response that tracks brace
+# depth and reads the three keys it needs from the top-level release objects.
+# It reads tokens, not lines, so it does not care how the body is laid out:
+# GitHub returns it pretty-printed (about 690 KB and 11k lines for 44
+# releases), a test fixture or a proxy may return it compact, and both give
+# the same answer. Strings are skipped whole (escapes included), which matters
+# because they carry braces of their own: `upload_url` ends in `{?name,label}`
+# and a release body can hold JSON, `},{` and even a quoted "tag_name".
+#
+# The previous version split the text on `},{` and forked printf|sed|head
+# five times per piece. That assumed compact JSON; on the real, pretty-printed
+# response every LINE became a piece, so the cost was ~55k forks and grew with
+# every release: 170 s for 44 releases on a Cortex-A7 BMC, measured on
+# 2026-11-01, past the 120 s bmcd's firmware page waits before it gives up.
+# It also never saw `draft` and `prerelease` (they sit on lines of their own),
+# so every release came out `prerelease:false`.
 #
 # Drafts are skipped: they are not installable by anyone but their author.
 # Pre-releases are KEPT and flagged, because "show me older or unstable
 # builds" is exactly what a human picking from a list may want; the flag lets
 # the caller decide rather than deciding for it here.
 #
+# Only keys at depth 1 -- directly inside a release object -- count, so the
+# `author` and `assets` objects (and an asset's `uploader`) cannot supply a
+# tag or a flag of their own. busybox awk: no gawk extensions, no
+# three-argument match().
+#
 list_releases() {
 	api="https://api.github.com/repos/$REPO/releases?per_page=100"
 	body=$(curl -sSfL --max-time 30 "$api") \
 		|| die "cannot reach the GitHub API at $api"
 
-	printf '%s' "$body" \
-		| sed 's/},[[:space:]]*{/}\n{/g' \
-		| while IFS= read -r chunk; do
-			tag=$(printf '%s' "$chunk" \
-				| sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-				| head -1)
-			[ -n "$tag" ] || continue
-			draft=$(printf '%s' "$chunk" \
-				| sed -n 's/.*"draft"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p' \
-				| head -1)
-			[ "$draft" = "true" ] && continue
-			pre=$(printf '%s' "$chunk" \
-				| sed -n 's/.*"prerelease"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p' \
-				| head -1)
-			[ -n "$pre" ] || pre=false
-			printf '%s\t%s\n' "$tag" "$pre"
-		done \
+	printf '%s\n' "$body" \
+		| awk '
+			BEGIN {
+				depth = 0
+				# A JSON string, with its escapes, or a brace.
+				token = "\"([^\"\\\\]|\\\\.)*\"|[{}]"
+			}
+			{
+				rest = $0
+				while (match(rest, token)) {
+					t = substr(rest, RSTART, RLENGTH)
+					rest = substr(rest, RSTART + RLENGTH)
+					if (t == "{") {
+						if (++depth == 1) { tag = ""; draft = "false"; pre = "false" }
+					} else if (t == "}") {
+						if (--depth == 0 && tag != "" && draft != "true")
+							printf "%s\t%s\n", tag, pre
+					} else if (depth == 1 && rest ~ /^[ \t\r]*:/) {
+						# A string followed by a colon is a key.
+						if (t == "\"tag_name\"") {
+							if (match(rest, /^[ \t\r]*:[ \t\r]*"([^"\\]|\\.)*"/)) {
+								v = substr(rest, 1, RLENGTH)
+								sub(/^[ \t\r]*:[ \t\r]*"/, "", v)
+								sub(/"$/, "", v)
+								tag = v
+							}
+						} else if (t == "\"draft\"" || t == "\"prerelease\"") {
+							if (match(rest, /^[ \t\r]*:[ \t\r]*(true|false)/)) {
+								v = substr(rest, 1, RLENGTH)
+								sub(/^[ \t\r]*:[ \t\r]*/, "", v)
+								if (t == "\"draft\"") draft = v; else pre = v
+							}
+						}
+					}
+				}
+			}' \
 		| sort -V -r -k1,1
 }
 
