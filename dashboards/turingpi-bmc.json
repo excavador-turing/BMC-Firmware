@@ -15,7 +15,7 @@
     "to": "now"
   },
   "editable": true,
-  "description": "The BMC of a Turing Pi 2 running the excavador-turing firmware fork. Every panel reads a metric the board publishes at /metrics; the catalogue and a scrape config are at https://turing.excavador.xyz/reference/metrics/",
+  "description": "The BMC of a Turing Pi 2 running the excavador-turing firmware fork. Every panel reads a metric the board publishes at /metrics; the catalogue and a scrape config are at https://turingpi.xyz/reference/metrics/",
   "panels": [
     {
       "type": "row",
