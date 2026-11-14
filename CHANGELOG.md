@@ -13,6 +13,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.49.0] — 2026-11-14
+
+bmcd 2.43.0 and BMC-UI 4.6.0; tpi 1.10.0 is unchanged.
+
+Answers <https://github.com/excavador-turing/BMC-Firmware/issues/76>: the
+console speed you set for a node now applies, and tools on the BMC can share a
+node's console with the web page.
+
+### Added
+
+- **A console speed for each node, in Power Control (BMC-UI 4.6.0).** Each
+  node's speed shows beside its name and Edit offers the usual rates, from 9600
+  up to 1500000. The default stays 115200. The Console page now tells you where
+  the local console devices are.
+- **Shared console devices `/dev/ttyNode1` to `/dev/ttyNode4` (bmcd 2.43.0).**
+  On the BMC, open `/dev/ttyNodeN` with `microcom` or `picocom` instead of
+  `/dev/ttyS*`. It shows what the web console shows, and what you type reaches
+  the node, so the terminal and the web console no longer split a line between
+  them. Nobody has to be reading: output nobody takes is dropped and never
+  holds up the node. The speed of these devices is the node's setting; a speed
+  chosen in the terminal program has no effect on them. `/dev/ttyS*` stays
+  locked by the daemon, so a program opened on it still reports that it cannot
+  lock the port.
+
+### Fixed
+
+- **The console speed set for a node was stored and never used (bmcd 2.43.0).**
+  Every port opened at 115200 whatever the setting said, so a node at 1500000
+  showed garbage until a terminal program changed the speed. The port now opens
+  at the stored speed and follows a change at once, without restarting the
+  daemon or disconnecting the web console. A speed that is not a standard rate
+  (300 to 3000000) is refused and nothing in that request is saved.
+- **`tpi about` showed `board` followed by garbage on a board whose information
+  EEPROM was never programmed (bmcd 2.43.0).** The board name, and the hardware
+  revision (`v31.31.63` on an erased EEPROM), are now blank, as they are when
+  the EEPROM cannot be read.
+
 ## [v2.48.0] — 2026-11-01
 
 BMC-UI 4.5.0; bmcd 2.42.2 and tpi 1.10.0 are unchanged.
