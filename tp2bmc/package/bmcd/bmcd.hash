@@ -197,5 +197,6 @@ sha256  1c380695c12c18023d31ed89c47fc4dd0661851733fee26581d8d0280d4f50cd  bmcd-3
 # `tpi about` leaves the board model and hardware revision blank on a board
 # whose information EEPROM was never programmed. Nothing else changed.
 #
-# PLACEHOLDER until CI reports the "got" line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-ee3690c9eb39b22c8881cf774ad5f69b8b24fc7c-cargo2.tar.gz
+# Measured 2026-11-14: the PR build in CI's own container (run 43645501659),
+# against a placeholder line, reported got d8192343; this is that value.
+sha256  d8192343136c15f35e47750ade049e85c856d3bed73866d0dd0fc077ba1b5946  bmcd-ee3690c9eb39b22c8881cf774ad5f69b8b24fc7c-cargo2.tar.gz
