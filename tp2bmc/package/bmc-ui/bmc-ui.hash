@@ -373,3 +373,13 @@ sha256  ea84d811f9b916eededcc0bf3441e7cbbc77404d20f617328ef3e23dbdf342bf  bmc-ui
 # board build ("node-picker" is in dist/assets/NodePicker-*.js, "Still
 # checking" and "turingpi.xyz" are still in the built bundle).
 sha256  762969597c88efda974c51e76c69040110736739686ed7e83662a57e6e9d33f4  bmc-ui-v4.5.0.tar.gz
+#
+# v4.5.0 -> v4.6.0: Power Control shows each node's console speed and Edit sets
+# it; the Console page names the shared /dev/ttyNodeN devices. The API types
+# follow bmcd v2.43.0. Nothing else changed.
+#
+# Measured 2026-11-14: 675248 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 66 archive entries; the archive is the
+# board build ("ttyNode" is in the built bundle).
+sha256  b6ea78962c375ecc131100ddc023ff709b7cc8cf5c93a036c946b8cd0af0a73a  bmc-ui-v4.6.0.tar.gz

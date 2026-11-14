@@ -3,7 +3,7 @@
 # bmcd
 ###########################################################
 
-BMCD_VERSION = 3c15da5d42cd57ee417922166bfb5059aa3d7172
+BMCD_VERSION = ee3690c9eb39b22c8881cf774ad5f69b8b24fc7c
 BMCD_SITE = $(call github,excavador-turing,bmcd,$(BMCD_VERSION))
 BMCD_LICENSE = Apache-2.0
 BMCD_LICENSE_FILES = LICENSE
