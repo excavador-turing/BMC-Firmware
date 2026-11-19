@@ -14,3 +14,5 @@ output
 sccache-stats.txt
 sdk-toolchain.tar.gz
 sdk
+.cursor/
+.idea/
