@@ -319,12 +319,16 @@ native VLAN 1 plus 10 and 20, `br0` on the native VLAN.
 | BMC control plane | unaffected on the native VLAN throughout |
 | Mode 4 → Mode 2 transition | `LAG VLAN sync: bond0 not VLAN filtering; members transparent` |
 
-**Apply order (2026-09-09).** `tp2-net-config apply` used to `ifup` first (LAG
-sync while `vlan_filtering=0` → `members transparent`), then program the Linux
-VLAN table. `0004` only copies `bond0`'s VID set onto `ge0`/`ge1` on
-`port_bridge_join`. Nodes then leased native `192.168.1.x`. Workaround: bounce
-an unused `br0` member (`node4` leave/join). Overlay now calls
-`tp2-lag-bridge-fixup-refresh.sh vlan-sync` after `apply_vlans`.
+**Apply order (2026-09-09, closed in `0004` 2026-11-16).** `ifup` joins the
+bond before `post-up` adds VLANs and sets `vlan_filtering 1`. The join-time
+sync therefore logged `members transparent` and left `ge0`/`ge1` untagged, so
+nodes leased native `192.168.1.x`. A later leave/join of any bridge port
+(often an empty `node4`) ran the sync again once filtering was on. That port
+is not required. `0004` registers a switchdev notifier: when the bridge emits
+`SWITCHDEV_ATTR_ID_BRIDGE_VLAN_FILTERING`, and when a bond VLAN changes while
+filtering is already on, it mirrors `bond0`'s VLAN DB onto the lag members.
+`br0` may contain only the bond. After `ifup`, `dmesg` should already end with
+`mirrored N VLAN(s)`.
 
 The ASIC isolation test puts both nodes in the **same subnet** on different
 access VLANs. A `192.168.10.x` ↔ `192.168.20.x` ping goes to the router first
