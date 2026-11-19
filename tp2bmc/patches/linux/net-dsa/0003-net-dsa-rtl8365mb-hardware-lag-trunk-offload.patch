@@ -17,7 +17,9 @@ Origin / credits:
 Also:
 - set ds->num_lag_ids so DSA assigns lag->id (required for port_lag_join)
 - allow single-member join in lag_can_offload (program HW at 2 members)
-- limit trunk groups to 0-1 (only these have hash map registers)
+- limit trunk groups to 0-1; they share the hash map at 0x08d2/0x08d3.
+  Leave that map at the chip default; it is the user-defined map and
+  the trunk runs in dumb mode.
 - enable trunk dumb mode (CPU LACP + ASIC data plane)
 - trap LACP RMA 01:80:c2:00:00:02 to CPU (RMA_CTRL02); HW trunk
   otherwise swallows partner LACPDUs so bonding never sees RX
@@ -29,10 +31,10 @@ Signed-off-by: Sven Rademakers <sven@turingpi.com>
 ---
  drivers/net/dsa/realtek/Makefile                   |    1 +
  drivers/net/dsa/realtek/realtek.h                  |    5 +
- drivers/net/dsa/realtek/rtl8365mb_lag.c            |  444 ++++++++++++++++++++++++++++++++++++++++
+ drivers/net/dsa/realtek/rtl8365mb_lag.c            |  424 ++++++++++++++++++++++++++++++++++++++++
  drivers/net/dsa/realtek/rtl8365mb_lag.h            |   15 +
  drivers/net/dsa/realtek/rtl8365mb_main.c           |   11 +
- 5 files changed, 474 insertions(+), 2 deletions(-)
+ 5 files changed, 454 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/dsa/realtek/Makefile b/drivers/net/dsa/realtek/Makefile
 --- a/drivers/net/dsa/realtek/Makefile
@@ -62,7 +64,7 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 new file mode 100644
 --- /dev/null
 +++ b/drivers/net/dsa/realtek/rtl8365mb_lag.c
-@@ -0,0 +1,457 @@
+@@ -0,0 +1,423 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/* Hardware LAG / trunk offload for rtl8365mb-class switches (RTL8367C ASIC API)
 + *
@@ -96,10 +98,13 @@ new file mode 100644
 +#define RTL8365MB_REG_PORT_TRUNK_GROUP_MASK		0x08d0
 +#define   RTL8365MB_TRUNK_GROUP_FIELD_MASK		GENMASK(3, 0)
 +
-+#define RTL8365MB_REG_TRUNK_HASH_MAP_G0_LO		0x08d2
-+#define RTL8365MB_REG_TRUNK_HASH_MAP_G0_HI		0x08d3
-+#define RTL8365MB_REG_TRUNK_HASH_MAP_G1_LO		0x08a0
-+#define RTL8365MB_REG_TRUNK_HASH_MAP_G1_HI		0x08a1
++/*
++ * rtk_trunk_hashMappingTable_set: groups 0 and 1 share this map.
++ * 0x08a0/0x08a1 are group 2 (HashTable1) and only accept port ids 0
++ * and 1. ge0/ge1 are ports 5 and 6, so they are group 1.
++ */
++#define RTL8365MB_REG_TRUNK_HASH_MAP_LO			0x08d2
++#define RTL8365MB_REG_TRUNK_HASH_MAP_HI			0x08d3
 +
 +/*
 + * Reserved multicast address (RMA) controls — rtl8367c_asicdrv_rma.
@@ -113,10 +118,9 @@ new file mode 100644
 +#define   RTL8365MB_RMA_VLAN_LEAKY			BIT(1)
 +#define   RTL8365MB_RMA_OP_TRAP_TO_CPU			BIT(7)
 +
-+/* Only groups 0 and 1 have hash map registers. */
++/* Groups 0 and 1 share one hash map. Group 2 is a different table. */
 +#define RTL8365MB_MAX_TRUNK_GID				1
 +#define RTL8365MB_TRUNK_GROUP_PORTS			4
-+#define RTL8365MB_TRUNK_HASH_BUCKETS			16
 +
 +struct rtl8365mb_lag_ctx {
 +	struct mutex *lock;
@@ -177,58 +181,29 @@ new file mode 100644
 +				  RTL8365MB_PORT_TRUNK_HASH_MASK, hash_sel);
 +}
 +
-+static void rtl8365mb_trunk_hash_regs(int group, u32 hashval,
-+				      u32 *reg, u32 *shift, u32 *mask)
++static int rtl8365mb_trunk_log_hash_table(struct realtek_priv *priv, int group)
 +{
-+	if (group == 0) {
-+		if (hashval >= 8) {
-+			*reg = RTL8365MB_REG_TRUNK_HASH_MAP_G0_HI;
-+			hashval -= 8;
-+		} else {
-+			*reg = RTL8365MB_REG_TRUNK_HASH_MAP_G0_LO;
-+		}
-+	} else {
-+		if (hashval >= 8) {
-+			*reg = RTL8365MB_REG_TRUNK_HASH_MAP_G1_HI;
-+			hashval -= 8;
-+		} else {
-+			*reg = RTL8365MB_REG_TRUNK_HASH_MAP_G1_LO;
-+		}
-+	}
++	u32 got_lo, got_hi;
++	int ret;
 +
-+	*shift = hashval * 2;
-+	*mask = GENMASK(*shift + 1, *shift);
-+}
-+
-+static int rtl8365mb_trunk_hash_map_set(struct realtek_priv *priv, int group,
-+					u32 hashval, u32 member_id)
-+{
-+	u32 reg, shift, mask;
-+
-+	if (hashval >= RTL8365MB_TRUNK_HASH_BUCKETS ||
-+	    member_id >= RTL8365MB_TRUNK_GROUP_PORTS)
-+		return -EINVAL;
-+
++	/*
++	 * Do not write 0x08d2/0x08d3. The vendor driver calls this the
++	 * user-defined map and dumb mode (PORT_TRUNK_CTRL bit 8) is on.
++	 * Mode 2 split two nodes across ge0/ge1 with this map at 0x0000.
++	 */
 +	if (group > RTL8365MB_MAX_TRUNK_GID)
 +		return -EOPNOTSUPP;
 +
-+	rtl8365mb_trunk_hash_regs(group, hashval, &reg, &shift, &mask);
-+	return regmap_update_bits(priv->map, reg, mask,
-+				  member_id << shift);
-+}
++	ret = regmap_read(priv->map, RTL8365MB_REG_TRUNK_HASH_MAP_LO, &got_lo);
++	if (ret)
++		return ret;
++	ret = regmap_read(priv->map, RTL8365MB_REG_TRUNK_HASH_MAP_HI, &got_hi);
++	if (ret)
++		return ret;
 +
-+static int rtl8365mb_trunk_program_hash_table(struct realtek_priv *priv,
-+					    int group, u8 *members, int nmembers)
-+{
-+	int h, ret;
-+
-+	for (h = 0; h < RTL8365MB_TRUNK_HASH_BUCKETS; h++) {
-+		u8 member = members[(h * nmembers) / RTL8365MB_TRUNK_HASH_BUCKETS];
-+
-+		ret = rtl8365mb_trunk_hash_map_set(priv, group, h, member);
-+		if (ret)
-+			return ret;
-+	}
++	dev_info(priv->dev,
++		 "LAG hash map: group %d left chip default 0x08d2=%04x 0x08d3=%04x\n",
++		 group, got_lo & 0xffff, got_hi & 0xffff);
 +
 +	return 0;
 +}
@@ -272,9 +247,7 @@ new file mode 100644
 +				     int group, u32 member_pmask)
 +{
 +	u32 field_mask, shift, local_mask;
-+	u8 members[RTL8365MB_TRUNK_GROUP_PORTS];
-+	int nmembers = 0;
-+	int i, ret;
++	int ret;
 +
 +	ret = rtl8365mb_trunk_group_field(group, &field_mask, &shift);
 +	if (ret)
@@ -283,11 +256,6 @@ new file mode 100644
 +	local_mask = (member_pmask & field_mask) >> shift;
 +	if (!local_mask)
 +		return rtl8365mb_trunk_set_group_local(priv, group, 0);
-+
-+	for (i = 0; i < RTL8365MB_TRUNK_GROUP_PORTS; i++) {
-+		if (local_mask & BIT(i))
-+			members[nmembers++] = i;
-+	}
 +
 +	/* Partner LACPDUs must reach Linux bonding; HW trunk alone does not. */
 +	ret = rtl8365mb_rma_trap_lacp(priv);
@@ -319,7 +287,7 @@ new file mode 100644
 +			return ret;
 +	}
 +
-+	ret = rtl8365mb_trunk_program_hash_table(priv, group, members, nmembers);
++	ret = rtl8365mb_trunk_log_hash_table(priv, group);
 +	if (ret)
 +		return ret;
 +
