@@ -1,7 +1,7 @@
 # TP2 BMC — kernel patch log & production migration
 
 Maintainer notes for Linux **6.18.50** (Buildroot `tp2bmc_defconfig`).  
-Patch inventory: `tp2bmc/scripts/kernel-patch-tool.sh inventory`.
+Patch inventory: `BMC-Firmware-dev-docs/scripts/kernel-patch-tool.sh inventory`.
 
 **See also:** [`BMC-Firmware-dev-docs/tp2-network-uboot-kernel.md`](../../../../BMC-Firmware-dev-docs/tp2-network-uboot-kernel.md) — U-Boot vs kernel network split, SMI migration gap, open U-Boot follow-ups.
 
@@ -330,6 +330,17 @@ filtering is already on, it mirrors `bond0`'s VLAN DB onto the lag members.
 `br0` may contain only the bond. After `ifup`, `dmesg` should already end with
 `mirrored N VLAN(s)`.
 
+**Reconfirmed 2026-11-16/17 (lab VLANs 210/220).** Filtering-toggle mirror works
+without a spare-port leave/join. `preserve-boot-state` on the v2.5 regulators
+keeps nodes up across flash. Trunk groups 0–1 share the hash map at
+`0x08d2`/`0x08d3`; with dumb mode on, leave that map at the chip default and
+log it (`0003`). Writing group 1 at `0x08a0`/`0x08a1` never selected ge0/ge1;
+writing `0x9999` pinned even hashes to ge0. Dual uplink works when flows
+differ (both `ge0` and `ge1` tx climbed). A single TCP flow **to OPNsense as
+iperf server** stays near 680 Mbit/s; the same node uploading to a Mac with
+OPNsense only routing reaches ~938 Mbit/s — do not chase the former with
+EEE/pause/hash-map patches.
+
 The ASIC isolation test puts both nodes in the **same subnet** on different
 access VLANs. A `192.168.10.x` ↔ `192.168.20.x` ping goes to the router first
 and does not prove L2 membership.
@@ -368,7 +379,7 @@ success was loud. Both are `dev_info` now.
 
 ### Adoption checklist (run when series appears in `git tag v6.x`)
 
-1. `tp2bmc/scripts/kernel-patch-tool.sh history` (or the same checks by hand): confirm files in `drivers/net/dsa/realtek/`, `net/dsa/tag_rtl8_4.c` match series.
+1. `BMC-Firmware-dev-docs/scripts/kernel-patch-tool.sh history` (or the same checks by hand): confirm files in `drivers/net/dsa/realtek/`, `net/dsa/tag_rtl8_4.c` match series.
 2. Bump `BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE` to that release.
 3. **Remove** local `net-dsa/0001-net-dsa-realtek-rtl8365mb-backport-bridge-fdb-vlan-offload.patch`.
 4. **Keep** local `net-dsa/0002` until `chip_id == 0x6368` probe works without it.

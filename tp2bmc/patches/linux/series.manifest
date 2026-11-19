@@ -1,6 +1,6 @@
 # Production apply order (audit / KERNEL_UPGRADE_LOG). Buildroot does NOT read this file.
 # BR2_LINUX_KERNEL_PATCH lists six subdirs in the same order; apply-patches runs *.patch per dir.
-# Cross-check: tp2bmc/patches/linux/scripts/kernel-patch-tool.sh list-order
+# Cross-check: BMC-Firmware-dev-docs/scripts/kernel-patch-tool.sh list-order
 generic/i2c/0001-i2c-mv64xxx-Clear-bus-errors-before-transfer.patch
 generic/pwm/0001-dt-bindings-pwm-Add-binding-for-Allwinner-D1-T113-S3.patch
 generic/pwm/0002-pwm-Add-Allwinner-s-D1-T113-S3-R329-SoCs-PWM-support.patch
