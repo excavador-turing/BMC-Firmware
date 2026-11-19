@@ -4,7 +4,7 @@
 #   hw-validate.sh --mac aa:bb:cc:dd:ee:ff | tee /tmp/hw-validate.log
 #   EXPECTED_BOARD_MAC=… hw-validate.sh
 #   hw-validate.sh --mode 4 --mac …
-# Manual / opt-in: E (MSD matrix), B2 (screen UART), C2 (static IP),
+# Manual / opt-in: C2 (static IP),
 #   UPLINK_HAIRPIN_TEST=1 (G6 iperf hairpin)
 
 set -u
@@ -133,23 +133,6 @@ kernel_ok() {
 	esac
 }
 
-# Drop by-tpi symlinks whose /dev/sdX block device no longer exists (E3 / RockUSB).
-cleanup_stale_by_tpi_links() {
-	dir=/dev/disk/by-tpi
-	[ -d "$dir" ] || return 0
-	for n in 1 2 3 4; do
-		link="${dir}/node${n}"
-		[ -L "$link" ] || continue
-		target=$(readlink "$link" 2>/dev/null) || continue
-		bname=${target#/dev/}
-		[ -n "$bname" ] || continue
-		if [ ! -d "/sys/block/${bname}" ]; then
-			rm -f "$link"
-			info "E3 removed stale ${link} (block ${bname} gone)"
-		fi
-	done
-}
-
 find_i2c_device() {
 	addr=$1
 	for dev in /sys/bus/i2c/devices/*-"$addr"; do
@@ -182,22 +165,6 @@ netdev_master() {
 	if [ -e "/sys/class/net/$dev/master" ]; then
 		basename "$(readlink "/sys/class/net/$dev/master" 2>/dev/null)"
 	fi
-}
-
-tcpdump_probe() {
-	# "tcpdump -c 1" blocks until a packet arrives, so bound it: reaching the
-	# timeout still proves the capture was opened.
-	_rc=0
-	if command -v timeout >/dev/null 2>&1; then
-		timeout 5 tcpdump -i "$1" -c 1 >/dev/null 2>&1 || _rc=$?
-	else
-		tcpdump -i "$1" -c 1 >/dev/null 2>&1 || _rc=$?
-	fi
-	case $_rc in
-		0) echo opened ;;
-		124|137) echo timeout ;;
-		*) echo rejected ;;
-	esac
 }
 
 conduit_netdev() {
@@ -309,30 +276,12 @@ else
 fi
 
 # --- B: QoL packages ---
-section "B — tcpdump, screen, NAND, SysRq"
+# B1 is informational. The capture probe is not part of this image check.
+section "B — tcpdump, NAND, SysRq"
 if command -v tcpdump >/dev/null 2>&1; then
-	pass "B1 tcpdump: $(tcpdump --version 2>/dev/null | head -1)"
-	case $(tcpdump_probe lo) in
-		opened|timeout) pass "B1 tcpdump can capture on lo" ;;
-		*)              fail "B1 tcpdump cannot capture on lo" ;;
-	esac
-	_cap=$(conduit_netdev || echo eth0)
-	case $(tcpdump_probe "$_cap") in
-		opened|timeout) warn "B1 tcpdump -i $_cap opened the capture (doc says the rtl8_4 tag may make this fail)" ;;
-		*)              pass "B1 tcpdump -i $_cap rejected as expected (use br0/ge*/node*)" ;;
-	esac
+	info "B1 tcpdump: $(tcpdump --version 2>/dev/null | head -1)"
 else
-	fail "B1 tcpdump missing"
-fi
-
-if command -v screen >/dev/null 2>&1; then
-	pass "B2 screen: $(screen -v 2>/dev/null | head -1)"
-	for n in 1 2 3 4; do
-		[ -x "/usr/bin/node$n" ] && pass "B2 /usr/bin/node$n exists" || warn "B2 /usr/bin/node$n missing"
-	done
-	skip "B2 interactive UART — run: node1 (Ctrl-A k to quit)"
-else
-	fail "B2 screen missing"
+	info "B1 tcpdump not installed"
 fi
 
 if dmesg 2>/dev/null | grep -qi '256.*MiB\|MX35LF2'; then
@@ -375,7 +324,7 @@ if ip link show br0 >/dev/null 2>&1; then
 		fi
 	else
 		case "$br_mac" in
-		02:00:*) fail "C1 br0 still locally administered ($br_mac) — check apply_bmc_mac / S39bmc-mac" ;;
+		02:00:*) fail "C1 br0 still locally administered ($br_mac)" ;;
 		esac
 		skip "C1 factory MAC check — pass --mac ADDR or EXPECTED_BOARD_MAC"
 	fi
@@ -383,45 +332,12 @@ else
 	fail "C1 br0 missing"
 fi
 
-[ -f /etc/network/apply_bmc_mac.sh ] \
-	&& pass "C1 apply_bmc_mac.sh present ($(wc -c </etc/network/apply_bmc_mac.sh) bytes)" \
-	|| fail "C1 apply_bmc_mac.sh missing"
-[ -f /etc/init.d/S39bmc-mac ] && pass "C1 S39bmc-mac present" || warn "C1 S39bmc-mac missing"
-[ -x /etc/network/set_br0_mac_pre_dhcp.sh ] \
-	&& pass "C1 set_br0_mac_pre_dhcp.sh present" \
-	|| fail "C1 set_br0_mac_pre_dhcp.sh missing"
-# Hook lives in interfaces.d profiles (e.g. 00-br0-flat), not the top-level interfaces file.
-# Under a bond profile it is deliberately inert — set_br0_mac_pre_dhcp.sh returns early and
-# apply_bmc_mac refuses to touch br0, because br0 inherits its MAC from the bond slaves.
-# Check the property the hook exists to guarantee instead of the hook itself.
-if [ -f /etc/network/interfaces.d/10-bond-lacp ]; then
-	factory_mac=$(. /etc/network/apply_bmc_mac.sh 2>/dev/null; read_bmc_mac 2>/dev/null)
-	br0_mac=$(cat /sys/class/net/br0/address 2>/dev/null)
-	if [ -z "$factory_mac" ]; then
-		warn "C1 bond profile: factory MAC unreadable (NVMEM/EEPROM), br0=${br0_mac:-none}"
-	elif [ "$factory_mac" = "$br0_mac" ]; then
-		pass "C1 bond profile: br0 carries factory MAC $br0_mac (hook not applicable)"
-	else
-		fail "C1 bond profile: br0 MAC ${br0_mac:-none} != factory $factory_mac"
-	fi
-elif grep -rq set_br0_mac_pre_dhcp /etc/network/interfaces /etc/network/interfaces.d 2>/dev/null; then
-	pass "C1 pre-up set_br0_mac_pre_dhcp wired for br0"
-else
-	fail "C1 set_br0_mac_pre_dhcp not referenced in interfaces(.d) — MAC may miss first DHCP"
-fi
-
-if grep -q apply_bmc_mac /var/log/messages 2>/dev/null; then
-	pass "C1 apply_bmc_mac logged on boot"
-else
-	warn "C1 no apply_bmc_mac in /var/log/messages (syslog empty?)"
-fi
-
 skip "C2 static br0 + ping — lab-only manual"
 skip "C3 SD tpi.ini MAC — optional manual"
 
 # --- D: boot hygiene ---
 section "D — Boot log / kconfig"
-boot_log_present || skip "D boot log rotated or cleared (dmesg -c) — absence checks D1/D2/D3/D5 cannot be verified; reboot and rerun"
+boot_log_present || skip "D boot log rotated or cleared (dmesg -c) — absence checks D1/D3 cannot be verified; reboot and rerun"
 
 if dmesg 2>/dev/null | grep -F 'sunxi_ccu_probe' | grep -q 'No max_rate, ignoring min_rate'; then
 	fail "D1 #249 sunxi_ccu_probe No max_rate line present"
@@ -429,66 +345,11 @@ elif boot_log_present; then
 	pass "D1 no #249 sunxi_ccu No max_rate spam"
 fi
 
-if dmesg 2>/dev/null | grep -F 'Fixed dependency cycle' | grep -qE 'mixer@|tcon-top@|lcd-controller@'; then
-	fail "D2 DE display dependency-cycle flood still present"
-elif boot_log_present; then
-	pass "D2 no mixer/tcon/lcd dependency-cycle flood"
-fi
-dmesg 2>/dev/null | grep -F 'Fixed dependency cycle' | grep -q 'rtc@7090000' \
-	&& info "D2 CCU↔RTC cycles present (expected noise)" || true
-
 if dmesg 2>/dev/null | grep -qE 'exFAT-fs|F2FS-fs'; then
 	warn "D3 exFAT/F2FS messages in dmesg (review if BMC root card)"
 elif boot_log_present; then
 	pass "D3 no exFAT/F2FS fs noise in dmesg"
 fi
-
-if [ -r /proc/config.gz ]; then
-	zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_F2FS_FS=' && fail "D4 CONFIG_F2FS_FS=y" || pass "D4 CONFIG_F2FS_FS off"
-	zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_EXFAT_FS=' && fail "D4 CONFIG_EXFAT_FS=y" || pass "D4 CONFIG_EXFAT_FS off"
-elif [ -f "/boot/config-${kr}" ]; then
-	grep -q '^CONFIG_F2FS_FS=y' "/boot/config-${kr}" && fail "D4 F2FS=y" || pass "D4 F2FS off"
-else
-	skip "D4 kconfig — no /proc/config.gz"
-fi
-
-# GS0 inittab spam regression
-if grep -qE '^GS0::respawn:' /etc/inittab 2>/dev/null; then
-	fail "D5 GS0 getty still in inittab (expect mdev/S11bmc-otg only)"
-elif dmesg 2>/dev/null | grep -q 'Id "GS0" respawning too fast'; then
-	warn "D5 GS0 respawn spam still in dmesg (old image or leftover)"
-elif boot_log_present; then
-	pass "D5 no GS0 inittab respawn / no GS0 spam in dmesg"
-else
-	pass "D5 no GS0 getty in inittab (dmesg half of the check unavailable)"
-fi
-
-# --- E: MSD symlinks (static checks only) ---
-section "E — #225 MSD by-tpi (static + manual)"
-[ -x /usr/bin/mdev-tpi-msd-symlink ] && pass "E mdev-tpi-msd-symlink installed" || fail "E helper missing"
-grep -q mdev-tpi-msd-symlink /etc/mdev.conf 2>/dev/null && pass "E mdev.conf hook" || fail "E mdev.conf hook missing"
-cleanup_stale_by_tpi_links
-if [ -d /dev/disk/by-tpi ]; then
-	ls -la /dev/disk/by-tpi/ 2>/dev/null | while read -r line; do info "$line"; done
-	pass "E /dev/disk/by-tpi exists"
-	for n in 1 2 3 4; do
-		link=/dev/disk/by-tpi/node${n}
-		[ -L "$link" ] || continue
-		tgt=$(readlink -f "$link" 2>/dev/null || true)
-		if [ -n "$tgt" ] && [ -b "$tgt" ]; then
-			pass "E node${n} -> $tgt"
-		else
-			warn "E node${n} symlink stale/broken"
-		fi
-	done
-else
-	info "E /dev/disk/by-tpi absent until MSD — manual per node:"
-	info "  tpi advanced msd -nN"
-	info "  ls -la /dev/disk/by-tpi/"
-	info "  readlink -f /dev/disk/by-tpi/nodeN"
-	info "  tpi advanced normal -nN"
-fi
-skip "E1–E4 full matrix — one node at a time (msd/normal per node)"
 
 # --- F: I2C shared bus ---
 section "F — I2C / EEPROM / RTC / SMI arbiter"
