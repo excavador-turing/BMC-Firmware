@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Daniel Steinhauf <daniel@steinhauf.eu>
+Date: Wed, 18 Nov 2026 01:18:49 +0100
+Subject: [PATCH] net: dsa: realtek: rtl8365mb: provide field_get() on v6.18
+
+The backported VLAN code reads the per-port accept-frame type with
+field_get(), whose mask is not a compile-time constant. Mainline added
+the lowercase field_get() to <linux/bitfield.h> after v6.18, so the
+backport does not build on v6.18 without it.
+
+Define it locally, guarded by #ifndef, until the kernel provides it.
+
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
+---
+ drivers/net/dsa/realtek/rtl8365mb_vlan.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_vlan.c b/drivers/net/dsa/realtek/rtl8365mb_vlan.c
+index 64dd8d90a..1f2b40dc7 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb_vlan.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_vlan.c
+@@ -52,6 +52,15 @@
+ #include <linux/lockdep.h>
+ #include <linux/regmap.h>
+ 
++/*
++ * v6.18 has FIELD_GET() only, which needs a constant mask. The per-port
++ * accept-frame mask below is not constant. Mainline gained field_get() in
++ * <linux/bitfield.h> after v6.18; drop this once the kernel has it.
++ */
++#ifndef field_get
++#define field_get(_mask, _reg)	(((_reg) & (_mask)) >> (ffs(_mask) - 1))
++#endif
++
+ /* CVLAN (i.e. VLAN4k) table entry layout, u16[3] */
+ #define RTL8365MB_CVLAN_ENTRY_SIZE			3 /* 48-bits */
+ #define RTL8365MB_CVLAN_ENTRY_D0_MBR_MASK		GENMASK(7, 0)

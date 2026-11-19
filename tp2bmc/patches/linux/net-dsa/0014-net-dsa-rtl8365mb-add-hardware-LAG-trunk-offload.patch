@@ -1,59 +1,60 @@
-From 723afd756caab2e97b4ecaa2c622279acab9d9d5 Mon Sep 17 00:00:00 2001
-From: Sven Rademakers <sven@turingpi.com>
-Date: Sat, 05 Jul 2026 17:35:39 +0200
-Subject: [PATCH 3/6] net: dsa: rtl8365mb: add hardware LAG / trunk offload
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Daniel Steinhauf <daniel@steinhauf.eu>
+Date: Wed, 18 Nov 2026 01:18:20 +0100
+Subject: [PATCH] net: dsa: rtl8365mb: add hardware LAG / trunk offload
 
 Add DSA port_lag_join/leave/change hooks and program the RTL8367-class
 trunk tables so two user ports can hash in hardware when enslaved to a
 Linux bond.
 
-Origin / credits:
-  rtl8365mb DSA baseline: Sam Edwards <CFSworks@gmail.com>
-  Bridge / VLAN / FDB offload this builds on: Luiz Angelo Daros de Luca's
-    realtek_forward series (local backport in net-dsa/0001).
-  PORT_TRUNK_* register map / dumb-mode semantics: Realtek rtl8367c
-    vendor SDK (RTL8370MB-CG validated on Turing Pi 2).
-
-Also:
 - set ds->num_lag_ids so DSA assigns lag->id (required for port_lag_join)
 - allow single-member join in lag_can_offload (program HW at 2 members)
 - limit trunk groups to 0-1; they share the hash map at 0x08d2/0x08d3.
   Leave that map at the chip default; it is the user-defined map and
   the trunk runs in dumb mode.
+- hash on the ingress port (SPA) as well, so two nodes whose addresses
+  share an SMAC/SIP bucket do not land on the same member
+- leave trunk flood off; it pins unknown unicast to the first member
 - enable trunk dumb mode (CPU LACP + ASIC data plane)
 - trap LACP RMA 01:80:c2:00:00:02 to CPU (RMA_CTRL02); HW trunk
   otherwise swallows partner LACPDUs so bonding never sees RX
 
-Replace unused HSR ops with LAG ops (CONFIG_HSR is off in this tree,
-so dsa_port_simple_hsr_* are not declared).
+DSA calls the LAG ops under rtnl, which serializes the trunk state in
+realtek_priv, so the driver takes no lock of its own.
 
-Signed-off-by: Sven Rademakers <sven@turingpi.com>
+The PORT_TRUNK_* register map and dumb-mode semantics follow the Realtek
+rtl8367c vendor SDK; validated on the RTL8370MB-CG of a Turing Pi 2.
+
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
 ---
- drivers/net/dsa/realtek/Makefile                   |    1 +
- drivers/net/dsa/realtek/realtek.h                  |    5 +
- drivers/net/dsa/realtek/rtl8365mb_lag.c            |  424 ++++++++++++++++++++++++++++++++++++++++
- drivers/net/dsa/realtek/rtl8365mb_lag.h            |   15 +
- drivers/net/dsa/realtek/rtl8365mb_main.c           |   11 +
- 5 files changed, 454 insertions(+), 2 deletions(-)
+ drivers/net/dsa/realtek/Makefile         |   1 +
+ drivers/net/dsa/realtek/realtek.h        |   4 +
+ drivers/net/dsa/realtek/rtl8365mb_lag.c  | 401 +++++++++++++++++++++++
+ drivers/net/dsa/realtek/rtl8365mb_lag.h  |  15 +
+ drivers/net/dsa/realtek/rtl8365mb_main.c |   8 +
+ 5 files changed, 429 insertions(+)
+ create mode 100644 drivers/net/dsa/realtek/rtl8365mb_lag.c
+ create mode 100644 drivers/net/dsa/realtek/rtl8365mb_lag.h
 
 diff --git a/drivers/net/dsa/realtek/Makefile b/drivers/net/dsa/realtek/Makefile
+index 72bb42e80..e6f985d32 100644
 --- a/drivers/net/dsa/realtek/Makefile
 +++ b/drivers/net/dsa/realtek/Makefile
-@@ -20,4 +20,5 @@
+@@ -20,4 +20,5 @@ rtl8365mb-objs := rtl8365mb_main.o \
  		  rtl8365mb_table.o \
  		  rtl8365mb_vlan.o \
  		  rtl8365mb_l2.o \
 +		  rtl8365mb_lag.o \
  # end of rtl8365mb-objs
 diff --git a/drivers/net/dsa/realtek/realtek.h b/drivers/net/dsa/realtek/realtek.h
+index 6e0148cee..6eb81dbf0 100644
 --- a/drivers/net/dsa/realtek/realtek.h
 +++ b/drivers/net/dsa/realtek/realtek.h
-@@ -97,6 +97,11 @@
+@@ -97,6 +97,10 @@ struct realtek_priv {
  	int			vlan_enabled;
  	int			vlan4k_enabled;
  
 +	/* rtl8365mb hardware LAG / trunk offload */
-+	struct mutex		lag_lock;
 +	u32			lag_hash_sel;
 +	u32			lag_member_pmask;
 +
@@ -62,9 +63,10 @@ diff --git a/drivers/net/dsa/realtek/realtek.h b/drivers/net/dsa/realtek/realtek
  };
 diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/rtl8365mb_lag.c
 new file mode 100644
+index 000000000..3088bb398
 --- /dev/null
 +++ b/drivers/net/dsa/realtek/rtl8365mb_lag.c
-@@ -0,0 +1,423 @@
+@@ -0,0 +1,401 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/* Hardware LAG / trunk offload for rtl8365mb-class switches (RTL8367C ASIC API)
 + *
@@ -81,6 +83,7 @@ new file mode 100644
 +#include <linux/mii.h>
 +#include <linux/netdevice.h>
 +#include <linux/regmap.h>
++#include <linux/rtnetlink.h>
 +
 +/* Trunk control (0x08cf) */
 +#define RTL8365MB_REG_PORT_TRUNK_CTRL			0x08cf
@@ -121,11 +124,6 @@ new file mode 100644
 +/* Groups 0 and 1 share one hash map. Group 2 is a different table. */
 +#define RTL8365MB_MAX_TRUNK_GID				1
 +#define RTL8365MB_TRUNK_GROUP_PORTS			4
-+
-+struct rtl8365mb_lag_ctx {
-+	struct mutex *lock;
-+	u32 *hash_sel;
-+};
 +
 +static int rtl8365mb_trunk_group_field(int group, u32 *mask, u32 *shift)
 +{
@@ -243,7 +241,6 @@ new file mode 100644
 +}
 +
 +static int rtl8365mb_lag_apply_group(struct realtek_priv *priv,
-+				     struct rtl8365mb_lag_ctx *ctx,
 +				     int group, u32 member_pmask)
 +{
 +	u32 field_mask, shift, local_mask;
@@ -281,8 +278,8 @@ new file mode 100644
 +	if (ret)
 +		return ret;
 +
-+	if (*ctx->hash_sel) {
-+		ret = rtl8365mb_trunk_set_hash_sel(priv, *ctx->hash_sel);
++	if (priv->lag_hash_sel) {
++		ret = rtl8365mb_trunk_set_hash_sel(priv, priv->lag_hash_sel);
 +		if (ret)
 +			return ret;
 +	}
@@ -352,7 +349,6 @@ new file mode 100644
 +
 +static int rtl8365mb_lag_setup_hash(struct dsa_switch *ds, struct dsa_lag lag,
 +				    struct netdev_lag_upper_info *info,
-+				    struct rtl8365mb_lag_ctx *ctx,
 +				    struct netlink_ext_ack *extack)
 +{
 +	struct realtek_priv *priv = ds->priv;
@@ -387,18 +383,17 @@ new file mode 100644
 +	}
 +
 +	if (unique_lag) {
-+		*ctx->hash_sel = hash;
-+	} else if (*ctx->hash_sel != hash) {
++		priv->lag_hash_sel = hash;
++	} else if (priv->lag_hash_sel != hash) {
 +		NL_SET_ERR_MSG_MOD(extack,
 +				   "Mismatched hash mode across LAGs is not supported");
 +		return -EOPNOTSUPP;
 +	}
 +
-+	return rtl8365mb_trunk_set_hash_sel(priv, *ctx->hash_sel);
++	return rtl8365mb_trunk_set_hash_sel(priv, priv->lag_hash_sel);
 +}
 +
-+static int rtl8365mb_lag_refresh(struct dsa_switch *ds, struct dsa_lag lag,
-+				 struct rtl8365mb_lag_ctx *ctx)
++static int rtl8365mb_lag_refresh(struct dsa_switch *ds, struct dsa_lag lag)
 +{
 +	struct realtek_priv *priv = ds->priv;
 +	u32 pmask;
@@ -422,7 +417,7 @@ new file mode 100644
 +		return rtl8365mb_trunk_set_group_local(priv, group, 0);
 +	}
 +
-+	ret = rtl8365mb_lag_apply_group(priv, ctx, group, pmask);
++	ret = rtl8365mb_lag_apply_group(priv, group, pmask);
 +	if (ret)
 +		return ret;
 +
@@ -431,65 +426,51 @@ new file mode 100644
 +	return 0;
 +}
 +
-+static struct rtl8365mb_lag_ctx rtl8365mb_lag_ctx_get(struct dsa_switch *ds)
-+{
-+	struct realtek_priv *priv = ds->priv;
-+
-+	return (struct rtl8365mb_lag_ctx) {
-+		.lock = &priv->lag_lock,
-+		.hash_sel = &priv->lag_hash_sel,
-+	};
-+}
-+
++/*
++ * DSA calls port_lag_join/leave/change under rtnl, and so do the bridge
++ * paths that refresh the LAG members. rtnl serializes the trunk state in
++ * realtek_priv; no driver lock is needed.
++ */
 +int rtl8365mb_port_lag_join(struct dsa_switch *ds, int port, struct dsa_lag lag,
 +			    struct netdev_lag_upper_info *info,
 +			    struct netlink_ext_ack *extack)
 +{
-+	struct rtl8365mb_lag_ctx ctx = rtl8365mb_lag_ctx_get(ds);
 +	int ret;
++
++	ASSERT_RTNL();
 +
 +	if (!rtl8365mb_lag_can_offload(ds, lag, info, extack))
 +		return -EOPNOTSUPP;
 +
-+	mutex_lock(ctx.lock);
-+	ret = rtl8365mb_lag_setup_hash(ds, lag, info, &ctx, extack);
-+	if (!ret)
-+		ret = rtl8365mb_lag_refresh(ds, lag, &ctx);
-+	mutex_unlock(ctx.lock);
++	ret = rtl8365mb_lag_setup_hash(ds, lag, info, extack);
++	if (ret)
++		return ret;
 +
-+	return ret;
++	return rtl8365mb_lag_refresh(ds, lag);
 +}
 +
 +int rtl8365mb_port_lag_leave(struct dsa_switch *ds, int port,
 +			     struct dsa_lag lag)
 +{
-+	struct rtl8365mb_lag_ctx ctx = rtl8365mb_lag_ctx_get(ds);
-+	int ret;
++	ASSERT_RTNL();
 +
-+	mutex_lock(ctx.lock);
-+	ret = rtl8365mb_lag_refresh(ds, lag, &ctx);
-+	mutex_unlock(ctx.lock);
-+
-+	return ret;
++	return rtl8365mb_lag_refresh(ds, lag);
 +}
 +
 +int rtl8365mb_port_lag_change(struct dsa_switch *ds, int port)
 +{
 +	struct dsa_port *dp = dsa_to_port(ds, port);
-+	struct rtl8365mb_lag_ctx ctx = rtl8365mb_lag_ctx_get(ds);
-+	int ret = 0;
++
++	ASSERT_RTNL();
 +
 +	if (!dp->lag)
 +		return 0;
 +
-+	mutex_lock(ctx.lock);
-+	ret = rtl8365mb_lag_refresh(ds, *dp->lag, &ctx);
-+	mutex_unlock(ctx.lock);
-+
-+	return ret;
++	return rtl8365mb_lag_refresh(ds, *dp->lag);
 +}
 diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.h b/drivers/net/dsa/realtek/rtl8365mb_lag.h
 new file mode 100644
+index 000000000..60299260d
 --- /dev/null
 +++ b/drivers/net/dsa/realtek/rtl8365mb_lag.h
 @@ -0,0 +1,15 @@
@@ -509,6 +490,7 @@ new file mode 100644
 +
 +#endif /* _RTL8365MB_LAG_H */
 diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
+index 58b0b9bed..b352205e2 100644
 --- a/drivers/net/dsa/realtek/rtl8365mb_main.c
 +++ b/drivers/net/dsa/realtek/rtl8365mb_main.c
 @@ -106,6 +106,7 @@
@@ -519,11 +501,10 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/
  
  /* Family-specific data and limits */
  #define RTL8365MB_PHYADDRMAX		7
-@@ -2573,6 +2574,11 @@
+@@ -2569,6 +2570,10 @@ static int rtl8365mb_setup(struct dsa_switch *ds)
  
  	ds->configure_vlan_while_not_filtering = true;
  
-+	mutex_init(&priv->lag_lock);
 +	priv->lag_hash_sel = 0;
 +	/* DSA lag->id mapping; required for port_lag_join / HW trunk */
 +	ds->num_lag_ids = 3;
@@ -531,10 +512,10 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/
  	/* Set up VLAN */
  	ret = rtl8365mb_vlan_setup(ds);
  	if (ret)
-@@ -2712,6 +2718,7 @@
+@@ -2706,6 +2711,9 @@ static const struct dsa_switch_ops rtl8365mb_switch_ops = {
+ 	.get_stats64 = rtl8365mb_get_stats64,
+ 	.port_change_mtu = rtl8365mb_port_change_mtu,
  	.port_max_mtu = rtl8365mb_port_max_mtu,
--	.port_hsr_join = dsa_port_simple_hsr_join,
--	.port_hsr_leave = dsa_port_simple_hsr_leave,
 +	.port_lag_change = rtl8365mb_port_lag_change,
 +	.port_lag_join = rtl8365mb_port_lag_join,
 +	.port_lag_leave = rtl8365mb_port_lag_leave,

@@ -1,7 +1,7 @@
-From b0de5b2488b17decd79bde6d31fa69a02735b3b0 Mon Sep 17 00:00:00 2001
-From: Sven Rademakers <sven@turingpi.com>
-Date: Sat, 05 Jul 2026 17:45:00 +0200
-Subject: [PATCH 5/6] net: dsa: rtl8365mb: LAG PHY autoneg kick
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Daniel Steinhauf <daniel@steinhauf.eu>
+Date: Wed, 18 Nov 2026 01:18:20 +0100
+Subject: [PATCH] net: dsa: rtl8365mb: LAG PHY autoneg kick
 
 Restart auto-negotiation on node ports that report no PHY link during the
 LAG bridge fixup (board quirk for internal PHY link detection latency).
@@ -20,18 +20,20 @@ node frame through the 100M CPU port. Measured node->WAN 94 Mbit/s with
 ASIC path working the mark is left alone, so the bridge skips software
 forwarding and the trunk carries node traffic in hardware.
 
-Signed-off-by: Sven Rademakers <sven@turingpi.com>
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
 ---
- drivers/net/dsa/realtek/rtl8365mb_lag.c            |   31 ++++++++++++++++++++++++++++++++++++++++
- 1 file changed, 31 insertions(+), 0 deletions(-)
+ drivers/net/dsa/realtek/rtl8365mb_lag.c | 32 +++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
 
 diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/rtl8365mb_lag.c
+index 5c94d5652..a447923fb 100644
 --- a/drivers/net/dsa/realtek/rtl8365mb_lag.c
 +++ b/drivers/net/dsa/realtek/rtl8365mb_lag.c
-@@ -447,6 +447,37 @@
- 		}
- 	}
- 
+@@ -558,6 +558,38 @@ static void rtl8365mb_lag_bridge_isolation_fixup(struct dsa_switch *ds, u32 lag_
+ 	dev_info(priv->dev,
+ 		 "LAG bridge uplink fixup: nodes 0x%x <-> lag 0x%x cpu 0x%x efid %u\n",
+ 		 node_pmask, lag_pmask, cpu_pmask, br_efid);
++
 +	/*
 +	 * The internal PHY for node ports may not have completed
 +	 * auto-negotiation (BMC shows NO-CARRIER even though the compute

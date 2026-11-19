@@ -1,7 +1,7 @@
-From d42b510cd4a261c32c72a9297c250520b2f4066e Mon Sep 17 00:00:00 2001
-From: Sven Rademakers <sven@turingpi.com>
-Date: Sat, 05 Jul 2026 17:40:00 +0200
-Subject: [PATCH 4/6] net: dsa: rtl8365mb: LAG bridge uplink / VLAN sync fixups
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Daniel Steinhauf <daniel@steinhauf.eu>
+Date: Wed, 18 Nov 2026 01:18:20 +0100
+Subject: [PATCH] net: dsa: rtl8365mb: LAG bridge uplink / VLAN sync fixups
 
 When a bond of DSA lag slaves sits on a software bridge, the slaves leave
 DSA bridge offload. Restore ASIC reachability and Mode 4 trunk VLANs:
@@ -13,33 +13,53 @@ DSA bridge offload. Restore ASIC reachability and Mode 4 trunk VLANs:
 - do not install assisted-learning FDB entries for remote MACs onto the
   first LAG member; the conduit MAC stays on the CPU port
 - only enable VLAN filtering on lag members when the bridge is itself VLAN
-  filtering, and only *after* the bond VLAN DB (including native PVID) is
-  programmed; otherwise TAGGED_ONLY drops untagged BMC/LAN frames
-- re-run fixup when node ports join/leave the bridge
+  filtering, and only after the bond VLAN DB (including native PVID) is
+  programmed
+- re-run the fixup when node ports join the bridge
 - sync bond bridge VLANs onto lag member ASIC ports
 - mirror again when the bridge enables vlan_filtering, and when a bond
-  VLAN changes while filtering is already on. Join-time sync runs before
-  post-up turns filtering on; no bridge port has to leave and rejoin
+  VLAN changes while filtering is already on. ifup joins the bond before
+  post-up turns filtering on, so the join-time sync alone leaves ge0/ge1
+  untagged.
 
-br_vlan_enabled() and br_vlan_get_info() come from <linux/if_bridge.h>,
-which rtl8365mb_lag.c already includes.
+The switchdev notifier lives in realtek_priv and is registered in .setup
+and unregistered in .teardown. register_switchdev_blocking_notifier()
+takes rtnl, which port_lag_join already holds, so it cannot be
+registered from the LAG path.
 
-Signed-off-by: Sven Rademakers <sven@turingpi.com>
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
 ---
- drivers/net/dsa/realtek/rtl8365mb_lag.c            |  337 ++++++++++++++++++++++++++++++++++++++++
- drivers/net/dsa/realtek/rtl8365mb_lag.h            |    1 +
- drivers/net/dsa/realtek/rtl8365mb_main.c           |   97 ++++++++++++
- 3 files changed, 431 insertions(+), 4 deletions(-)
+ drivers/net/dsa/realtek/realtek.h        |   1 +
+ drivers/net/dsa/realtek/rtl8365mb_lag.c  | 410 +++++++++++++++++++++++
+ drivers/net/dsa/realtek/rtl8365mb_lag.h  |  11 +
+ drivers/net/dsa/realtek/rtl8365mb_main.c | 107 +++++-
+ 4 files changed, 525 insertions(+), 4 deletions(-)
 
+diff --git a/drivers/net/dsa/realtek/realtek.h b/drivers/net/dsa/realtek/realtek.h
+index 6eb81dbf0..84064d7a8 100644
+--- a/drivers/net/dsa/realtek/realtek.h
++++ b/drivers/net/dsa/realtek/realtek.h
+@@ -100,6 +100,7 @@ struct realtek_priv {
+ 	/* rtl8365mb hardware LAG / trunk offload */
+ 	u32			lag_hash_sel;
+ 	u32			lag_member_pmask;
++	struct notifier_block	lag_vlan_nb;
+ 
+ 	char			buf[4096];
+ 	void			*chip_data; /* Per-chip extra variant data */
 diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/rtl8365mb_lag.c
+index 3088bb398..5c94d5652 100644
 --- a/drivers/net/dsa/realtek/rtl8365mb_lag.c
 +++ b/drivers/net/dsa/realtek/rtl8365mb_lag.c
-@@ -15,3 +15,4 @@
+@@ -15,6 +15,7 @@
+ #include <linux/netdevice.h>
  #include <linux/regmap.h>
+ #include <linux/rtnetlink.h>
 +#include <net/switchdev.h>
  
  /* Trunk control (0x08cf) */
-@@ -180,6 +181,438 @@
+ #define RTL8365MB_REG_PORT_TRUNK_CTRL			0x08cf
+@@ -171,6 +172,394 @@ static int rtl8365mb_lag_member_pmask(struct dsa_switch *ds, struct dsa_lag lag,
  	return *pmask ? 0 : -EINVAL;
  }
  
@@ -155,7 +175,7 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 +
 +	if (!IS_ENABLED(CONFIG_BRIDGE_VLAN_FILTERING))
 +		return;
-+	if (!lag_pmask || hweight32(lag_pmask) < 2)
++	if (hweight32(lag_pmask) < 2)
 +		return;
 +	if (!ds->ops->port_vlan_add || !ds->ops->port_vlan_filtering)
 +		return;
@@ -234,10 +254,6 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 + * event here. An idle node port is not required, and br0 may contain only
 + * the bond.
 + */
-+static struct dsa_switch *rtl8365mb_lag_sync_ds;
-+static bool rtl8365mb_lag_sync_nb_reg;
-+static bool rtl8365mb_lag_sync_busy;
-+
 +static bool rtl8365mb_lag_vlan_event_matches(struct dsa_switch *ds, u32 pmask,
 +					     struct net_device *dev)
 +{
@@ -254,22 +270,18 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 +	return dev == bond || dev == br;
 +}
 +
-+static int rtl8365mb_lag_vlan_switchdev_event(struct notifier_block *unused,
++static int rtl8365mb_lag_vlan_switchdev_event(struct notifier_block *nb,
 +					      unsigned long event, void *ptr)
 +{
-+	struct dsa_switch *ds = rtl8365mb_lag_sync_ds;
++	struct realtek_priv *priv = container_of(nb, struct realtek_priv,
++						 lag_vlan_nb);
 +	struct switchdev_notifier_port_attr_info *attr_info;
 +	struct switchdev_notifier_port_obj_info *obj_info;
-+	struct realtek_priv *priv;
++	struct dsa_switch *ds = &priv->ds;
 +	struct net_device *dev, *bond, *br;
-+	u32 pmask;
++	u32 pmask = priv->lag_member_pmask;
 +
-+	if (!ds || rtl8365mb_lag_sync_busy)
-+		return NOTIFY_DONE;
-+
-+	priv = ds->priv;
-+	pmask = priv->lag_member_pmask;
-+	if (!pmask || hweight32(pmask) < 2)
++	if (!rtl8365mb_lag_active(priv))
 +		return NOTIFY_DONE;
 +
 +	dev = switchdev_notifier_info_to_dev(ptr);
@@ -301,38 +313,27 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 +		return NOTIFY_DONE;
 +	}
 +
-+	rtl8365mb_lag_sync_busy = true;
++	/*
++	 * The sync calls ds->ops directly, which emits no switchdev events,
++	 * so this handler cannot re-enter itself.
++	 */
 +	rtl8365mb_lag_sync_uplink_vlans(ds, pmask);
-+	rtl8365mb_lag_sync_busy = false;
 +	return NOTIFY_DONE;
 +}
 +
-+static struct notifier_block rtl8365mb_lag_vlan_nb = {
-+	.notifier_call = rtl8365mb_lag_vlan_switchdev_event,
-+};
-+
-+void rtl8365mb_lag_vlan_sync_arm(struct dsa_switch *ds)
++/*
++ * register_switchdev_blocking_notifier() takes rtnl. DSA runs .setup and
++ * .teardown without it, but port_lag_join holds it, so register here.
++ */
++int rtl8365mb_lag_vlan_sync_register(struct realtek_priv *priv)
 +{
-+	int err;
-+
-+	rtl8365mb_lag_sync_ds = ds;
-+	if (rtl8365mb_lag_sync_nb_reg)
-+		return;
-+
-+	err = register_switchdev_blocking_notifier(&rtl8365mb_lag_vlan_nb);
-+	if (err) {
-+		dev_warn(ds->dev,
-+			 "LAG VLAN sync: switchdev notifier failed: %pe\n",
-+			 ERR_PTR(err));
-+		return;
-+	}
-+	rtl8365mb_lag_sync_nb_reg = true;
++	priv->lag_vlan_nb.notifier_call = rtl8365mb_lag_vlan_switchdev_event;
++	return register_switchdev_blocking_notifier(&priv->lag_vlan_nb);
 +}
 +
-+void rtl8365mb_lag_vlan_sync_disarm(struct dsa_switch *ds)
++void rtl8365mb_lag_vlan_sync_unregister(struct realtek_priv *priv)
 +{
-+	if (rtl8365mb_lag_sync_ds == ds)
-+		rtl8365mb_lag_sync_ds = NULL;
++	unregister_switchdev_blocking_notifier(&priv->lag_vlan_nb);
 +}
 +
 +static void rtl8365mb_lag_bridge_isolation_fixup(struct dsa_switch *ds, u32 lag_pmask,
@@ -344,7 +345,7 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 +	u32 cpu_pmask = 0;
 +	u32 br_efid;
 +
-+	if (!lag_pmask || hweight32(lag_pmask) < 2)
++	if (hweight32(lag_pmask) < 2)
 +		return;
 +
 +	if (!priv->ops->port_add_isolation)
@@ -448,37 +449,12 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 +	dev_info(priv->dev,
 +		 "LAG bridge uplink fixup: nodes 0x%x <-> lag 0x%x cpu 0x%x efid %u\n",
 +		 node_pmask, lag_pmask, cpu_pmask, br_efid);
-+
-+	/* Read back ASIC state for diagnostics (reg addresses from rtl8365mb.c) */
-+	{
-+		u32 iso, stp, uflood, mflood, bflood;
-+		int p;
-+
-+		regmap_read(priv->map, 0x0A00, &stp); /* MSTI_CTRL msti=0 */
-+		regmap_read(priv->map, 0x0890, &uflood);
-+		regmap_read(priv->map, 0x0891, &mflood);
-+		regmap_read(priv->map, 0x0892, &bflood);
-+		dev_dbg(priv->dev,
-+			 "  flood masks: ucast=0x%03x mcast=0x%03x bcast=0x%03x\n",
-+			 uflood & 0x7FF, mflood & 0x7FF, bflood & 0x7FF);
-+		for (p = 0; p < priv->num_ports; p++) {
-+			if (!((lag_pmask | node_pmask) & BIT(p)))
-+				continue;
-+			regmap_read(priv->map, 0x08A2 + p, &iso);
-+			dev_dbg(priv->dev,
-+				 "  port %d (%s): isolation=0x%03x stp=%u\n",
-+				 p, (lag_pmask & BIT(p)) ? "lag" : "node",
-+				 iso & 0x7FF,
-+				 (stp >> (p * 2)) & 0x3);
-+		}
-+	}
-+
 +}
 +
  static int rtl8365mb_lag_apply_group(struct realtek_priv *priv,
- 				     struct rtl8365mb_lag_ctx *ctx,
  				     int group, u32 member_pmask)
-@@ -354,8 +787,29 @@
+ {
+@@ -353,10 +742,31 @@ static int rtl8365mb_lag_refresh(struct dsa_switch *ds, struct dsa_lag lag)
  		return ret;
  
  	priv->lag_member_pmask = pmask;
@@ -486,8 +462,8 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 +	rtl8365mb_lag_sync_uplink_vlans(ds, pmask);
  
  	return 0;
-+}
-+
+ }
+ 
 +/**
 + * rtl8365mb_lag_bridge_fixup_refresh() - re-run bridge isolation + VLAN sync
 + * @ds: DSA switch
@@ -499,31 +475,50 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 +void rtl8365mb_lag_bridge_fixup_refresh(struct dsa_switch *ds, int port_hint)
 +{
 +	struct realtek_priv *priv = ds->priv;
-+	u32 pmask = priv->lag_member_pmask;
 +
-+	if (pmask && hweight32(pmask) >= 2) {
-+		rtl8365mb_lag_bridge_isolation_fixup(ds, pmask, port_hint);
-+		rtl8365mb_lag_sync_uplink_vlans(ds, pmask);
++	if (rtl8365mb_lag_active(priv)) {
++		rtl8365mb_lag_bridge_isolation_fixup(ds, priv->lag_member_pmask,
++						     port_hint);
++		rtl8365mb_lag_sync_uplink_vlans(ds, priv->lag_member_pmask);
 +	}
- }
- 
- static struct rtl8365mb_lag_ctx rtl8365mb_lag_ctx_get(struct dsa_switch *ds)
++}
++
+ /*
+  * DSA calls port_lag_join/leave/change under rtnl, and so do the bridge
+  * paths that refresh the LAG members. rtnl serializes the trunk state in
 diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.h b/drivers/net/dsa/realtek/rtl8365mb_lag.h
+index 60299260d..e6db61fa2 100644
 --- a/drivers/net/dsa/realtek/rtl8365mb_lag.h
 +++ b/drivers/net/dsa/realtek/rtl8365mb_lag.h
-@@ -11,5 +11,8 @@
+@@ -4,6 +4,8 @@
+ 
+ #include <net/dsa.h>
+ 
++#include "realtek.h"
++
+ int rtl8365mb_port_lag_join(struct dsa_switch *ds, int port,
+ 			    struct dsa_lag lag,
+ 			    struct netdev_lag_upper_info *info,
+@@ -11,5 +13,14 @@ int rtl8365mb_port_lag_join(struct dsa_switch *ds, int port,
  int rtl8365mb_port_lag_leave(struct dsa_switch *ds, int port,
  			     struct dsa_lag lag);
  int rtl8365mb_port_lag_change(struct dsa_switch *ds, int port);
 +void rtl8365mb_lag_bridge_fixup_refresh(struct dsa_switch *ds, int port_hint);
-+void rtl8365mb_lag_vlan_sync_arm(struct dsa_switch *ds);
-+void rtl8365mb_lag_vlan_sync_disarm(struct dsa_switch *ds);
++int rtl8365mb_lag_vlan_sync_register(struct realtek_priv *priv);
++void rtl8365mb_lag_vlan_sync_unregister(struct realtek_priv *priv);
++
++/* The ASIC trunk only runs with two or more members. */
++static inline bool rtl8365mb_lag_active(struct realtek_priv *priv)
++{
++	return hweight32(priv->lag_member_pmask) >= 2;
++}
  
  #endif /* _RTL8365MB_LAG_H */
 diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
+index b352205e2..230a46f73 100644
 --- a/drivers/net/dsa/realtek/rtl8365mb_main.c
 +++ b/drivers/net/dsa/realtek/rtl8365mb_main.c
-@@ -1645,6 +1645,122 @@
+@@ -1641,6 +1641,98 @@ static int rtl8365mb_port_pre_bridge_flags(struct dsa_switch *ds, int port,
  	return 0;
  }
  
@@ -541,7 +536,6 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/
 +	return ret;
 +}
 +
-+
 +/*
 + * The bond is not a DSA port. Assisted learning asks for a CPU-port FDB
 + * entry for every host reached through the bridge, including the router
@@ -556,9 +550,8 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/
 +	struct dsa_port *dp = dsa_to_port(ds, port);
 +	struct net_device *dev = dp->conduit;
 +	struct realtek_priv *priv = ds->priv;
-+	u32 lag = priv->lag_member_pmask;
 +
-+	if (!lag || hweight32(lag) < 2)
++	if (!rtl8365mb_lag_active(priv))
 +		return false;
 +	if (!dsa_is_cpu_port(ds, port))
 +		return false;
@@ -613,7 +606,7 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/
 +{
 +	struct realtek_priv *priv = ds->priv;
 +
-+	if (state == BR_STATE_DISABLED && priv->lag_member_pmask &&
++	if (state == BR_STATE_DISABLED && rtl8365mb_lag_active(priv) &&
 +	    !(priv->lag_member_pmask & BIT(port)) &&
 +	    !dsa_is_cpu_port(ds, port))
 +		state = BR_STATE_FORWARDING;
@@ -621,36 +614,33 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/
 +	rtl8365mb_port_stp_state_set(ds, port, state);
 +}
 +
-+static int rtl8365mb_setup(struct dsa_switch *ds);
-+static void rtl8365mb_teardown(struct dsa_switch *ds);
-+
-+/* Register outside port_lag_join. That path already holds the switchdev
-+ * notifier lock, and registering from inside it never returns.
-+ */
-+static int rtl8365mb_lag_setup(struct dsa_switch *ds)
-+{
-+	int err;
-+
-+	err = rtl8365mb_setup(ds);
-+	if (!err)
-+		rtl8365mb_lag_vlan_sync_arm(ds);
-+	return err;
-+}
-+
-+static void rtl8365mb_switch_teardown(struct dsa_switch *ds)
-+{
-+	rtl8365mb_lag_vlan_sync_disarm(ds);
-+	rtl8365mb_teardown(ds);
-+}
-+
  static int rtl8365mb_port_set_efid(struct realtek_priv *priv, int port,
  				   u32 efid)
  {
-@@ -2693,14 +2781,14 @@
--	.setup = rtl8365mb_setup,
-+	.setup = rtl8365mb_lag_setup,
--	.teardown = rtl8365mb_teardown,
-+	.teardown = rtl8365mb_switch_teardown,
+@@ -2588,6 +2680,12 @@ static int rtl8365mb_setup(struct dsa_switch *ds)
+ 	/* Start statistics counter polling */
+ 	rtl8365mb_stats_setup(priv);
+ 
++	/* Without it, VLANs added after the bond joined stay off ge0/ge1. */
++	ret = rtl8365mb_lag_vlan_sync_register(priv);
++	if (ret)
++		dev_warn(priv->dev, "LAG VLAN sync: switchdev notifier failed: %pe\n",
++			 ERR_PTR(ret));
++
+ 	return 0;
+ 
+ out_teardown_irq:
+@@ -2601,6 +2699,7 @@ static void rtl8365mb_teardown(struct dsa_switch *ds)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+ 
++	rtl8365mb_lag_vlan_sync_unregister(priv);
+ 	rtl8365mb_stats_teardown(priv);
+ 	rtl8365mb_irq_teardown(priv);
+ }
+@@ -2688,14 +2787,14 @@ static const struct dsa_switch_ops rtl8365mb_switch_ops = {
+ 	.setup = rtl8365mb_setup,
+ 	.teardown = rtl8365mb_teardown,
  	.phylink_get_caps = rtl8365mb_phylink_get_caps,
 -	.port_bridge_join = rtl83xx_port_bridge_join,
 +	.port_bridge_join = rtl8365mb_port_bridge_join,

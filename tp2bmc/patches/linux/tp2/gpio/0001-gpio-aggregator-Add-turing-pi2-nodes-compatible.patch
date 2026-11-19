@@ -1,6 +1,6 @@
-From a7f4869d3e2696ac867539d76b890af0819c0aa0 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sam Edwards <CFSworks@gmail.com>
-Date: Sat, 9 May 2026 13:30:20 +0200
+Date: Wed, 18 Nov 2026 01:18:20 +0100
 Subject: [PATCH] gpio: aggregator: Add "turing,pi2-nodes" compatible
 
 Turing Pi 2 boards (v2.4 and v2.5) declare a "turing,pi2-nodes" GPIO
@@ -14,15 +14,16 @@ v6.18.27, which kept the aggregator OF table layout unchanged but moved
 the table to line 1637.
 
 Signed-off-by: Sam Edwards <CFSworks@gmail.com>
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
 ---
  drivers/gpio/gpio-aggregator.c | 1 +
  1 file changed, 1 insertion(+)
 
 diff --git a/drivers/gpio/gpio-aggregator.c b/drivers/gpio/gpio-aggregator.c
-index 416f265d09d0..021d7e38a5ce 100644
+index 17db07cf9..0aca5644b 100644
 --- a/drivers/gpio/gpio-aggregator.c
 +++ b/drivers/gpio/gpio-aggregator.c
-@@ -1643,6 +1643,7 @@ static const struct of_device_id gpio_aggregator_dt_ids[] = {
+@@ -1654,6 +1654,7 @@ static const struct of_device_id gpio_aggregator_dt_ids[] = {
  	 * Add GPIO-operated devices controlled from userspace below,
  	 * or use "driver_override" in sysfs.
  	 */
@@ -30,6 +31,3 @@ index 416f265d09d0..021d7e38a5ce 100644
  	{}
  };
  MODULE_DEVICE_TABLE(of, gpio_aggregator_dt_ids);
--- 
-2.50.1 (Apple Git-155)
-

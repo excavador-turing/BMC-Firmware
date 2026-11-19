@@ -1,7 +1,7 @@
-From 12ec2e72a5f0450ecd917a9bb03321de6154248f Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Aleksandr Shubin <privatesub2@gmail.com>
 Date: Wed, 31 Jan 2024 15:59:15 +0300
-Subject: [PATCH 2/4] pwm: Add Allwinner's D1/T113-S3/R329 SoCs PWM support
+Subject: [PATCH] pwm: Add Allwinner's D1/T113-S3/R329 SoCs PWM support
 
 Allwinner's D1, T113-S3 and R329 SoCs have a quite different PWM
 controllers with ones supported by pwm-sun4i driver.
@@ -25,7 +25,7 @@ Signed-off-by: Aleksandr Shubin <privatesub2@gmail.com>
  create mode 100644 drivers/pwm/pwm-sun20i.c
 
 diff --git a/drivers/pwm/Kconfig b/drivers/pwm/Kconfig
-index c2fd3f4b62d9..a5b5ec8c6597 100644
+index c2fd3f4b6..a5b5ec8c6 100644
 --- a/drivers/pwm/Kconfig
 +++ b/drivers/pwm/Kconfig
 @@ -726,6 +726,16 @@ config PWM_SUN4I
@@ -46,7 +46,7 @@ index c2fd3f4b62d9..a5b5ec8c6597 100644
  	tristate "Sunplus PWM support"
  	depends on ARCH_SUNPLUS || COMPILE_TEST
 diff --git a/drivers/pwm/Makefile b/drivers/pwm/Makefile
-index dfa8b4966ee1..9e62ce0e0a02 100644
+index dfa8b4966..9e62ce0e0 100644
 --- a/drivers/pwm/Makefile
 +++ b/drivers/pwm/Makefile
 @@ -66,6 +66,7 @@ obj-$(CONFIG_PWM_STM32)		+= pwm-stm32.o
@@ -59,7 +59,7 @@ index dfa8b4966ee1..9e62ce0e0a02 100644
  obj-$(CONFIG_PWM_TIECAP)	+= pwm-tiecap.o
 diff --git a/drivers/pwm/pwm-sun20i.c b/drivers/pwm/pwm-sun20i.c
 new file mode 100644
-index 000000000000..60c2e9bafedc
+index 000000000..60c2e9bab
 --- /dev/null
 +++ b/drivers/pwm/pwm-sun20i.c
 @@ -0,0 +1,351 @@
@@ -414,6 +414,3 @@ index 000000000000..60c2e9bafedc
 +MODULE_AUTHOR("Aleksandr Shubin <privatesub2@gmail.com>");
 +MODULE_DESCRIPTION("Allwinner sun20i PWM driver");
 +MODULE_LICENSE("GPL");
--- 
-2.50.1 (Apple Git-155)
-

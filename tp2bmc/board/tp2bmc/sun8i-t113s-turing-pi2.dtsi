@@ -109,7 +109,7 @@
 	 * RTL8370MB on GPIO SMI (PE12/PE13, same nets as &i2c2).
 	 * reset-gpios overridden per board rev via &ethernet_switch { } in v2.4/v2.5 dts.
 	 */
-	ethernet_switch: switch@smi {
+	ethernet_switch: ethernet-switch {
 		compatible = "realtek,rtl8365mb";
 		turing,smi-arbiter = <&tpi_i2c_smi_arb>;
 
@@ -410,7 +410,7 @@
 
 /*
  * EEPROM @ 0x50 on hardware TWI2 (PE12/PE13). RTL8370MB SMI shares these pins;
- * tpi-i2c-smi-arbiter muxes HW I2C vs GPIO bitbang (see switch@smi).
+ * tpi-i2c-smi-arbiter muxes HW I2C vs GPIO bitbang (see ethernet_switch).
  */
 &i2c2 {
 	status = "okay";

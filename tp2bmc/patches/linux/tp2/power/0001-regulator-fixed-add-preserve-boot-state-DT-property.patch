@@ -1,7 +1,7 @@
-From f05bbdf724f1a3dbbb71ec6d75002a0ebcfae748 Mon Sep 17 00:00:00 2001
-From: Sven Rademakers <sven@turingpi.com>
-Date: Sat, 9 May 2026 13:35:09 +0200
-Subject: [PATCH 1/2] regulator: fixed: add preserve-boot-state DT property
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Daniel Steinhauf <daniel@steinhauf.eu>
+Date: Wed, 18 Nov 2026 01:18:20 +0100
+Subject: [PATCH] regulator: fixed: add preserve-boot-state DT property
 
 When "preserve-boot-state" is set, request the enable GPIO with
 GPIOD_ASIS instead of driving it from enabled_at_boot so the regulator
@@ -10,16 +10,22 @@ explicitly toggles the regulator.
 
 Used on Turing Pi 2 to keep node-power rails alive across warm reboot.
 
-Signed-off-by: Sven Rademakers <sven@turingpi.com>
+Based on Sven Rademakers' 2024 "regulator-fixed: perserve boot state"
+patch in turing-machines/BMC-Firmware, which carried both the regulator
+and the gpio-latch shadow change.
+
+Link: https://github.com/turing-machines/BMC-Firmware/commit/a9ffaab25b8d4e65453c5d0c0855de4e8e7dca64
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
 ---
- drivers/regulator/fixed.c                          |   17 +++++++++++++++++++++++++++++++++-------
- include/linux/regulator/fixed.h                    |    5 ++++++++++++
+ drivers/regulator/fixed.c       | 17 ++++++++++++++---
+ include/linux/regulator/fixed.h |  5 +++++
  2 files changed, 19 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/regulator/fixed.c b/drivers/regulator/fixed.c
+index 254c0a8a4..2b7c07083 100644
 --- a/drivers/regulator/fixed.c
 +++ b/drivers/regulator/fixed.c
-@@ -198,6 +198,9 @@
+@@ -198,6 +198,9 @@ of_get_fixed_voltage_config(struct device *dev,
  	of_property_read_u32(np, "startup-delay-us", &config->startup_delay);
  	of_property_read_u32(np, "off-on-delay-us", &config->off_on_delay);
  
@@ -29,7 +35,7 @@ diff --git a/drivers/regulator/fixed.c b/drivers/regulator/fixed.c
  	if (of_property_present(np, "vin-supply"))
  		config->input_supply = "vin";
  
-@@ -293,10 +296,18 @@
+@@ -293,10 +296,18 @@ static int reg_fixed_voltage_probe(struct platform_device *pdev)
  	drvdata->desc.fixed_uV = config->microvolts;
  
  	/*
@@ -52,9 +58,10 @@ diff --git a/drivers/regulator/fixed.c b/drivers/regulator/fixed.c
  	else
  		gflags = GPIOD_OUT_LOW;
 diff --git a/include/linux/regulator/fixed.h b/include/linux/regulator/fixed.h
+index 55319943f..2f1784ac6 100644
 --- a/include/linux/regulator/fixed.h
 +++ b/include/linux/regulator/fixed.h
-@@ -25,6 +25,10 @@
+@@ -25,6 +25,10 @@ struct regulator_init_data;
   * 			boot or not. 1 = Yes, 0 = No
   * 			This is used to keep the regulator at
   * 			the default state
@@ -65,7 +72,7 @@ diff --git a/include/linux/regulator/fixed.h b/include/linux/regulator/fixed.h
   * @init_data:		regulator_init_data
   *
   * This structure contains fixed voltage regulator configuration
-@@ -38,6 +42,7 @@
+@@ -38,6 +42,7 @@ struct fixed_voltage_config {
  	unsigned startup_delay;
  	unsigned int off_on_delay;
  	unsigned enabled_at_boot:1;

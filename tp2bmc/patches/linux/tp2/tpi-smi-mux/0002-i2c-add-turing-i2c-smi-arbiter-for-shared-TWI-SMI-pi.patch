@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Sven Rademakers <sven@turingpi.com>
-Date: Mon, 02 Jun 2026 12:00:00 +0200
-Subject: [PATCH 2/3] i2c: add turing,i2c-smi-arbiter for shared TWI/SMI pins
+From: Daniel Steinhauf <daniel@steinhauf.eu>
+Date: Wed, 18 Nov 2026 01:18:21 +0100
+Subject: [PATCH] i2c: add turing,i2c-smi-arbiter for shared TWI/SMI pins
 
 Turing Pi 2 shares PE12/PE13 between the SoC hardware I2C controller
 (EEPROM @ 0x50, RTC @ 0x51) and the Realtek RTL8370MB switch accessed
@@ -17,10 +17,18 @@ GPIO SMI pins are requested per-transaction via gpiolib and released
 before restoring TWI ownership, avoiding probe-time conflicts on the
 shared pins.
 
-Signed-off-by: Sven Rademakers <sven@turingpi.com>
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
 ---
+ drivers/i2c/busses/Kconfig               |   9 ++
+ drivers/i2c/busses/Makefile              |   1 +
+ drivers/i2c/busses/tpi-i2c-smi-arbiter.c | 197 +++++++++++++++++++++++
+ include/linux/tpi-i2c-smi-arbiter.h      |  15 ++
+ 4 files changed, 222 insertions(+)
+ create mode 100644 drivers/i2c/busses/tpi-i2c-smi-arbiter.c
+ create mode 100644 include/linux/tpi-i2c-smi-arbiter.h
+
 diff --git a/drivers/i2c/busses/Kconfig b/drivers/i2c/busses/Kconfig
-index 8f3a1c2d4e5f..9a4b2c3d5e6f 100644
+index 4515ded43..e3c818d2d 100644
 --- a/drivers/i2c/busses/Kconfig
 +++ b/drivers/i2c/busses/Kconfig
 @@ -1596,4 +1596,13 @@ config I2C_VIRTIO
@@ -38,10 +46,10 @@ index 8f3a1c2d4e5f..9a4b2c3d5e6f 100644
 +
  endmenu
 diff --git a/drivers/i2c/busses/Makefile b/drivers/i2c/busses/Makefile
-index 7e2d1c3b4a5f..8f3e2d4c5b6a 100644
+index fb985769f..1ce375063 100644
 --- a/drivers/i2c/busses/Makefile
 +++ b/drivers/i2c/busses/Makefile
-@@ -161,5 +161,6 @@ obj-$(CONFIG_SCx200_ACB)	+= scx200_acb.o
+@@ -161,5 +161,6 @@ obj-$(CONFIG_I2C_XGENE_SLIMPRO) += i2c-xgene-slimpro.o
  obj-$(CONFIG_SCx200_ACB)	+= scx200_acb.o
  obj-$(CONFIG_I2C_FSI)		+= i2c-fsi.o
  obj-$(CONFIG_I2C_VIRTIO)	+= i2c-virtio.o
@@ -50,7 +58,7 @@ index 7e2d1c3b4a5f..8f3e2d4c5b6a 100644
  ccflags-$(CONFIG_I2C_DEBUG_BUS) := -DDEBUG
 diff --git a/drivers/i2c/busses/tpi-i2c-smi-arbiter.c b/drivers/i2c/busses/tpi-i2c-smi-arbiter.c
 new file mode 100644
-index 000000000000..a1b2c3d4e5f6
+index 000000000..16ba967b8
 --- /dev/null
 +++ b/drivers/i2c/busses/tpi-i2c-smi-arbiter.c
 @@ -0,0 +1,197 @@
@@ -248,12 +256,12 @@ index 000000000000..a1b2c3d4e5f6
 +};
 +module_platform_driver(tpi_smi_arb_driver);
 +
-+MODULE_AUTHOR("Sven Rademakers <sven@turingpi.com>");
++MODULE_AUTHOR("Daniel Steinhauf <daniel@steinhauf.eu>");
 +MODULE_DESCRIPTION("Turing Pi 2 I2C/SMI shared-pin arbiter");
 +MODULE_LICENSE("GPL");
 diff --git a/include/linux/tpi-i2c-smi-arbiter.h b/include/linux/tpi-i2c-smi-arbiter.h
 new file mode 100644
-index 000000000000..a1b2c3d4e5f6
+index 000000000..8b998aceb
 --- /dev/null
 +++ b/include/linux/tpi-i2c-smi-arbiter.h
 @@ -0,0 +1,15 @@
@@ -272,5 +280,3 @@ index 000000000000..a1b2c3d4e5f6
 +#endif
 +
 +#endif /* _LINUX_TPI_I2C_SMI_ARBITER_H */
--- 
-2.50.1

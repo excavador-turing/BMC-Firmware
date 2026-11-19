@@ -1,8 +1,8 @@
-From 6cf27b5454a3b69098971eccd0e098e8fa36ab7a Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Aleksandr Shubin <privatesub2@gmail.com>
 Date: Wed, 31 Jan 2024 15:59:14 +0300
-Subject: [PATCH 1/4] dt-bindings: pwm: Add binding for Allwinner
- D1/T113-S3/R329 PWM controller
+Subject: [PATCH] dt-bindings: pwm: Add binding for Allwinner D1/T113-S3/R329
+ PWM controller
 
 Allwinner's D1, T113-S3 and R329 SoCs have a new pwm
 controller witch is different from the previous pwm-sun4i.
@@ -30,7 +30,7 @@ Reviewed-by: Conor Dooley <conor.dooley@microchip.com>
 
 diff --git a/Documentation/devicetree/bindings/pwm/allwinner,sun20i-pwm.yaml b/Documentation/devicetree/bindings/pwm/allwinner,sun20i-pwm.yaml
 new file mode 100644
-index 000000000000..716f75776006
+index 000000000..716f75776
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/pwm/allwinner,sun20i-pwm.yaml
 @@ -0,0 +1,88 @@
@@ -122,6 +122,3 @@ index 000000000000..716f75776006
 +    };
 +
 +...
--- 
-2.50.1 (Apple Git-155)
-

@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Daniel Steinhauf <daniel@steinhauf.eu>
+Date: Wed, 18 Nov 2026 01:18:20 +0100
+Subject: [PATCH] net: dsa: rtl8365mb: add RTL8370MB-CG support
+
+Add the RTL8370MB-CG chip row (chip_id 0x6368, chip_ver 0x0010) used by
+Turing Pi 2 v2.5+ boards. The row reuses the RTL8365MB-VC init jam table
+and maps extension interfaces 8 and 9; neither is verified against the
+Realtek SDK for this die. The Turing Pi 2 uses GPHY port 4 as its CPU
+port, so the extension interfaces are not exercised there.
+
+Based on Sam Edwards' RTL8370MB-CG hack for the pre-split rtl8365mb
+driver in turing-machines/BMC-Firmware.
+
+Link: https://github.com/turing-machines/BMC-Firmware/commit/1bda9cc7b547f46968c82f4191dae17fe0501138
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
+---
+ drivers/net/dsa/realtek/rtl8365mb_main.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
+index 003192af8..58b0b9bed 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb_main.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_main.c
+@@ -652,6 +652,20 @@ static const struct rtl8365mb_chip_info rtl8365mb_chip_infos[] = {
+ 		.jam_table = rtl8365mb_init_jam_8365mb_vc,
+ 		.jam_size = ARRAY_SIZE(rtl8365mb_init_jam_8365mb_vc),
+ 	},
++	{
++		/* 8 GPHY ports, ext-ints 8/9; reuses the RTL8365MB-VC jam table */
++		.name = "RTL8370MB-CG",
++		.chip_id = 0x6368,
++		.chip_ver = 0x0010,
++		.extints = {
++			{ 8, 1, PHY_INTF(MII) | PHY_INTF(TMII) |
++				PHY_INTF(RMII) | PHY_INTF(RGMII) },
++			{ 9, 2, PHY_INTF(MII) | PHY_INTF(TMII) |
++				PHY_INTF(RMII) | PHY_INTF(RGMII) },
++		},
++		.jam_table = rtl8365mb_init_jam_8365mb_vc,
++		.jam_size = ARRAY_SIZE(rtl8365mb_init_jam_8365mb_vc),
++	},
+ };
+ 
+ enum rtl8365mb_stp_state {
