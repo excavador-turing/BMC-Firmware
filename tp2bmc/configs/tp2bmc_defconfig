@@ -51,7 +51,7 @@ BR2_PER_PACKAGE_DIRECTORIES=y
 # files: this one and that patch.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.18.62"
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.18.63"
 # The headers series must be named too. BR2_TOOLCHAIN_HEADERS_AT_LEAST_*
 # is selected by BR2_LINUX_KERNEL_LATEST_VERSION, NOT by a custom version
 # (linux/Config.in), so with BR2_KERNEL_HEADERS_AS_KERNEL a custom version

@@ -11,7 +11,7 @@ check-kernel-headers.sh fails once real 6.18 headers are staged
 (BR2_KERNEL_HEADERS_AS_KERNEL=y).
 
 Backport the 6.13–6.18 host-series and toolchain AT_LEAST chain from
-current Buildroot so 6.18.62 pins behave like hive's 6_12 pin.
+current Buildroot so 6.18.y pins behave like hive's 6_12 pin.
 
 Signed-off-by: Turing Pi 2 BMC <bmc@turingpi.com>
 ---
