@@ -9,7 +9,8 @@
 #   # optional: iperf3 -c <gateway-ip> -t10 -P 4
 #
 # Pass: eth0 byte delta stays modest; node iperf ~900+ Mbit/s (not ~88 Mbit/s).
-# Fail: eth0 grows ~100MB per 10s iperf → bond+br0 missing net-dsa/0003 fixup.
+# Fail: eth0 grows ~100MB per 10s iperf → bond+br0 missing the LAG bridge uplink fixup
+#       (net-dsa "LAG bridge uplink / VLAN sync fixups" patch).
 
 set -u
 
@@ -82,7 +83,7 @@ THRESH=${UPLINK_ETH0_DELTA_MAX:-67108864}
 
 if [ "$DELTA" -gt "$THRESH" ]; then
 	log "FAIL — $CONDUIT moved ${DELTA} bytes (>${THRESH}): node WAN likely via CPU (100M)"
-	log "check kernel includes net-dsa/0003 and dmesg for 'LAG bridge uplink fixup'"
+	log "check kernel includes the LAG bridge uplink patch and dmesg for 'LAG bridge uplink fixup'"
 	exit 1
 fi
 

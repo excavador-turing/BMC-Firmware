@@ -1,7 +1,23 @@
 # TP2 BMC — kernel patch log & production migration
 
-Maintainer notes for Linux **6.18.50** (Buildroot `tp2bmc_defconfig`).  
+Maintainer notes for Linux **6.18.63** (Buildroot `tp2bmc_defconfig`).  
 Patch inventory: `BMC-Firmware-dev-docs/scripts/kernel-patch-tool.sh inventory`.
+
+**Patch numbering (2026-11-18).** `net-dsa/` was regenerated with
+`git format-patch` from a v6.18.63 tree. The old aggregate `0001` backport is
+now one patch per upstream commit, and the local patches moved up:
+
+| Old | New | Content |
+|-----|-----|---------|
+| `net-dsa/0001` | `net-dsa/0001`–`0011` | upstream cherry-picks (`commit <sha> upstream.`), HSR ops and unrelated `rtl8366rb` / STP-log changes dropped |
+| — | `net-dsa/0012` | `field_get()` for v6.18 (mainline has it in `<linux/bitfield.h>`) |
+| `net-dsa/0002` | `net-dsa/0013` | RTL8370MB-CG chip row |
+| `net-dsa/0003` | `net-dsa/0014` | hardware LAG / trunk |
+| `net-dsa/0004` | `net-dsa/0015` | LAG bridge uplink / VLAN sync |
+| `net-dsa/0005` | `net-dsa/0016` | LAG PHY autoneg kick |
+| `net-dsa/0006` | `net-dsa/0017` | FDB learning-mode keying |
+
+Dated entries below keep the numbering of their date.
 
 **See also:** [`BMC-Firmware-dev-docs/tp2-network-uboot-kernel.md`](../../../../BMC-Firmware-dev-docs/tp2-network-uboot-kernel.md) — U-Boot vs kernel network split, SMI migration gap, open U-Boot follow-ups.
 
@@ -45,7 +61,7 @@ PoC defconfig (`linux_smi_mux_poc_defconfig`, `tp2bmc_smi_mux_poc_defconfig`) �
 | Item | Current | Target | Action |
 |------|---------|--------|--------|
 | `ethernet-switch@5c` on `&i2c2` | RTK I²C child | deleted | **DROP** |
-| `switch@smi` platform node | in `*-smi-mux.dtsi` only | in `.dtsi` for all boards | **MERGE** from `sun8i-t113s-turing-pi2-smi-mux.dtsi` |
+| `ethernet-switch` platform node (was `switch@smi`) | in `*-smi-mux.dtsi` only | in `.dtsi` for all boards | **MERGE** from `sun8i-t113s-turing-pi2-smi-mux.dtsi` |
 | `tpi-i2c-smi-arb` | PoC overlay | in `.dtsi` | **MERGE** |
 | `&i2c2` `pinctrl-names` | `default` only | `default`, `smi_mode` + empty `pinctrl-1` | **MERGE** |
 | `sun8i-t113s-turing-pi2-v2.5.2-smi-mux.dts` | PoC model string | remove; use standard v2.5.2 DTS | **DROP** |
@@ -115,7 +131,7 @@ Former combined `power/0001-power-regulator-fixed-gpio-latch-…` was split into
 
 ## Upstream monitor — `realtek_forward` (bridge / VLAN / FDB offload)
 
-**Backported locally.** When it lands in a kernel version we ship, drop local `net-dsa/0001` and keep only the RTL8370MB-CG chip row if still missing upstream.
+**Backported locally** as upstream cherry-picks `net-dsa/0001`–`0011` plus the v6.18 shim `0012`. When a kernel we ship contains them, drop `0001`–`0012` and keep only the RTL8370MB-CG chip row if still missing upstream.
 
 | Field | Value |
 |-------|--------|
@@ -126,10 +142,10 @@ Former combined `power/0001-power-regulator-fixed-gpio-latch-…` was split into
 | v1 link | https://patch.msgid.link/20260331-realtek_forward-v1-0-44fb63033b7e@gmail.com |
 | Latest tracked | **v13** (2026-06-06) |
 | LWN summary | https://lwn.net/Articles/1076755/ |
-| Target tree | `linux-net-next` → expect **6.19+** (not in 6.18.33 mainline; locally backported) |
+| Target tree | merged in mainline through `660a9e399ab0` (tagger: `297e1f411ed4`, `82f37bd9a4d7`); not in 6.18.y, locally backported |
 | change-id | `20260323-realtek_forward-1bac3a77c664` |
 
-### What the local backport adds (replacing old `net-dsa/0005`)
+### What the local backport adds (`net-dsa/0001`–`0011`)
 
 - `port_bridge_{join,leave}` via **isolation masks + EFID** (no dot1x trap hack)
 - HW **FDB** + `fdb_isolation`, assisted learning on CPU port
@@ -139,8 +155,9 @@ Former combined `power/0001-power-regulator-fixed-gpio-latch-…` was split into
 
 ### What upstream does **not** include (still ours)
 
-- **RTL8370MB-CG** chip table row (`0x6368` / `0x0010`) — keep **`net-dsa/0002`** or submit separately
-- **Hardware LAG / trunk** (`port_lag_join`) — keep **`net-dsa/0003`–`0005`**; not in `realtek_forward`
+- **RTL8370MB-CG** chip table row (`0x6368` / `0x0010`) — keep **`net-dsa/0013`** or submit separately
+- **Hardware LAG / trunk** (`port_lag_join`) — keep **`net-dsa/0014`–`0016`**; not in `realtek_forward`
+- **FDB learning-mode keying** — keep **`net-dsa/0017`**; candidate for upstream
 - **`tpi-i2c-smi-arbiter`** / shared PE12/PE13 — TP2-only
 - **`realtek-smi-i2c`** — we are dropping this path
 
@@ -381,8 +398,8 @@ success was loud. Both are `dev_info` now.
 
 1. `BMC-Firmware-dev-docs/scripts/kernel-patch-tool.sh history` (or the same checks by hand): confirm files in `drivers/net/dsa/realtek/`, `net/dsa/tag_rtl8_4.c` match series.
 2. Bump `BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE` to that release.
-3. **Remove** local `net-dsa/0001-net-dsa-realtek-rtl8365mb-backport-bridge-fdb-vlan-offload.patch`.
-4. **Keep** local `net-dsa/0002` until `chip_id == 0x6368` probe works without it.
+3. **Remove** local `net-dsa/0001`–`0012` (each upstream patch names its commit in `commit <sha> upstream.`).
+4. **Keep** local `net-dsa/0013` until `chip_id == 0x6368` probe works without it.
 5. Confirm `tag_rtl8_4` REASON/forward logic is in-tree before removing the backport.
 6. Rebuild; run regression: switch probe, `br0`, inter-node throughput (HW hairpin vs CPU), VLAN if used.
 7. Update **Monitor log** below with merge commit / kernel version.
@@ -391,6 +408,8 @@ success was loud. Both are `dev_info` now.
 
 | Date | Kernel / tree | Series version | In mainline? | Local action |
 |------|---------------|----------------|--------------|--------------|
+| 2026-11-19 | 6.18.63 | Lab Mode 4 rerun | **No** | Mode 4 PASS from the bmcd Switch page: live, after reboot, and back to Mode 2 (`PHASE_8_LAB_PROTOCOL.md`). Built-in bonding created a default `bond0` (`max_bonds=1`), so ifupdown-ng skipped the stanza and the bond ran `balance-rr` without slaves; `boot.scr` now passes `bonding.max_bonds=0`. bmcd now creates `bond0` with `layer2+3` and `lacp_rate fast` (the default `layer2` hash put node1 and node2 on one member) |
+| 2026-11-18 | 6.18.63 | Series regenerated | **No** (mainline only) | `net-dsa/0001` split into upstream cherry-picks `0001`–`0011` + `0012` (`field_get`); local patches renumbered `0013`–`0017`; all patches regenerated with `git format-patch` |
 | 2026-09-11 | 6.18.50 | Pin bump 6.18.48 → 6.18.50 | **No** | `BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE`; local `net-dsa` series still required. Drop leftover `ATOMIC64_SELFTEST` / `PM_DEBUG` / `PM_ADVANCED_DEBUG` / `PROFILING`. Keep `DEBUG_FS` + `DYNAMIC_DEBUG`. `0001` `rtl83xx.c` hunk 3: match 6.18.50 `gpiod_set_value_cansleep` in `rtl83xx_reset_deassert`. |
 | 2026-09-10 | 6.18.48 | Mode 4 same-subnet isolation | **No** | node3 `192.168.10.250` + `192.168.20.102`; node1 arping/ping `.250`: 0 replies |
 | 2026-09-09 | 6.18.48 | Mode 4 VLAN assign + LAG VLAN sync after apply | **No** | node1 `192.168.10.107`, node3 `192.168.20.102` after `node4` leave/join; apply now retriggers `vlan-sync` |
@@ -405,7 +424,7 @@ success was loud. Both are `dev_info` now.
 ```bash
 # Quick check in a linux.git clone
 git fetch origin tag v6.19  # or current target
-git log v6.18.50..v6.19 --oneline -- drivers/net/dsa/realtek/ net/dsa/tag_rtl8_4.c
+git log v6.18.63..v6.19 --oneline -- drivers/net/dsa/realtek/ net/dsa/tag_rtl8_4.c
 git grep -l port_bridge_join v6.19 -- drivers/net/dsa/realtek/
 ```
 

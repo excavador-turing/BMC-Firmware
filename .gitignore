@@ -16,3 +16,4 @@ sdk-toolchain.tar.gz
 sdk
 .cursor/
 .idea/
+_src/

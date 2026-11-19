@@ -1,5 +1,5 @@
 #!/bin/sh
-# Hardware validation — excavador hive line (default kernel 6.12.109; set EXPECTED_KERNEL for 6.18.x later)
+# Hardware validation — excavador hive line (default kernel 6.18.63; any 6.18.y passes A1)
 # On BMC (login shell PATH includes /usr/share/tp2):
 #   hw-validate.sh --mac aa:bb:cc:dd:ee:ff | tee /tmp/hw-validate.log
 #   EXPECTED_BOARD_MAC=… hw-validate.sh
@@ -39,7 +39,7 @@ mac_oui_prefix() {
 	printf '%s' "$1" | awk -F: '{ if (NF >= 3) print $1":"$2":"$3; }'
 }
 
-EXPECTED_KERNEL=${EXPECTED_KERNEL:-6.12.109}
+EXPECTED_KERNEL=${EXPECTED_KERNEL:-6.18.63}
 EXPECTED_BOARD_MAC=${EXPECTED_BOARD_MAC:-}
 VALIDATE_MODE=${HW_VALIDATE_MODE:-}
 
@@ -120,7 +120,7 @@ kernel_ok() {
 		;;
 	*)
 		[ "$kr" = "$EXPECTED_KERNEL" ] && return 0
-		# Also accept any 6.18.* when expect is 6.18.38 (minor stable bumps)
+		# Also accept any 6.18.* when expect is a 6.18.y release (stable bumps)
 		case "$EXPECTED_KERNEL" in
 		6.18.*)
 			case "$kr" in
@@ -656,11 +656,11 @@ if command -v bridge >/dev/null 2>&1; then
 		&& grep -q "ge0" /proc/net/bonding/bond0 2>/dev/null \
 		&& grep -q "ge1" /proc/net/bonding/bond0 2>/dev/null; then
 		if lag_fixup_seen; then
-			pass "G5 bond0 802.3ad ge0+ge1 + LAG bridge uplink fixup (net-dsa/0004)"
+			pass "G5 bond0 802.3ad ge0+ge1 + LAG bridge uplink fixup (LAG bridge uplink patch)"
 		elif lag_fixup_unobservable; then
 			skip "G5 LAG bridge uplink fixup — no LAG event in the current dmesg buffer"
 		else
-			warn "G5 bond0 802.3ad ge0+ge1 but no LAG fixup in dmesg — node WAN may cap at ~100M via eth0; need net-dsa/0004"
+			warn "G5 bond0 802.3ad ge0+ge1 but no LAG fixup in dmesg — node WAN may cap at ~100M via eth0; need the LAG bridge uplink patch"
 		fi
 		if lag_vlan_transparent; then
 			pass "G5 LAG VLAN sync: members transparent (flat br0 path)"
@@ -716,7 +716,7 @@ if has_bond0_lacp; then
 		delta=$(cat /var/run/tp2-uplink-test-eth0-delta 2>/dev/null || echo 0)
 		max=${UPLINK_ETH0_DELTA_MAX:-67108864}
 		if [ "$delta" -gt "$max" ] 2>/dev/null; then
-			fail "G6 $conduit hairpin delta=${delta} bytes (>${max}) — node WAN via CPU ~100M; need net-dsa/0004"
+			fail "G6 $conduit hairpin delta=${delta} bytes (>${max}) — node WAN via CPU ~100M; need the LAG bridge uplink patch"
 		else
 			pass "G6 $conduit hairpin delta=${delta} bytes (uplink likely ASIC-switched)"
 		fi
@@ -866,7 +866,7 @@ if [ -n "$VALIDATE_MODE" ]; then
 		elif lag_fixup_unobservable; then
 			skip "M2 LAG bridge uplink fixup — no LAG event in the current dmesg buffer"
 		else
-			warn "M2 no LAG fixup in dmesg (rebuild / apply net-dsa/0004)"
+			warn "M2 no LAG fixup in dmesg (rebuild with the LAG bridge uplink patch)"
 		fi
 		if [ "$vlan_f" = 0 ]; then
 			if lag_vlan_transparent; then
