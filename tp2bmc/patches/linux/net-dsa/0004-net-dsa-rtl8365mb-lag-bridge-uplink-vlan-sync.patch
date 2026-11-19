@@ -10,7 +10,8 @@ DSA bridge offload. Restore ASIC reachability and Mode 4 trunk VLANs:
 - set LAG member EFID to match bridge node ports
 - enable learning / flooding / STP FORWARDING on LAG members
 - allow LAG members to forward to the CPU port
-- remap assisted-learning FDB adds on the CPU port to the first LAG member
+- do not install assisted-learning FDB entries for remote MACs onto the
+  first LAG member; the conduit MAC stays on the CPU port
 - only enable VLAN filtering on lag members when the bridge is itself VLAN
   filtering, and only *after* the bond VLAN DB (including native PVID) is
   programmed; otherwise TAGGED_ONLY drops untagged BMC/LAN frames
@@ -402,7 +403,7 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.h b/drivers/net/dsa/realtek/r
 diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
 --- a/drivers/net/dsa/realtek/rtl8365mb_main.c
 +++ b/drivers/net/dsa/realtek/rtl8365mb_main.c
-@@ -1645,6 +1645,95 @@
+@@ -1645,6 +1645,100 @@
  	return 0;
  }
  
@@ -422,38 +423,39 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/
 +
 +
 +/*
-+ * The bond is not a DSA port; assisted learning targets the CPU port for
-+ * hosts that actually live behind the trunk.  The conduit MAC is the
-+ * exception: it must stay on the CPU port or host replies leave via the
-+ * uplink.
++ * The bond is not a DSA port. Assisted learning asks for a CPU-port FDB
++ * entry for every host reached through the bridge, including the router
++ * behind the trunk. The RTL8370 LUT names a single port. Writing that MAC
++ * on the first LAG member (__ffs) pins every frame to ge0, so the trunk
++ * hash never runs. The conduit MAC stays on the CPU port. Other remote
++ * MACs are left out of the LUT.
 + */
-+static bool rtl8365mb_lag_fdb_remap_cpu(struct dsa_switch *ds, int port,
-+					const unsigned char *addr)
++static bool rtl8365mb_lag_fdb_skip_cpu(struct dsa_switch *ds, int port,
++				       const unsigned char *addr)
 +{
 +	struct dsa_port *dp = dsa_to_port(ds, port);
 +	struct net_device *dev = dp->conduit;
++	struct realtek_priv *priv = ds->priv;
++	u32 lag = priv->lag_member_pmask;
 +
-+	return !(dev && ether_addr_equal(addr, dev->dev_addr));
++	if (!lag || hweight32(lag) < 2)
++		return false;
++	if (!dsa_is_cpu_port(ds, port))
++		return false;
++	if (dev && ether_addr_equal(addr, dev->dev_addr))
++		return false;
++	return true;
 +}
 +
 +static int rtl8365mb_port_fdb_add(struct dsa_switch *ds, int port,
 +				  const unsigned char *addr, u16 vid,
 +				  struct dsa_db db)
 +{
-+	struct realtek_priv *priv = ds->priv;
-+	u32 lag = priv->lag_member_pmask;
-+	int hw_port = port;
++	if (db.type == DSA_DB_BRIDGE &&
++	    rtl8365mb_lag_fdb_skip_cpu(ds, port, addr))
++		return 0;
 +
-+	if (lag && hweight32(lag) >= 2 && db.type == DSA_DB_BRIDGE &&
-+	    dsa_is_cpu_port(ds, port) &&
-+	    rtl8365mb_lag_fdb_remap_cpu(ds, port, addr)) {
-+		hw_port = __ffs(lag);
-+		dev_dbg(priv->dev,
-+			"LAG FDB remap: cpu port %d -> lag member %d for %pM\n",
-+			port, hw_port, addr);
-+	}
-+
-+	return rtl83xx_port_fdb_add(ds, hw_port, addr, vid, db);
++	return rtl83xx_port_fdb_add(ds, port, addr, vid, db);
 +}
 +
 +static int rtl8365mb_port_fdb_del(struct dsa_switch *ds, int port,
@@ -461,15 +463,19 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/
 +				  struct dsa_db db)
 +{
 +	struct realtek_priv *priv = ds->priv;
-+	u32 lag = priv->lag_member_pmask;
-+	int hw_port = port;
++	int ret;
 +
-+	if (lag && hweight32(lag) >= 2 && db.type == DSA_DB_BRIDGE &&
-+	    dsa_is_cpu_port(ds, port) &&
-+	    rtl8365mb_lag_fdb_remap_cpu(ds, port, addr))
-+		hw_port = __ffs(lag);
++	ret = rtl83xx_port_fdb_del(ds, port, addr, vid, db);
++	/*
++	 * An older kernel wrote this MAC on the first LAG member. Remove
++	 * that pin too, or the LUT still forwards every frame out ge0.
++	 */
++	if (db.type == DSA_DB_BRIDGE &&
++	    rtl8365mb_lag_fdb_skip_cpu(ds, port, addr))
++		rtl83xx_port_fdb_del(ds, __ffs(priv->lag_member_pmask),
++				     addr, vid, db);
 +
-+	return rtl83xx_port_fdb_del(ds, hw_port, addr, vid, db);
++	return ret;
 +}
 +
 +/*

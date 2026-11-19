@@ -62,7 +62,7 @@ diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/r
 new file mode 100644
 --- /dev/null
 +++ b/drivers/net/dsa/realtek/rtl8365mb_lag.c
-@@ -0,0 +1,444 @@
+@@ -0,0 +1,457 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/* Hardware LAG / trunk offload for rtl8365mb-class switches (RTL8367C ASIC API)
 + *
@@ -302,7 +302,14 @@ new file mode 100644
 +	if (ret)
 +		return ret;
 +
-+	ret = rtl8365mb_trunk_set_flood(priv, true);
++	/*
++	 * RTL8370 trunk flood (PORT_TRUNK_CTRL bit 7) sends unknown
++	 * flooding to the logical first member of the group. On a
++	 * two-port ge0+ge1 trunk that pins node->WAN unicast on ge0.
++	 * Leave the bit clear; member choice stays with the hash mask.
++	 * Vendor note: the flood function is for a full 4-port group.
++	 */
++	ret = rtl8365mb_trunk_set_flood(priv, false);
 +	if (ret)
 +		return ret;
 +
@@ -397,6 +404,12 @@ new file mode 100644
 +	default:
 +		return -EOPNOTSUPP;
 +	}
++
++	/*
++	 * Two node addresses can share one SMAC/SIP bucket. SPA is the
++	 * ingress port, so those nodes cannot hash to the same member.
++	 */
++	hash |= RTL8365MB_PORT_TRUNK_HASH_SPA;
 +
 +	dsa_lags_foreach_id(i, ds->dst) {
 +		if (i != lag.id && dsa_lag_by_id(ds->dst, i)) {
