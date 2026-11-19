@@ -28,8 +28,11 @@ overwrite_os_release() {
     if [[ -n "${BUILD_VERSION:-}" ]]; then
         build_version="$BUILD_VERSION"
     else
-        build_version=$(git describe --tags)
-        if [[ $? -ne 0 ]]; then
+        # `set -e` aborts on a failing assignment, so the old $? check never
+        # ran. kernel-6.18 has no ancestor tag, and `git describe --tags`
+        # then exits 128. --always falls back to the commit id.
+        build_version=$(git describe --tags --always 2>/dev/null || true)
+        if [[ -z "$build_version" ]]; then
             echo "Error: Failed to get version from git describe"
             build_version="v2-unknown"
         fi
