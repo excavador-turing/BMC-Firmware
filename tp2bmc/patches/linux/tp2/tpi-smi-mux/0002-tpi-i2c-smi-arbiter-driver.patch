@@ -1,0 +1,276 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Sven Rademakers <sven@turingpi.com>
+Date: Mon, 02 Jun 2026 12:00:00 +0200
+Subject: [PATCH 2/3] i2c: add turing,i2c-smi-arbiter for shared TWI/SMI pins
+
+Turing Pi 2 shares PE12/PE13 between the SoC hardware I2C controller
+(EEPROM @ 0x50, RTC @ 0x51) and the Realtek RTL8370MB switch accessed
+via GPIO SMI bitbang. This driver serializes access by locking the I2C
+root adapter, quiescing the TWI controller via runtime PM, and selecting
+pinctrl "smi_mode" before each SMI transaction.
+
+The pinctrl and runtime PM operations target the I2C controller platform
+device (e.g. 2502800.i2c on mv64xxx) rather than the I2C adapter child,
+since mv64xxx binds pinctrl and PM on the platform device.
+
+GPIO SMI pins are requested per-transaction via gpiolib and released
+before restoring TWI ownership, avoiding probe-time conflicts on the
+shared pins.
+
+Signed-off-by: Sven Rademakers <sven@turingpi.com>
+---
+diff --git a/drivers/i2c/busses/Kconfig b/drivers/i2c/busses/Kconfig
+index 8f3a1c2d4e5f..9a4b2c3d5e6f 100644
+--- a/drivers/i2c/busses/Kconfig
++++ b/drivers/i2c/busses/Kconfig
+@@ -1596,4 +1596,13 @@ config I2C_VIRTIO
+           This driver can also be built as a module. If so, the module
+           will be called i2c-virtio.
+ 
++config TPI_I2C_SMI_ARBITER
++	tristate "Turing Pi 2 I2C/SMI pin profile arbiter"
++	depends on OF && PINCTRL
++	help
++	  Serializes access to shared TWI pins between a hardware I2C
++	  controller (EEPROM, RTC, ...) and a Realtek switch accessed via
++	  GPIO SMI bitbang. Selects pinctrl "smi_mode" while the switch
++	  driver holds the bus lock.
++
+ endmenu
+diff --git a/drivers/i2c/busses/Makefile b/drivers/i2c/busses/Makefile
+index 7e2d1c3b4a5f..8f3e2d4c5b6a 100644
+--- a/drivers/i2c/busses/Makefile
++++ b/drivers/i2c/busses/Makefile
+@@ -161,5 +161,6 @@ obj-$(CONFIG_SCx200_ACB)	+= scx200_acb.o
+ obj-$(CONFIG_SCx200_ACB)	+= scx200_acb.o
+ obj-$(CONFIG_I2C_FSI)		+= i2c-fsi.o
+ obj-$(CONFIG_I2C_VIRTIO)	+= i2c-virtio.o
++obj-$(CONFIG_TPI_I2C_SMI_ARBITER)	+= tpi-i2c-smi-arbiter.o
+ 
+ ccflags-$(CONFIG_I2C_DEBUG_BUS) := -DDEBUG
+diff --git a/drivers/i2c/busses/tpi-i2c-smi-arbiter.c b/drivers/i2c/busses/tpi-i2c-smi-arbiter.c
+new file mode 100644
+index 000000000000..a1b2c3d4e5f6
+--- /dev/null
++++ b/drivers/i2c/busses/tpi-i2c-smi-arbiter.c
+@@ -0,0 +1,197 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Turing Pi 2: arbitrate HW I2C vs GPIO SMI on shared TWI pins.
++ *
++ * PE12/PE13 are shared between the SoC hardware I2C controller (EEPROM,
++ * RTC) and the Realtek RTL8370MB switch accessed via GPIO SMI bitbang.
++ * This driver serializes access by locking the I2C root adapter, quiescing
++ * the TWI controller via runtime PM, and switching pinctrl to "smi_mode"
++ * before each SMI transaction.
++ *
++ * Copyright (C) 2026 Turing Machines, Inc.
++ */
++
++#include <linux/debugfs.h>
++#include <linux/i2c.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/of.h>
++#include <linux/pinctrl/consumer.h>
++#include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
++
++#include <linux/tpi-i2c-smi-arbiter.h>
++
++struct tpi_smi_arb {
++	struct device *dev;
++	struct device *ctl_dev;
++	struct i2c_adapter *adap;
++	struct pinctrl *pctl;
++	struct pinctrl_state *st_default;
++	struct pinctrl_state *st_smi;
++	struct mutex lock;
++	unsigned int bracket_count;
++	struct dentry *debugfs;
++};
++
++static struct tpi_smi_arb *tpi_smi_arb_from_dev(struct device *arb_dev)
++{
++	if (!arb_dev)
++		return NULL;
++	return dev_get_drvdata(arb_dev);
++}
++
++/**
++ * tpi_smi_arb_begin() - acquire shared bus for SMI GPIO bitbang
++ * @arb_dev: arbiter device obtained from DT phandle, or NULL
++ *
++ * Lock the I2C root adapter, suspend the TWI controller via runtime PM,
++ * and select the "smi_mode" pinctrl state so the caller can use PE12/PE13
++ * as GPIO.  Must be paired with tpi_smi_arb_end().
++ *
++ * Return: 0 on success, negative errno on failure.
++ */
++int tpi_smi_arb_begin(struct device *arb_dev)
++{
++	struct tpi_smi_arb *arb = tpi_smi_arb_from_dev(arb_dev);
++	int ret;
++
++	if (!arb)
++		return 0;
++
++	mutex_lock(&arb->lock);
++	i2c_lock_bus(arb->adap, I2C_LOCK_ROOT_ADAPTER);
++
++	if (pm_runtime_enabled(arb->ctl_dev))
++		pm_runtime_suspend(arb->ctl_dev);
++
++	ret = pinctrl_select_state(arb->pctl, arb->st_smi);
++	if (ret) {
++		dev_err(arb->dev, "pinctrl smi_mode failed: %d\n", ret);
++		pinctrl_pm_select_default_state(arb->ctl_dev);
++		i2c_unlock_bus(arb->adap, I2C_LOCK_ROOT_ADAPTER);
++		mutex_unlock(&arb->lock);
++		return ret;
++	}
++
++	arb->bracket_count++;
++	return 0;
++}
++EXPORT_SYMBOL_GPL(tpi_smi_arb_begin);
++
++/**
++ * tpi_smi_arb_end() - release shared bus after SMI GPIO bitbang
++ * @arb_dev: arbiter device, must match a prior tpi_smi_arb_begin() call
++ *
++ * Restore "default" TWI pinctrl, wake the I2C controller, and unlock
++ * the I2C root adapter.
++ */
++void tpi_smi_arb_end(struct device *arb_dev)
++{
++	struct tpi_smi_arb *arb = tpi_smi_arb_from_dev(arb_dev);
++	int ret;
++
++	if (!arb)
++		return;
++
++	ret = pinctrl_select_state(arb->pctl, arb->st_default);
++	if (ret)
++		dev_err(arb->dev, "pinctrl default failed: %d\n", ret);
++
++	pinctrl_pm_select_default_state(arb->ctl_dev);
++
++	arb->bracket_count--;
++	i2c_unlock_bus(arb->adap, I2C_LOCK_ROOT_ADAPTER);
++	mutex_unlock(&arb->lock);
++}
++EXPORT_SYMBOL_GPL(tpi_smi_arb_end);
++
++static int tpi_smi_arb_probe(struct platform_device *pdev)
++{
++	struct tpi_smi_arb *arb;
++	struct device_node *i2c_np;
++	struct i2c_adapter *adap;
++
++	arb = devm_kzalloc(&pdev->dev, sizeof(*arb), GFP_KERNEL);
++	if (!arb)
++		return -ENOMEM;
++
++	arb->dev = &pdev->dev;
++	mutex_init(&arb->lock);
++
++	i2c_np = of_parse_phandle(pdev->dev.of_node, "i2c-bus", 0);
++	if (!i2c_np)
++		return dev_err_probe(&pdev->dev, -EINVAL, "missing i2c-bus\n");
++
++	adap = of_find_i2c_adapter_by_node(i2c_np);
++	of_node_put(i2c_np);
++	if (!adap)
++		return dev_err_probe(&pdev->dev, -EPROBE_DEFER,
++				     "I2C adapter not ready\n");
++
++	arb->adap = adap;
++	arb->ctl_dev = adap->dev.parent;
++	if (!arb->ctl_dev)
++		arb->ctl_dev = &adap->dev;
++
++	arb->pctl = devm_pinctrl_get(arb->ctl_dev);
++	if (IS_ERR(arb->pctl)) {
++		i2c_put_adapter(adap);
++		return dev_err_probe(&pdev->dev, PTR_ERR(arb->pctl),
++				     "pinctrl get failed\n");
++	}
++
++	arb->st_default = pinctrl_lookup_state(arb->pctl, "default");
++	if (IS_ERR(arb->st_default)) {
++		i2c_put_adapter(adap);
++		return dev_err_probe(&pdev->dev, PTR_ERR(arb->st_default),
++				     "missing default pinctrl state\n");
++	}
++
++	arb->st_smi = pinctrl_lookup_state(arb->pctl, "smi_mode");
++	if (IS_ERR(arb->st_smi)) {
++		i2c_put_adapter(adap);
++		return dev_err_probe(&pdev->dev, PTR_ERR(arb->st_smi),
++				     "missing smi_mode pinctrl state\n");
++	}
++
++	platform_set_drvdata(pdev, arb);
++
++	arb->debugfs = debugfs_create_dir(dev_name(&pdev->dev), NULL);
++	debugfs_create_u32("bracket_count", 0444, arb->debugfs,
++			   &arb->bracket_count);
++
++	dev_info(&pdev->dev, "arbiter on %s via %s (adapter %d)\n",
++		 dev_name(arb->ctl_dev), dev_name(&adap->dev), adap->nr);
++
++	return 0;
++}
++
++static void tpi_smi_arb_remove(struct platform_device *pdev)
++{
++	struct tpi_smi_arb *arb = platform_get_drvdata(pdev);
++
++	debugfs_remove_recursive(arb->debugfs);
++	mutex_destroy(&arb->lock);
++	i2c_put_adapter(arb->adap);
++}
++
++static const struct of_device_id tpi_smi_arb_of_match[] = {
++	{ .compatible = "turing,i2c-smi-arbiter" },
++	{}
++};
++MODULE_DEVICE_TABLE(of, tpi_smi_arb_of_match);
++
++static struct platform_driver tpi_smi_arb_driver = {
++	.probe = tpi_smi_arb_probe,
++	.remove = tpi_smi_arb_remove,
++	.driver = {
++		.name = "tpi-i2c-smi-arbiter",
++		.of_match_table = tpi_smi_arb_of_match,
++	},
++};
++module_platform_driver(tpi_smi_arb_driver);
++
++MODULE_AUTHOR("Sven Rademakers <sven@turingpi.com>");
++MODULE_DESCRIPTION("Turing Pi 2 I2C/SMI shared-pin arbiter");
++MODULE_LICENSE("GPL");
+diff --git a/include/linux/tpi-i2c-smi-arbiter.h b/include/linux/tpi-i2c-smi-arbiter.h
+new file mode 100644
+index 000000000000..a1b2c3d4e5f6
+--- /dev/null
++++ b/include/linux/tpi-i2c-smi-arbiter.h
+@@ -0,0 +1,15 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef _LINUX_TPI_I2C_SMI_ARBITER_H
++#define _LINUX_TPI_I2C_SMI_ARBITER_H
++
++#include <linux/device.h>
++
++#if IS_ENABLED(CONFIG_TPI_I2C_SMI_ARBITER)
++int tpi_smi_arb_begin(struct device *arb_dev);
++void tpi_smi_arb_end(struct device *arb_dev);
++#else
++static inline int tpi_smi_arb_begin(struct device *arb_dev) { return 0; }
++static inline void tpi_smi_arb_end(struct device *arb_dev) { }
++#endif
++
++#endif /* _LINUX_TPI_I2C_SMI_ARBITER_H */
+-- 
+2.50.1

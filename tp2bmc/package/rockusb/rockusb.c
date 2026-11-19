@@ -31,7 +31,7 @@
 MODULE_DESCRIPTION("Driver for block access to Rockchip devices in USB mode");
 MODULE_AUTHOR("Sam Edwards <CFSworks@gmail.com>");
 MODULE_LICENSE("GPL");
-MODULE_IMPORT_NS(USB_STORAGE);
+MODULE_IMPORT_NS("USB_STORAGE");
 
 struct flash_info {
 	__u32 flash_size;

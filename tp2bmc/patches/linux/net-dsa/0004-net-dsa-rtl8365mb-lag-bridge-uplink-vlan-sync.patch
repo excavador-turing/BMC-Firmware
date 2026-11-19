@@ -1,0 +1,519 @@
+From d42b510cd4a261c32c72a9297c250520b2f4066e Mon Sep 17 00:00:00 2001
+From: Sven Rademakers <sven@turingpi.com>
+Date: Sat, 05 Jul 2026 17:40:00 +0200
+Subject: [PATCH 4/6] net: dsa: rtl8365mb: LAG bridge uplink / VLAN sync fixups
+
+When a bond of DSA lag slaves sits on a software bridge, the slaves leave
+DSA bridge offload. Restore ASIC reachability and Mode 4 trunk VLANs:
+
+- extend port isolation so node ports and lag members can reach each other
+- set LAG member EFID to match bridge node ports
+- enable learning / flooding / STP FORWARDING on LAG members
+- allow LAG members to forward to the CPU port
+- remap assisted-learning FDB adds on the CPU port to the first LAG member
+- only enable VLAN filtering on lag members when the bridge is itself VLAN
+  filtering, and only *after* the bond VLAN DB (including native PVID) is
+  programmed; otherwise TAGGED_ONLY drops untagged BMC/LAN frames
+- re-run fixup when node ports join/leave the bridge
+- sync bond bridge VLANs onto lag member ASIC ports
+
+br_vlan_enabled() and br_vlan_get_info() come from <linux/if_bridge.h>,
+which rtl8365mb_lag.c already includes.
+
+Signed-off-by: Sven Rademakers <sven@turingpi.com>
+---
+ drivers/net/dsa/realtek/rtl8365mb_lag.c            |  337 ++++++++++++++++++++++++++++++++++++++++
+ drivers/net/dsa/realtek/rtl8365mb_lag.h            |    1 +
+ drivers/net/dsa/realtek/rtl8365mb_main.c           |   97 ++++++++++++
+ 3 files changed, 431 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/rtl8365mb_lag.c
+--- a/drivers/net/dsa/realtek/rtl8365mb_lag.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_lag.c
+@@ -180,6 +180,328 @@
+ 	return *pmask ? 0 : -EINVAL;
+ }
+ 
++/* A bond of DSA lag slaves on a bridge is not a DSA port; restore ASIC
++ * reachability between user ports and the lag members.
++ */
++static u32 rtl8365mb_lag_br_efid(struct dsa_switch *ds, u32 node_pmask, int port_hint)
++{
++	struct dsa_port *dp;
++	u16 efid = 0;
++
++	if (port_hint >= 0) {
++		dp = dsa_to_port(ds, port_hint);
++		if (dsa_port_bridge_dev_get(dp)) {
++			efid = dsa_port_bridge_num_get(dp);
++			if (efid)
++				return efid;
++		}
++	}
++
++	dsa_switch_for_each_user_port(dp, ds) {
++		if (!(node_pmask & BIT(dp->index)))
++			continue;
++		if (!dsa_port_bridge_dev_get(dp))
++			continue;
++		efid = dsa_port_bridge_num_get(dp);
++		if (efid)
++			break;
++	}
++
++	return efid;
++}
++
++/*
++ * When a bond is the bridge port, its DSA lag slaves are not bridge
++ * members — so port_vlan_* never programs the ASIC trunk ports. Mirror
++ * the bond's bridge VLAN DB onto each lag member (same membership a
++ * VLAN-unaware single-port uplink would get) to stop native-PVID DHCP leaks.
++ */
++static struct net_device *rtl8365mb_lag_find_bond(struct dsa_switch *ds,
++						 u32 lag_pmask)
++{
++	struct dsa_port *dp;
++
++	dsa_switch_for_each_user_port(dp, ds) {
++		struct net_device *user, *upper;
++
++		if (!(lag_pmask & BIT(dp->index)))
++			continue;
++		user = dp->user;
++		if (!user)
++			continue;
++		upper = netdev_master_upper_dev_get(user);
++		if (upper && netif_is_bond_master(upper))
++			return upper;
++	}
++
++	return NULL;
++}
++
++static int rtl8365mb_lag_vlan_add_members(struct dsa_switch *ds, u32 lag_pmask,
++					  u16 vid, u16 flags)
++{
++	struct switchdev_obj_port_vlan vlan = {
++		.vid = vid,
++		.flags = flags,
++	};
++	struct switchdev_obj_port_vlan cpu_vlan = {
++		.vid = vid,
++		.flags = 0, /* tagged towards the conduit */
++	};
++	struct dsa_port *dp;
++	int ret;
++
++	dsa_switch_for_each_user_port(dp, ds) {
++		if (!(lag_pmask & BIT(dp->index)))
++			continue;
++		ret = ds->ops->port_vlan_add(ds, dp->index, &vlan, NULL);
++		if (ret) {
++			dev_warn(ds->dev,
++				 "LAG VLAN sync: port %d vid %u failed: %pe\n",
++				 dp->index, vid, ERR_PTR(ret));
++			return ret;
++		}
++	}
++
++	/*
++	 * Direct port_vlan_add on bond slaves skips DSA's CPU join.
++	 * Node access VLANs (10/20) still program the CPU via real
++	 * bridge ports; native VLAN 1 would not, and filtering then
++	 * drops untagged BMC/LAN frames.
++	 */
++	dsa_switch_for_each_cpu_port(dp, ds) {
++		ret = ds->ops->port_vlan_add(ds, dp->index, &cpu_vlan, NULL);
++		if (ret && ret != -EOPNOTSUPP)
++			dev_warn(ds->dev,
++				 "LAG VLAN sync: CPU port %d vid %u failed: %pe\n",
++				 dp->index, vid, ERR_PTR(ret));
++	}
++
++	return 0;
++}
++
++static void rtl8365mb_lag_sync_uplink_vlans(struct dsa_switch *ds, u32 lag_pmask)
++{
++	struct realtek_priv *priv = ds->priv;
++	struct net_device *bond, *br;
++	struct dsa_port *dp;
++	unsigned int n_vlans = 0;
++	bool filtering;
++	u16 vid;
++	int ret;
++
++	if (!IS_ENABLED(CONFIG_BRIDGE_VLAN_FILTERING))
++		return;
++	if (!lag_pmask || hweight32(lag_pmask) < 2)
++		return;
++	if (!ds->ops->port_vlan_add || !ds->ops->port_vlan_filtering)
++		return;
++
++	bond = rtl8365mb_lag_find_bond(ds, lag_pmask);
++	if (!bond || !netif_is_bridge_port(bond))
++		return;
++
++	/*
++	 * Follow the bridge.  Turning VLAN filtering on for the lag members
++	 * while the bridge is VLAN-unaware leaves those members enforcing
++	 * ingress and egress membership against an empty VLAN table, which
++	 * silently drops every uplink frame that is not RMA trapped — LACP
++	 * converges, but ARP, DHCP and all data traffic disappear inside the
++	 * ASIC.
++	 *
++	 * Program PVID/membership *before* port_vlan_filtering(). That
++	 * helper sets TAGGED_ONLY when PVID is still 0, and port_vlan_add()
++	 * does not refresh the frame filter — native untagged BMC traffic
++	 * then dies while tagged node VLANs still work.
++	 */
++	br = netdev_master_upper_dev_get(bond);
++	filtering = br && br_vlan_enabled(br);
++
++	if (filtering) {
++		for (vid = 1; vid < VLAN_N_VID; vid++) {
++			struct bridge_vlan_info vinfo;
++			u16 flags = 0;
++
++			ret = br_vlan_get_info(bond, vid, &vinfo);
++			if (ret)
++				continue;
++
++			if (vinfo.flags & BRIDGE_VLAN_INFO_PVID)
++				flags |= BRIDGE_VLAN_INFO_PVID;
++			if (vinfo.flags & BRIDGE_VLAN_INFO_UNTAGGED)
++				flags |= BRIDGE_VLAN_INFO_UNTAGGED;
++
++			if (rtl8365mb_lag_vlan_add_members(ds, lag_pmask, vid,
++							   flags))
++				return;
++			n_vlans++;
++		}
++	}
++
++	dsa_switch_for_each_user_port(dp, ds) {
++		if (!(lag_pmask & BIT(dp->index)))
++			continue;
++		ret = ds->ops->port_vlan_filtering(ds, dp->index, filtering,
++						   NULL);
++		if (ret && ret != -EOPNOTSUPP)
++			dev_warn(priv->dev,
++				 "LAG VLAN sync: filtering on port %d failed: %pe\n",
++				 dp->index, ERR_PTR(ret));
++	}
++
++	if (!filtering) {
++		dev_info(priv->dev,
++			 "LAG VLAN sync: %s not VLAN filtering; members transparent\n",
++			 bond->name);
++		return;
++	}
++
++	if (n_vlans)
++		dev_info(priv->dev,
++			 "LAG VLAN sync: mirrored %u VLAN(s) from %s onto members 0x%x\n",
++			 n_vlans, bond->name, lag_pmask);
++}
++
++static void rtl8365mb_lag_bridge_isolation_fixup(struct dsa_switch *ds, u32 lag_pmask,
++						 int port_hint)
++{
++	struct realtek_priv *priv = ds->priv;
++	struct dsa_port *dp;
++	u32 node_pmask = 0;
++	u32 cpu_pmask = 0;
++	u32 br_efid;
++
++	if (!lag_pmask || hweight32(lag_pmask) < 2)
++		return;
++
++	if (!priv->ops->port_add_isolation)
++		return;
++
++	dsa_switch_for_each_cpu_port(dp, ds)
++		cpu_pmask |= BIT(dp->index);
++
++	dsa_switch_for_each_user_port(dp, ds) {
++		if (lag_pmask & BIT(dp->index))
++			continue;
++		node_pmask |= BIT(dp->index);
++	}
++
++	if (!node_pmask)
++		return;
++
++	br_efid = rtl8365mb_lag_br_efid(ds, node_pmask, port_hint);
++
++	dsa_switch_for_each_user_port(dp, ds) {
++		if (lag_pmask & BIT(dp->index)) {
++			int ret;
++
++			if (br_efid && priv->ops->port_set_efid) {
++				ret = priv->ops->port_set_efid(priv, dp->index, br_efid);
++				if (ret)
++					dev_warn(priv->dev,
++						 "LAG bridge fixup: lag port %d EFID %u failed: %pe\n",
++						 dp->index, br_efid, ERR_PTR(ret));
++			}
++			/*
++			 * The ASIC must learn uplink MACs on the trunk or
++			 * every node frame to a WAN host stays unknown
++			 * unicast and is flooded to all ports.
++			 */
++			if (priv->ops->port_set_learning) {
++				ret = priv->ops->port_set_learning(priv, dp->index, true);
++				if (ret)
++					dev_warn(priv->dev,
++						 "LAG bridge fixup: lag port %d learning failed: %pe\n",
++						 dp->index, ERR_PTR(ret));
++			}
++			/*
++			 * The bond joins the software bridge as a Linux bridge
++			 * port; the bridge sets STP state on the bond but the
++			 * bonding driver may not propagate it to DSA slaves.
++			 * Meanwhile DSA marks ingress skbs with
++			 * offload_fwd_mark so the bridge skips software
++			 * forwarding, expecting the ASIC to handle it.  If
++			 * the LAG members stay in STP DISABLED (from setup),
++			 * the ASIC blocks all regular forwarding and traffic
++			 * falls into a gap.  Force FORWARDING here.
++			 */
++			if (ds->ops->port_stp_state_set)
++				ds->ops->port_stp_state_set(ds, dp->index,
++							    BR_STATE_FORWARDING);
++			/*
++			 * DSA clears broadcast/multicast/unicast flooding
++			 * when ports leave the bridge (bridge_flags val=0).
++			 * The ASIC requires a port to be in the flooding
++			 * mask AND in the source port's isolation mask for
++			 * broadcast/unknown frames to be forwarded.
++			 * Re-enable flooding so node broadcast (ARP etc.)
++			 * reaches the LAG uplink ports.
++			 */
++			if (priv->ops->port_set_ucast_flood)
++				priv->ops->port_set_ucast_flood(priv,
++								dp->index, true);
++			if (priv->ops->port_set_mcast_flood)
++				priv->ops->port_set_mcast_flood(priv,
++								dp->index, true);
++			if (priv->ops->port_set_bcast_flood)
++				priv->ops->port_set_bcast_flood(priv,
++								dp->index, true);
++			ret = priv->ops->port_add_isolation(priv, dp->index,
++							    node_pmask);
++			if (ret)
++				dev_warn(priv->dev,
++					 "LAG bridge fixup: lag port %d isolation +nodes failed: %pe\n",
++					 dp->index, ERR_PTR(ret));
++			if (cpu_pmask) {
++				ret = priv->ops->port_add_isolation(priv, dp->index,
++							    cpu_pmask);
++				if (ret)
++					dev_warn(priv->dev,
++						 "LAG bridge fixup: lag port %d isolation +cpu failed: %pe\n",
++						 dp->index, ERR_PTR(ret));
++			}
++		} else if (node_pmask & BIT(dp->index)) {
++			int ret;
++
++			ret = priv->ops->port_add_isolation(priv, dp->index,
++							    lag_pmask);
++			if (ret)
++				dev_warn(priv->dev,
++					 "LAG bridge fixup: node port %d isolation +lag failed: %pe\n",
++					 dp->index, ERR_PTR(ret));
++		}
++	}
++
++	dev_info(priv->dev,
++		 "LAG bridge uplink fixup: nodes 0x%x <-> lag 0x%x cpu 0x%x efid %u\n",
++		 node_pmask, lag_pmask, cpu_pmask, br_efid);
++
++	/* Read back ASIC state for diagnostics (reg addresses from rtl8365mb.c) */
++	{
++		u32 iso, stp, uflood, mflood, bflood;
++		int p;
++
++		regmap_read(priv->map, 0x0A00, &stp); /* MSTI_CTRL msti=0 */
++		regmap_read(priv->map, 0x0890, &uflood);
++		regmap_read(priv->map, 0x0891, &mflood);
++		regmap_read(priv->map, 0x0892, &bflood);
++		dev_dbg(priv->dev,
++			 "  flood masks: ucast=0x%03x mcast=0x%03x bcast=0x%03x\n",
++			 uflood & 0x7FF, mflood & 0x7FF, bflood & 0x7FF);
++		for (p = 0; p < priv->num_ports; p++) {
++			if (!((lag_pmask | node_pmask) & BIT(p)))
++				continue;
++			regmap_read(priv->map, 0x08A2 + p, &iso);
++			dev_dbg(priv->dev,
++				 "  port %d (%s): isolation=0x%03x stp=%u\n",
++				 p, (lag_pmask & BIT(p)) ? "lag" : "node",
++				 iso & 0x7FF,
++				 (stp >> (p * 2)) & 0x3);
++		}
++	}
++
++}
++
+ static int rtl8365mb_lag_apply_group(struct realtek_priv *priv,
+ 				     struct rtl8365mb_lag_ctx *ctx,
+ 				     int group, u32 member_pmask)
+@@ -354,8 +713,29 @@
+ 		return ret;
+ 
+ 	priv->lag_member_pmask = pmask;
++	rtl8365mb_lag_bridge_isolation_fixup(ds, pmask, -1);
++	rtl8365mb_lag_sync_uplink_vlans(ds, pmask);
+ 
+ 	return 0;
++}
++
++/**
++ * rtl8365mb_lag_bridge_fixup_refresh() - re-run bridge isolation + VLAN sync
++ * @ds: DSA switch
++ * @port_hint: port that just joined/left a bridge, or -1
++ *
++ * Called from port_bridge_join/leave and after the bond's bridge VLANs are
++ * programmed, so ASIC lag members pick up the trunk VLAN DB.
++ */
++void rtl8365mb_lag_bridge_fixup_refresh(struct dsa_switch *ds, int port_hint)
++{
++	struct realtek_priv *priv = ds->priv;
++	u32 pmask = priv->lag_member_pmask;
++
++	if (pmask && hweight32(pmask) >= 2) {
++		rtl8365mb_lag_bridge_isolation_fixup(ds, pmask, port_hint);
++		rtl8365mb_lag_sync_uplink_vlans(ds, pmask);
++	}
+ }
+ 
+ static struct rtl8365mb_lag_ctx rtl8365mb_lag_ctx_get(struct dsa_switch *ds)
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.h b/drivers/net/dsa/realtek/rtl8365mb_lag.h
+--- a/drivers/net/dsa/realtek/rtl8365mb_lag.h
++++ b/drivers/net/dsa/realtek/rtl8365mb_lag.h
+@@ -11,5 +11,6 @@
+ int rtl8365mb_port_lag_leave(struct dsa_switch *ds, int port,
+ 			     struct dsa_lag lag);
+ int rtl8365mb_port_lag_change(struct dsa_switch *ds, int port);
++void rtl8365mb_lag_bridge_fixup_refresh(struct dsa_switch *ds, int port_hint);
+ 
+ #endif /* _RTL8365MB_LAG_H */
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
+--- a/drivers/net/dsa/realtek/rtl8365mb_main.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_main.c
+@@ -1645,6 +1645,95 @@
+ 	return 0;
+ }
+ 
++static int rtl8365mb_port_bridge_join(struct dsa_switch *ds, int port,
++				      struct dsa_bridge bridge,
++				      bool *tx_forward_offload,
++				      struct netlink_ext_ack *extack)
++{
++	int ret;
++
++	ret = rtl83xx_port_bridge_join(ds, port, bridge, tx_forward_offload,
++				       extack);
++	if (!ret)
++		rtl8365mb_lag_bridge_fixup_refresh(ds, port);
++	return ret;
++}
++
++
++/*
++ * The bond is not a DSA port; assisted learning targets the CPU port for
++ * hosts that actually live behind the trunk.  The conduit MAC is the
++ * exception: it must stay on the CPU port or host replies leave via the
++ * uplink.
++ */
++static bool rtl8365mb_lag_fdb_remap_cpu(struct dsa_switch *ds, int port,
++					const unsigned char *addr)
++{
++	struct dsa_port *dp = dsa_to_port(ds, port);
++	struct net_device *dev = dp->conduit;
++
++	return !(dev && ether_addr_equal(addr, dev->dev_addr));
++}
++
++static int rtl8365mb_port_fdb_add(struct dsa_switch *ds, int port,
++				  const unsigned char *addr, u16 vid,
++				  struct dsa_db db)
++{
++	struct realtek_priv *priv = ds->priv;
++	u32 lag = priv->lag_member_pmask;
++	int hw_port = port;
++
++	if (lag && hweight32(lag) >= 2 && db.type == DSA_DB_BRIDGE &&
++	    dsa_is_cpu_port(ds, port) &&
++	    rtl8365mb_lag_fdb_remap_cpu(ds, port, addr)) {
++		hw_port = __ffs(lag);
++		dev_dbg(priv->dev,
++			"LAG FDB remap: cpu port %d -> lag member %d for %pM\n",
++			port, hw_port, addr);
++	}
++
++	return rtl83xx_port_fdb_add(ds, hw_port, addr, vid, db);
++}
++
++static int rtl8365mb_port_fdb_del(struct dsa_switch *ds, int port,
++				  const unsigned char *addr, u16 vid,
++				  struct dsa_db db)
++{
++	struct realtek_priv *priv = ds->priv;
++	u32 lag = priv->lag_member_pmask;
++	int hw_port = port;
++
++	if (lag && hweight32(lag) >= 2 && db.type == DSA_DB_BRIDGE &&
++	    dsa_is_cpu_port(ds, port) &&
++	    rtl8365mb_lag_fdb_remap_cpu(ds, port, addr))
++		hw_port = __ffs(lag);
++
++	return rtl83xx_port_fdb_del(ds, hw_port, addr, vid, db);
++}
++
++/*
++ * When LAG is active, the bridge may set node ports to STP DISABLED because
++ * they show NO-CARRIER (internal PHY link detection latency on RTL8370MB).
++ * The ASIC then blocks all hardware forwarding from these ports, but DSA's
++ * CPU tagging still delivers frames to the bridge.  With offload_fwd_mark
++ * set, the bridge skips re-forwarding, creating a gap where neither ASIC
++ * nor bridge forwards node-to-LAG traffic.  Override DISABLED to FORWARDING
++ * for node ports; the ASIC's own link detection prevents forwarding to
++ * truly disconnected ports.
++ */
++static void rtl8365mb_lag_port_stp_state_set(struct dsa_switch *ds, int port,
++					     u8 state)
++{
++	struct realtek_priv *priv = ds->priv;
++
++	if (state == BR_STATE_DISABLED && priv->lag_member_pmask &&
++	    !(priv->lag_member_pmask & BIT(port)) &&
++	    !dsa_is_cpu_port(ds, port))
++		state = BR_STATE_FORWARDING;
++
++	rtl8365mb_port_stp_state_set(ds, port, state);
++}
++
+ static int rtl8365mb_port_set_efid(struct realtek_priv *priv, int port,
+ 				   u32 efid)
+ {
+@@ -2693,14 +2781,14 @@
+ 	.setup = rtl8365mb_setup,
+ 	.teardown = rtl8365mb_teardown,
+ 	.phylink_get_caps = rtl8365mb_phylink_get_caps,
+-	.port_bridge_join = rtl83xx_port_bridge_join,
++	.port_bridge_join = rtl8365mb_port_bridge_join,
+ 	.port_bridge_leave = rtl83xx_port_bridge_leave,
+ 	.port_pre_bridge_flags = rtl8365mb_port_pre_bridge_flags,
+ 	.port_bridge_flags = rtl83xx_port_bridge_flags,
+-	.port_stp_state_set = rtl8365mb_port_stp_state_set,
++	.port_stp_state_set = rtl8365mb_lag_port_stp_state_set,
+ 	.port_fast_age = rtl83xx_port_fast_age,
+-	.port_fdb_add = rtl83xx_port_fdb_add,
+-	.port_fdb_del = rtl83xx_port_fdb_del,
++	.port_fdb_add = rtl8365mb_port_fdb_add,
++	.port_fdb_del = rtl8365mb_port_fdb_del,
+ 	.port_fdb_dump = rtl83xx_port_fdb_dump,
+ 	.port_mdb_add = rtl83xx_port_mdb_add,
+ 	.port_mdb_del = rtl83xx_port_mdb_del,

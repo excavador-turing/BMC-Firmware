@@ -98,6 +98,101 @@
 		regulator-max-microvolt = <880000>;
 		vin-supply = <&reg_atx_5vsb>;
 	};
+
+	tpi_i2c_smi_arb: tpi-i2c-smi-arb {
+		compatible = "turing,i2c-smi-arbiter";
+		i2c-bus = <&i2c2>;
+		status = "okay";
+	};
+
+	/*
+	 * RTL8370MB on GPIO SMI (PE12/PE13, same nets as &i2c2).
+	 * reset-gpios overridden per board rev via &ethernet_switch { } in v2.4/v2.5 dts.
+	 */
+	ethernet_switch: switch@smi {
+		compatible = "realtek,rtl8365mb";
+		turing,smi-arbiter = <&tpi_i2c_smi_arb>;
+
+		mdc-gpios = <&pio 4 12 GPIO_ACTIVE_HIGH>; /* PE12 */
+		mdio-gpios = <&pio 4 13 GPIO_ACTIVE_HIGH>; /* PE13 */
+
+		ethernet-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ethernet-port@0 {
+				reg = <0>;
+				label = "node1";
+				phy-handle = <&ethphy0>;
+				phy-mode = "internal";
+			};
+			ethernet-port@1 {
+				reg = <1>;
+				label = "node2";
+				phy-handle = <&ethphy1>;
+				phy-mode = "internal";
+			};
+			ethernet-port@2 {
+				reg = <2>;
+				label = "node3";
+				phy-handle = <&ethphy2>;
+				phy-mode = "internal";
+			};
+			ethernet-port@3 {
+				reg = <3>;
+				label = "node4";
+				phy-handle = <&ethphy3>;
+				phy-mode = "internal";
+			};
+			ethernet-port@4 {
+				reg = <4>;
+				label = "cpu";
+				ethernet = <&emac>;
+				phy-handle = <&ethphy4>;
+				phy-mode = "internal";
+			};
+			ethernet-port@5 {
+				reg = <5>;
+				label = "ge0";
+				phy-handle = <&ethphy5>;
+				phy-mode = "internal";
+			};
+			ethernet-port@6 {
+				reg = <6>;
+				label = "ge1";
+				phy-handle = <&ethphy6>;
+				phy-mode = "internal";
+			};
+		};
+
+		mdio {
+			compatible = "realtek,smi-mdio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ethphy0: ethernet-phy@0 {
+				reg = <0>;
+			};
+			ethphy1: ethernet-phy@1 {
+				reg = <1>;
+			};
+			ethphy2: ethernet-phy@2 {
+				reg = <2>;
+			};
+			ethphy3: ethernet-phy@3 {
+				reg = <3>;
+			};
+			ethphy4: ethernet-phy@4 {
+				reg = <4>;
+			};
+			ethphy5: ethernet-phy@5 {
+				reg = <5>;
+			};
+			ethphy6: ethernet-phy@6 {
+				reg = <6>;
+			};
+		};
+	};
 };
 
 /*
@@ -313,11 +408,21 @@
 	pinctrl-0 = <&uart5_pb_pins>;
 };
 
+/*
+ * EEPROM @ 0x50 on hardware TWI2 (PE12/PE13). RTL8370MB SMI shares these pins;
+ * tpi-i2c-smi-arbiter muxes HW I2C vs GPIO bitbang (see switch@smi).
+ */
 &i2c2 {
 	status = "okay";
 
-	pinctrl-names = "default";
 	pinctrl-0 = <&i2c2_pe12_pins>;
+#ifdef IS_UBOOT
+	pinctrl-names = "default";
+#else
+	pinctrl-names = "default", "smi_mode";
+	/* Release TWI pinctrl so SMI can request PE12/PE13 via gpiolib */
+	pinctrl-1 = <>;
+#endif
 
 	clock-frequency = <100000>;
 
@@ -332,88 +437,6 @@
 
 		mac_address: mac-address@2c {
 			reg = <0x2c 0x06>;
-		};
-	};
-
-	ethernet_switch: ethernet-switch@5c {
-		compatible = "realtek,rtl8365mb";
-		reg = <0x5c>;
-
-		ethernet-ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			ethernet-port@0 {
-				reg = <0>;
-				label = "node1";
-				phy-handle = <&ethphy0>;
-				phy-mode = "internal";
-			};
-			ethernet-port@1 {
-				reg = <1>;
-				label = "node2";
-				phy-handle = <&ethphy1>;
-				phy-mode = "internal";
-			};
-			ethernet-port@2 {
-				reg = <2>;
-				label = "node3";
-				phy-handle = <&ethphy2>;
-				phy-mode = "internal";
-			};
-			ethernet-port@3 {
-				reg = <3>;
-				label = "node4";
-				phy-handle = <&ethphy3>;
-				phy-mode = "internal";
-			};
-			ethernet-port@4 {
-				reg = <4>;
-				label = "cpu";
-				ethernet = <&emac>;
-				phy-handle = <&ethphy4>;
-				phy-mode = "internal";
-			};
-			ethernet-port@5 {
-				reg = <5>;
-				label = "ge0";
-				phy-handle = <&ethphy5>;
-				phy-mode = "internal";
-			};
-			ethernet-port@6 {
-				reg = <6>;
-				label = "ge1";
-				phy-handle = <&ethphy6>;
-				phy-mode = "internal";
-			};
-		};
-
-		mdio {
-			compatible = "realtek,smi-mdio";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			ethphy0: ethernet-phy@0 {
-				reg = <0>;
-			};
-			ethphy1: ethernet-phy@1 {
-				reg = <1>;
-			};
-			ethphy2: ethernet-phy@2 {
-				reg = <2>;
-			};
-			ethphy3: ethernet-phy@3 {
-				reg = <3>;
-			};
-			ethphy4: ethernet-phy@4 {
-				reg = <4>;
-			};
-			ethphy5: ethernet-phy@5 {
-				reg = <5>;
-			};
-			ethphy6: ethernet-phy@6 {
-				reg = <6>;
-			};
 		};
 	};
 };

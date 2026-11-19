@@ -1,0 +1,43 @@
+From ab38550357df2fa10670b17ed28089ce431fa52a Mon Sep 17 00:00:00 2001
+From: Sven Rademakers <sven@turingpi.com>
+Date: Sat, 05 Jul 2026 17:00:00 +0200
+Subject: [PATCH 2/6] net: dsa: rtl8365mb: add RTL8370MB-CG support
+
+Add the RTL8370MB-CG chip row (chip_id 0x6368, chip_ver 0x0010) used by
+Turing Pi 2 v2.5+ boards.
+
+Origin / credits:
+  rtl8365mb DSA driver baseline: Sam Edwards <CFSworks@gmail.com>
+  Chip row (0x6368 / 0x0010): local addition on top of that driver;
+  candidate for upstream once validated independently of LAG work.
+
+Signed-off-by: Sven Rademakers <sven@turingpi.com>
+---
+ drivers/net/dsa/realtek/rtl8365mb_main.c           |   14 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 14 insertions(+), 0 deletions(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
+index 5ac091b..e33864d 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb_main.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_main.c
+@@ -652,6 +652,20 @@ static const struct rtl8365mb_chip_info rtl8365mb_chip_infos[] = {
+ 		.jam_table = rtl8365mb_init_jam_8365mb_vc,
+ 		.jam_size = ARRAY_SIZE(rtl8365mb_init_jam_8365mb_vc),
+ 	},
++	{
++		/* 8-port + 1 CPU; reuses RTL8367-class init jam; ext-ints 8/9 */
++		.name = "RTL8370MB-CG",
++		.chip_id = 0x6368,
++		.chip_ver = 0x0010,
++		.extints = {
++			{ 8, 1, PHY_INTF(MII) | PHY_INTF(TMII) |
++				PHY_INTF(RMII) | PHY_INTF(RGMII) },
++			{ 9, 2, PHY_INTF(MII) | PHY_INTF(TMII) |
++				PHY_INTF(RMII) | PHY_INTF(RGMII) },
++		},
++		.jam_table = rtl8365mb_init_jam_8365mb_vc,
++		.jam_size = ARRAY_SIZE(rtl8365mb_init_jam_8365mb_vc),
++	},
+ };
+ 
+ enum rtl8365mb_stp_state {

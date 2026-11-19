@@ -1,0 +1,14 @@
+Kernel patches: shared PE12/PE13 HW I2C + GPIO SMI on `&i2c2`.
+
+Included in production `tp2bmc_defconfig` (`BR2_LINUX_KERNEL_PATCH`).
+Device tree: `sun8i-t113s-turing-pi2.dtsi` (`tpi-i2c-smi-arb` + `switch@smi`).
+
+Former patches 0004–0006 (defer GPIO at probe, I²C platform device not `i2c-0`,
+empty `smi_mode` pinctrl + per-xfer GPIO / `pm_runtime_suspend`) are folded
+into **0002**.
+
+| Patch | Description |
+|-------|-------------|
+| 0001 | DT binding `turing,i2c-smi-arbiter` |
+| 0002 | `tpi-i2c-smi-arbiter` driver + Kconfig (shared-pin probe, pinctrl, pin release) |
+| 0003 | `realtek-smi` bracket via `turing,smi-arbiter` |

@@ -51,7 +51,7 @@ BR2_PER_PACKAGE_DIRECTORIES=y
 # files: this one and that patch.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.109"
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.18.62"
 # The headers series must be named too. BR2_TOOLCHAIN_HEADERS_AT_LEAST_*
 # is selected by BR2_LINUX_KERNEL_LATEST_VERSION, NOT by a custom version
 # (linux/Config.in), so with BR2_KERNEL_HEADERS_AS_KERNEL a custom version
@@ -61,14 +61,14 @@ BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.109"
 # so the toolchain quietly becomes uclibc without wchar or locale and eight
 # packages (dosfstools, f2fs-tools, iproute2, libgpiod, parted, ...) vanish
 # from the image. Name the series so the pin is a pin.
-BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_18=y
 # gcc 13 is this Buildroot release's default and was never named here. It is
 # named now because CI's prebuilt toolchain (tp2bmc/configs/
 # ci-external-toolchain.fragment) must state the gcc it carries, and
 # tests/toolchain-fragment.sh checks that statement against THIS file. A
 # default cannot be checked; a line can. No change to what is built.
 BR2_GCC_VERSION_13_X=y
-BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux"
+BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/i2c $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/pwm $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/net-dsa $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/gpio $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/power $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/tpi-smi-mux"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/linux_defconfig"
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
@@ -149,6 +149,9 @@ BR2_PACKAGE_START_STOP_DAEMON=y
 BR2_PACKAGE_UTIL_LINUX_BINARIES=y
 BR2_PACKAGE_UTIL_LINUX_UUIDD=y
 BR2_PACKAGE_SSHPASS=y
+BR2_PACKAGE_TCPDUMP=y
+BR2_PACKAGE_SCREEN=y
+BR2_PACKAGE_IPERF3=y
 
 # Custom packages
 BR2_PACKAGE_BMCD=y

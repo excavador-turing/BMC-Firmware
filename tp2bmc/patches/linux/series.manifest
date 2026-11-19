@@ -1,0 +1,19 @@
+# Production apply order (audit / KERNEL_UPGRADE_LOG). Buildroot does NOT read this file.
+# BR2_LINUX_KERNEL_PATCH lists six subdirs in the same order; apply-patches runs *.patch per dir.
+# Cross-check: tp2bmc/patches/linux/scripts/kernel-patch-tool.sh list-order
+generic/i2c/0001-i2c-mv64xxx-Clear-bus-errors-before-transfer.patch
+generic/pwm/0001-dt-bindings-pwm-Add-binding-for-Allwinner-D1-T113-S3.patch
+generic/pwm/0002-pwm-Add-Allwinner-s-D1-T113-S3-R329-SoCs-PWM-support.patch
+generic/pwm/0003-riscv-dts-allwinner-d1-Add-pwm-node.patch
+net-dsa/0001-net-dsa-realtek-rtl8365mb-backport-bridge-fdb-vlan-offload.patch
+net-dsa/0002-net-dsa-rtl8365mb-add-RTL8370MB-CG-support.patch
+net-dsa/0003-net-dsa-rtl8365mb-hardware-lag-trunk-offload.patch
+net-dsa/0004-net-dsa-rtl8365mb-lag-bridge-uplink-vlan-sync.patch
+net-dsa/0005-net-dsa-rtl8365mb-lag-phy-autoneg-kick.patch
+net-dsa/0006-net-dsa-rtl8365mb-key-fdb-entries-with-vlan-learning-mode.patch
+tp2/gpio/0001-gpio-aggregator-Add-turing-pi2-nodes-compatible.patch
+tp2/power/0001-regulator-fixed-preserve-boot-state.patch
+tp2/power/0002-gpio-latch-persist-shadow-sram-warm-reboot.patch
+tp2/tpi-smi-mux/0001-dt-bindings-turing-i2c-smi-arbiter.patch
+tp2/tpi-smi-mux/0002-tpi-i2c-smi-arbiter-driver.patch
+tp2/tpi-smi-mux/0003-net-dsa-realtek-smi-shared-bus-bracket.patch

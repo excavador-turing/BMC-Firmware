@@ -1,0 +1,75 @@
+From f05bbdf724f1a3dbbb71ec6d75002a0ebcfae748 Mon Sep 17 00:00:00 2001
+From: Sven Rademakers <sven@turingpi.com>
+Date: Sat, 9 May 2026 13:35:09 +0200
+Subject: [PATCH 1/2] regulator: fixed: add preserve-boot-state DT property
+
+When "preserve-boot-state" is set, request the enable GPIO with
+GPIOD_ASIS instead of driving it from enabled_at_boot so the regulator
+core leaves the bootloader-programmed state untouched until something
+explicitly toggles the regulator.
+
+Used on Turing Pi 2 to keep node-power rails alive across warm reboot.
+
+Signed-off-by: Sven Rademakers <sven@turingpi.com>
+---
+ drivers/regulator/fixed.c                          |   17 +++++++++++++++++++++++++++++++++-------
+ include/linux/regulator/fixed.h                    |    5 ++++++++++++
+ 2 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/regulator/fixed.c b/drivers/regulator/fixed.c
+--- a/drivers/regulator/fixed.c
++++ b/drivers/regulator/fixed.c
+@@ -198,6 +198,9 @@
+ 	of_property_read_u32(np, "startup-delay-us", &config->startup_delay);
+ 	of_property_read_u32(np, "off-on-delay-us", &config->off_on_delay);
+ 
++	if (of_property_present(np, "preserve-boot-state"))
++		config->preserve_boot_state = 1;
++
+ 	if (of_property_present(np, "vin-supply"))
+ 		config->input_supply = "vin";
+ 
+@@ -293,10 +296,18 @@
+ 	drvdata->desc.fixed_uV = config->microvolts;
+ 
+ 	/*
+-	 * The signal will be inverted by the GPIO core if flagged so in the
+-	 * descriptor.
++	 * If preserve-boot-state is set, the bootloader (or a previous
++	 * kernel instance) is responsible for the GPIO state and we must
++	 * not clobber it at probe time. Request the descriptor with
++	 * GPIOD_ASIS so the regulator core leaves the pin alone until
++	 * something explicitly enables/disables the regulator.
++	 *
++	 * Otherwise the signal will be inverted by the GPIO core if
++	 * flagged so in the descriptor.
+ 	 */
+-	if (config->enabled_at_boot)
++	if (config->preserve_boot_state)
++		gflags = GPIOD_ASIS;
++	else if (config->enabled_at_boot)
+ 		gflags = GPIOD_OUT_HIGH;
+ 	else
+ 		gflags = GPIOD_OUT_LOW;
+diff --git a/include/linux/regulator/fixed.h b/include/linux/regulator/fixed.h
+--- a/include/linux/regulator/fixed.h
++++ b/include/linux/regulator/fixed.h
+@@ -25,6 +25,10 @@
+  * 			boot or not. 1 = Yes, 0 = No
+  * 			This is used to keep the regulator at
+  * 			the default state
++ * @preserve_boot_state:	Whether to leave the enable-GPIO untouched at
++ * 			probe time (request as GPIOD_ASIS) instead of
++ * 			driving it from @enabled_at_boot. Used together
++ * 			with the "preserve-boot-state" DT property.
+  * @init_data:		regulator_init_data
+  *
+  * This structure contains fixed voltage regulator configuration
+@@ -38,6 +42,7 @@
+ 	unsigned startup_delay;
+ 	unsigned int off_on_delay;
+ 	unsigned enabled_at_boot:1;
++	unsigned preserve_boot_state:1;
+ 	struct regulator_init_data *init_data;
+ };
+ 

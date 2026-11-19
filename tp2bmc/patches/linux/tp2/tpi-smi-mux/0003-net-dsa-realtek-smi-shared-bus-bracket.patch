@@ -1,0 +1,245 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Sven Rademakers <sven@turingpi.com>
+Date: Mon, 02 Jun 2026 12:00:00 +0200
+Subject: [PATCH 3/3] net: dsa: realtek-smi: bracket SMI ops with shared-bus arbiter
+
+When a turing,smi-arbiter phandle is present in the switch DT node, lock
+the shared I2C adapter, quiesce TWI, and select pinctrl "smi_mode" before
+each SMI register access. GPIO MDC/MDIO pins are requested per-transaction
+and released afterwards so they don't conflict with the HW I2C controller
+that normally owns PE12/PE13.
+
+On probe, defer GPIO acquisition when an arbiter is present; verify the
+arbiter is actually probed (platform_get_drvdata check) to avoid ordering
+races.
+
+The arbiter device reference obtained via of_find_device_by_node() is
+released on driver remove to avoid a device refcount leak.
+
+Signed-off-by: Sven Rademakers <sven@turingpi.com>
+---
+diff --git a/drivers/net/dsa/realtek/realtek-smi.c b/drivers/net/dsa/realtek/realtek-smi.c
+--- a/drivers/net/dsa/realtek/realtek-smi.c
++++ b/drivers/net/dsa/realtek/realtek-smi.c
+@@ -31,6 +31,7 @@
+ #include <linux/spinlock.h>
+ #include <linux/skbuff.h>
+ #include <linux/of.h>
++#include <linux/of_platform.h>
+ #include <linux/delay.h>
+ #include <linux/gpio/consumer.h>
+ #include <linux/platform_device.h>
+@@ -42,13 +43,96 @@
+ #include "realtek-smi.h"
+ #include "rtl83xx.h"
+ 
++#include <linux/tpi-i2c-smi-arbiter.h>
++
+ #define REALTEK_SMI_ACK_RETRY_COUNT		5
+ 
+ static inline void realtek_smi_clk_delay(struct realtek_priv *priv)
+ {
+ 	ndelay(priv->variant->clk_delay);
++}
++
++static int realtek_smi_ensure_gpios(struct realtek_priv *priv)
++{
++	int ret;
++
++	if (priv->mdc && priv->mdio)
++		return 0;
++
++	priv->mdc = gpiod_get_optional(priv->dev, "mdc", GPIOD_OUT_LOW);
++	if (IS_ERR(priv->mdc)) {
++		ret = PTR_ERR(priv->mdc);
++		priv->mdc = NULL;
++		return ret;
++	}
++
++	priv->mdio = gpiod_get_optional(priv->dev, "mdio", GPIOD_OUT_LOW);
++	if (IS_ERR(priv->mdio)) {
++		ret = PTR_ERR(priv->mdio);
++		priv->mdio = NULL;
++		goto err_put_mdc;
++	}
++
++	if (!priv->mdc || !priv->mdio) {
++		ret = -EINVAL;
++		goto err_put_gpios;
++	}
++
++	return 0;
++
++err_put_gpios:
++	if (priv->mdio) {
++		gpiod_put(priv->mdio);
++		priv->mdio = NULL;
++	}
++err_put_mdc:
++	if (priv->mdc) {
++		gpiod_put(priv->mdc);
++		priv->mdc = NULL;
++	}
++	return ret;
++}
++
++static void realtek_smi_release_gpios(struct realtek_priv *priv)
++{
++	if (priv->mdio) {
++		gpiod_put(priv->mdio);
++		priv->mdio = NULL;
++	}
++	if (priv->mdc) {
++		gpiod_put(priv->mdc);
++		priv->mdc = NULL;
++	}
++}
++
++static int realtek_smi_bus_begin(struct realtek_priv *priv)
++{
++	int ret;
++
++	if (!priv->smi_arb)
++		return 0;
++
++	ret = tpi_smi_arb_begin(priv->smi_arb);
++	if (ret)
++		return ret;
++
++	ret = realtek_smi_ensure_gpios(priv);
++	if (ret) {
++		tpi_smi_arb_end(priv->smi_arb);
++		return ret;
++	}
++
++	return 0;
+ }
+ 
++static void realtek_smi_bus_end(struct realtek_priv *priv)
++{
++	if (priv->smi_arb) {
++		realtek_smi_release_gpios(priv);
++		tpi_smi_arb_end(priv->smi_arb);
++	}
++}
++
+ static void realtek_smi_start(struct realtek_priv *priv)
+ {
+ 	/* Set GPIO pins to output mode, with initial state:
+@@ -203,6 +287,10 @@
+ 	u8 lo = 0;
+ 	u8 hi = 0;
+ 	int ret;
++
++	ret = realtek_smi_bus_begin(priv);
++	if (ret)
++		return ret;
+ 
+ 	spin_lock_irqsave(&priv->lock, flags);
+ 
+@@ -235,6 +323,7 @@
+  out:
+ 	realtek_smi_stop(priv);
+ 	spin_unlock_irqrestore(&priv->lock, flags);
++	realtek_smi_bus_end(priv);
+ 
+ 	return ret;
+ }
+@@ -245,6 +334,10 @@
+ 	unsigned long flags;
+ 	int ret;
+ 
++	ret = realtek_smi_bus_begin(priv);
++	if (ret)
++		return ret;
++
+ 	spin_lock_irqsave(&priv->lock, flags);
+ 
+ 	realtek_smi_start(priv);
+@@ -282,6 +375,7 @@
+  out:
+ 	realtek_smi_stop(priv);
+ 	spin_unlock_irqrestore(&priv->lock, flags);
++	realtek_smi_bus_end(priv);
+ 
+ 	return ret;
+ }
+@@ -338,23 +432,46 @@
+ 	if (IS_ERR(priv))
+ 		return PTR_ERR(priv);
+ 
+-	/* Fetch MDIO pins */
+-	priv->mdc = devm_gpiod_get_optional(dev, "mdc", GPIOD_OUT_LOW);
+-	if (IS_ERR(priv->mdc)) {
+-		rtl83xx_remove(priv);
+-		return PTR_ERR(priv->mdc);
++	if (dev->of_node) {
++		struct device_node *arb_np;
++
++		arb_np = of_parse_phandle(dev->of_node, "turing,smi-arbiter", 0);
++		if (arb_np) {
++			struct platform_device *arb_pdev;
++
++			arb_pdev = of_find_device_by_node(arb_np);
++			of_node_put(arb_np);
++			if (!arb_pdev || !platform_get_drvdata(arb_pdev)) {
++				if (arb_pdev)
++					put_device(&arb_pdev->dev);
++				rtl83xx_remove(priv);
++				return -EPROBE_DEFER;
++			}
++			priv->smi_arb = &arb_pdev->dev;
++		}
+ 	}
+ 
+-	priv->mdio = devm_gpiod_get_optional(dev, "mdio", GPIOD_OUT_LOW);
+-	if (IS_ERR(priv->mdio)) {
+-		rtl83xx_remove(priv);
+-		return PTR_ERR(priv->mdio);
++	if (!priv->smi_arb) {
++		/* Fetch MDIO pins at probe when no arbiter manages them */
++		priv->mdc = devm_gpiod_get_optional(dev, "mdc", GPIOD_OUT_LOW);
++		if (IS_ERR(priv->mdc)) {
++			rtl83xx_remove(priv);
++			return PTR_ERR(priv->mdc);
++		}
++
++		priv->mdio = devm_gpiod_get_optional(dev, "mdio", GPIOD_OUT_LOW);
++		if (IS_ERR(priv->mdio)) {
++			rtl83xx_remove(priv);
++			return PTR_ERR(priv->mdio);
++		}
+ 	}
+ 
+ 	priv->write_reg_noack = realtek_smi_write_reg_noack;
+ 
+ 	ret = rtl83xx_register_switch(priv);
+ 	if (ret) {
++		if (priv->smi_arb)
++			put_device(priv->smi_arb);
+ 		rtl83xx_remove(priv);
+ 		return ret;
+ 	}
+@@ -382,6 +499,9 @@
+ 
+ 	rtl83xx_unregister_switch(priv);
+ 
++	if (priv->smi_arb)
++		put_device(priv->smi_arb);
++
+ 	rtl83xx_remove(priv);
+ }
+ EXPORT_SYMBOL_NS_GPL(realtek_smi_remove, "REALTEK_DSA");
+diff --git a/drivers/net/dsa/realtek/realtek.h b/drivers/net/dsa/realtek/realtek.h
+--- a/drivers/net/dsa/realtek/realtek.h
++++ b/drivers/net/dsa/realtek/realtek.h
+@@ -55,6 +55,7 @@
+ 	struct device		*dev;
+ 	struct reset_control    *reset_ctl;
+ 	struct gpio_desc	*reset;
++	struct device		*smi_arb;
+ 	struct gpio_desc	*mdc;
+ 	struct gpio_desc	*mdio;
+ 	struct regmap		*map;
+-- 
+2.50.1

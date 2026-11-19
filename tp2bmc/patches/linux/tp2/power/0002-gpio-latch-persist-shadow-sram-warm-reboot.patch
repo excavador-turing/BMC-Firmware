@@ -1,0 +1,153 @@
+From a4c025b40a4d4cb195f7b883c2738309cb7302b8 Mon Sep 17 00:00:00 2001
+From: Sven Rademakers <sven@turingpi.com>
+Date: Sat, 9 May 2026 13:40:00 +0200
+Subject: [PATCH 2/2] gpio: latch: persist shadow in SoC SRAM across warm reboot
+
+Mirror the latch shadow into the Allwinner T113s SRAM A2 scratchpad at
+0x0709010c (shared with the U-Boot SPL boot cookie at 0x07090108) so
+warm reboot preserves latched node-power state. Adds a .get callback
+for userspace query.
+
+Board-specific SRAM address is intentional for the Turing Pi 2 SPL
+contract; not proposed for generic mainline gpio-latch as-is.
+
+Signed-off-by: Sven Rademakers <sven@turingpi.com>
+---
+ drivers/gpio/gpio-latch.c                          |   68 +++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 63 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpio/gpio-latch.c b/drivers/gpio/gpio-latch.c
+--- a/drivers/gpio/gpio-latch.c
++++ b/drivers/gpio/gpio-latch.c
+@@ -42,6 +42,7 @@
+ #include <linux/err.h>
+ #include <linux/gpio/consumer.h>
+ #include <linux/gpio/driver.h>
++#include <linux/io.h>
+ #include <linux/module.h>
+ #include <linux/mod_devicetable.h>
+ #include <linux/platform_device.h>
+@@ -50,6 +51,31 @@
+ 
+ #include "gpiolib.h"
+ 
++/*
++ * Turing Pi 2 SPL/kernel contract for the latch shadow word:
++ *
++ *   On the Allwinner T113s SoC, the SPL (turing-machines/u-boot,
++ *   board/turing/pi2/turingpi2-spl.c) reserves two 32-bit words in
++ *   SRAM A2 / scratchpad:
++ *
++ *     0x07090108 : boot cookie ("TPi2" = 0x32695054)
++ *     0x0709010c : latched-state shadow (bits 0..8 = 9 latched lines)
++ *
++ *   The cookie is what tells SPL whether the current boot is cold
++ *   (cookie absent) or warm (cookie matches "TPi2"). On cold boot the
++ *   SPL drives every latched line low and zeros bits 0..8 of the
++ *   shadow word; on warm boot the shadow is left intact so the kernel
++ *   can faithfully report the state set by the previous instance.
++ *
++ *   This region is not nvmem (no NV backing, no RTC retention) — it
++ *   is plain mmio-sram. The bare ioremap below is intentional and
++ *   load-bearing for the cooperative SPL/kernel contract above.
++ *
++ *   Bumping this address requires a matching change in the SPL.
++ */
++#define TURING_PI2_LATCH_STATE_ADDR	0x0709010cUL
++#define TURING_PI2_LATCH_STATE_SIZE	sizeof(u32)
++
+ struct gpio_latch_priv {
+ 	struct gpio_chip gc;
+ 	struct gpio_descs *clk_gpios;
+@@ -57,7 +83,7 @@
+ 	int n_latched_gpios;
+ 	unsigned int setup_duration_ns;
+ 	unsigned int clock_duration_ns;
+-	unsigned long *shadow;
++	void __iomem *shadow;
+ 	/*
+ 	 * Depending on whether any of the underlying GPIOs may sleep we either
+ 	 * use a mutex or a spinlock to protect our shadow map.
+@@ -68,6 +94,16 @@
+ 	};
+ };
+ 
++static u32 gpio_latch_shadow_read(struct gpio_latch_priv *priv)
++{
++	return ioread32(priv->shadow);
++}
++
++static void gpio_latch_shadow_write(struct gpio_latch_priv *priv, u32 val)
++{
++	iowrite32(val, priv->shadow);
++}
++
+ static int gpio_latch_get_direction(struct gpio_chip *gc, unsigned int offset)
+ {
+ 	return GPIO_LINE_DIRECTION_OUT;
+@@ -78,13 +114,14 @@
+ 				   unsigned int offset, bool val)
+ {
+ 	int latch = offset / priv->n_latched_gpios, i, ret;
++	unsigned long shadow = gpio_latch_shadow_read(priv);
+ 
+-	assign_bit(offset, priv->shadow, val);
++	assign_bit(offset, &shadow, val);
+ 
+ 	for (i = 0; i < priv->n_latched_gpios; i++) {
+ 		ret = set(priv->latched_gpios->desc[i],
+ 			  test_bit(latch * priv->n_latched_gpios + i,
+-				   priv->shadow));
++				   &shadow));
+ 		if (ret)
+ 			return ret;
+ 	}
+@@ -94,9 +131,24 @@
+ 	ndelay(priv->clock_duration_ns);
+ 	set(priv->clk_gpios->desc[latch], 0);
+ 
++	gpio_latch_shadow_write(priv, shadow);
++
+ 	return 0;
+ }
+ 
++static int gpio_latch_get(struct gpio_chip *gc, unsigned int offset)
++{
++	struct gpio_latch_priv *priv = gpiochip_get_data(gc);
++
++	if (gc->can_sleep) {
++		guard(mutex)(&priv->mutex);
++		return !!(gpio_latch_shadow_read(priv) & BIT(offset));
++	}
++
++	guard(spinlock_irqsave)(&priv->spinlock);
++	return !!(gpio_latch_shadow_read(priv) & BIT(offset));
++}
++
+ static int gpio_latch_set(struct gpio_chip *gc, unsigned int offset, int val)
+ {
+ 	struct gpio_latch_priv *priv = gpiochip_get_data(gc);
+@@ -159,8 +211,13 @@
+ 	n_latches = priv->clk_gpios->ndescs;
+ 	priv->n_latched_gpios = priv->latched_gpios->ndescs;
+ 
+-	priv->shadow = devm_bitmap_zalloc(dev, n_latches * priv->n_latched_gpios,
+-					  GFP_KERNEL);
++	if (n_latches * priv->n_latched_gpios > BITS_PER_TYPE(u32))
++		return dev_err_probe(dev, -EINVAL,
++				     "shadow word too small for %u latched lines\n",
++				     n_latches * priv->n_latched_gpios);
++
++	priv->shadow = devm_ioremap(dev, TURING_PI2_LATCH_STATE_ADDR,
++				    TURING_PI2_LATCH_STATE_SIZE);
+ 	if (!priv->shadow)
+ 		return -ENOMEM;
+ 
+@@ -191,6 +248,7 @@
+ 	}
+ 
+ 	priv->gc.get_direction = gpio_latch_get_direction;
++	priv->gc.get = gpio_latch_get;
+ 	priv->gc.ngpio = n_latches * priv->n_latched_gpios;
+ 	priv->gc.owner = THIS_MODULE;
+ 	priv->gc.base = -1;

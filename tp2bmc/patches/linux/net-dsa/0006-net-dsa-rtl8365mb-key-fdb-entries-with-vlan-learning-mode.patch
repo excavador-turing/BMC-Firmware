@@ -1,0 +1,100 @@
+From 1fcc863c1a8bb61d791c486c62be24dd26cc3882 Mon Sep 17 00:00:00 2001
+From: Sven Rademakers <sven@turingpi.com>
+Date: Wed, 02 Sep 2026 00:10:00 +0200
+Subject: [PATCH 6/6] net: dsa: rtl8365mb: key FDB entries with the VLAN's
+ learning mode
+
+rtl8365mb_l2_add_uc() and rtl8365mb_l2_del_uc() always key their entries
+with ivl = true. IVL is only enabled on VLANs that were programmed into
+the 4K table, which happens exclusively from rtl8365mb_vlan_4k_port_add();
+every other VLAN, including VLAN-unaware traffic on vid 0, keeps the chip
+default of shared VLAN learning on FID 0.
+
+On a bridge without VLAN filtering the switch therefore learns and looks
+up addresses with ivl = 0, fid = 0, while every entry the driver writes
+lands in the IVL key space. Those entries read back perfectly from the L2
+table but no lookup ever consults them, so each address the driver
+installs stays unknown to forwarding and its traffic is flooded to all
+ports.
+
+On a Turing Pi 2 (RTL8370MB-CG) with the four node ports and the two
+uplink ports on a flat br0, every frame addressed to the BMC was
+delivered to all node ports, letting any node passively observe BMC
+management traffic. Dumping the ASIC L2 table shows the cause directly:
+every dynamically learned address is keyed ivl=0 vid=0, while the host
+entries for the conduit MAC are keyed ivl=1, correct in every other
+respect:
+
+  idx=2920 mac=00:0d:b9:49:07:38 efid=1 fid=0 ivl=0 vid=0 dst=5 static=0
+  idx=3840 mac=c4:ff:84:10:00:ba efid=1 fid=0 ivl=1 vid=0 dst=4 static=1
+
+A capture on a node confirms the direction: only the replies addressed to
+the BMC are flooded, which is the destination lookup that misses.
+
+Derive the key from the VLAN instead: use IVL for a real VLAN, and shared
+learning on FID 0 for vid 0. Both the add and delete paths go through one
+helper so a delete cannot build a different key than the add did and
+leave the entry behind.
+
+Signed-off-by: Sven Rademakers <sven@turingpi.com>
+---
+ drivers/net/dsa/realtek/rtl8365mb_l2.c             |   33 ++++++++++++++++++++++++++++------------
+ 1 file changed, 23 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_l2.c b/drivers/net/dsa/realtek/rtl8365mb_l2.c
+--- a/drivers/net/dsa/realtek/rtl8365mb_l2.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_l2.c
+@@ -302,6 +302,27 @@
+ 	return 0;
+ }
+ 
++/*
++ * Key an entry the way the hardware will key the lookup that has to find it.
++ * IVL is only enabled on VLANs programmed into the 4K table, which happens
++ * exclusively from rtl8365mb_vlan_4k_port_add(). Every other VLAN, including
++ * VLAN-unaware traffic on vid 0, keeps the chip default of shared VLAN
++ * learning on FID 0 -- which is also how the hardware then learns addresses
++ * itself. Keying an entry as IVL regardless puts it in a key space the lookup
++ * never consults, leaving the address unknown to forwarding and its traffic
++ * flooded, even though the entry reads back correctly from the L2 table.
++ */
++static void rtl8365mb_l2_uc_set_key(struct rtl8365mb_l2_uc *uc,
++				    const unsigned char mac_addr[static ETH_ALEN],
++				    u16 efid, u16 vid)
++{
++	memcpy(uc->key.mac_addr, mac_addr, ETH_ALEN);
++	uc->key.efid = efid;
++	uc->key.fid = 0;
++	uc->key.ivl = vid != 0;
++	uc->key.vid = vid;
++}
++
+ int rtl8365mb_l2_add_uc(struct realtek_priv *priv, int port,
+ 			const unsigned char mac_addr[static ETH_ALEN],
+ 			u16 efid, u16 vid)
+@@ -311,11 +332,7 @@
+ 	u16 addr;
+ 	int ret;
+ 
+-	memcpy(uc.key.mac_addr, mac_addr, ETH_ALEN);
+-	uc.key.efid = efid;
+-	uc.key.fid = 0;
+-	uc.key.ivl = true;
+-	uc.key.vid = vid;
++	rtl8365mb_l2_uc_set_key(&uc, mac_addr, efid, vid);
+ 
+ 	uc.port = port;
+ 	/* Entries programmed by DSA (including those dynamically learned by
+@@ -351,11 +368,7 @@
+ 	u16 addr;
+ 	int ret;
+ 
+-	memcpy(uc.key.mac_addr, mac_addr, ETH_ALEN);
+-	uc.key.efid = efid;
+-	uc.key.fid = 0;
+-	uc.key.ivl = true;
+-	uc.key.vid = vid;
++	rtl8365mb_l2_uc_set_key(&uc, mac_addr, efid, vid);
+ 	/* age 0 deletes the entry */
+ 	uc.age = 0;
+ 	rtl8365mb_l2_uc_to_data(&uc, data);
