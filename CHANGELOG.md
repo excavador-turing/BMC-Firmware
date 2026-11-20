@@ -13,23 +13,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.51.0] — 2026-11-20
+
+Linux 6.18.63. bmcd 2.44.0, BMC-UI 4.6.1 and tpi 1.10.0 are unchanged.
+
 ### Changed
 
 - **Linux 6.18.63 LTS and the mainline rtl8365mb switch driver over SMI, by
-  @danste22 (#79), thanks!** The kernel moves from 6.12.109 to 6.18.63. The
+  @danste22 (#85), thanks!** The kernel moves from 6.12.109 to 6.18.63. The
   Realtek switch is now driven by the mainline `rtl8365mb` code (VLAN, FDB and
   bridge offload, backported commit by commit) on a GPIO SMI bus, and a new
   arbiter, written by @danste22, shares the two pins with the EEPROM and the
   RTC. The node power rails still hold across a BMC reboot through a rewritten
   `preserve-boot-state` patch. The default flat `br0` behaviour is unchanged.
-  Not released until it has run on a board: the hardware test plan is in the
-  pull request. The hardware LAG patches of #79 follow in a separate change.
+  It ran on a board for 30 minutes as v2.51.0-rc.1 before this release. The
+  hardware LAG patches of #79 are not part of it and follow in a separate change.
 
   Credit where it is due: the preserve-boot-state patch builds on work by Sven
-  Rademakers, and the RTL8370MB-CG chip row and the mv64xxx bus-error fix on
-  work by Sam Edwards, both from turing-machines/BMC-Firmware; the PWM fan
-  driver is Aleksandr Shubin's and the switch driver is mainline Linux by its
-  authors, Alvin Šipraga and Luiz Angelo Daros de Luca. Copyright lines are kept.
+  Rademakers, and the RTL8370MB-CG chip row, the mv64xxx bus-error fix and the
+  Turing Pi 2 GPIO aggregator compatible on work by Sam Edwards, all from
+  turing-machines/BMC-Firmware; the PWM fan driver is Aleksandr Shubin's and
+  the switch driver is mainline Linux by its authors, Alvin Šipraga and Luiz
+  Angelo Daros de Luca. Copyright lines are kept.
 
 ### Added
 
