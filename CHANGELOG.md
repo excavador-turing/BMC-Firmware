@@ -13,6 +13,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Linux 6.18.63 LTS and the mainline rtl8365mb switch driver over SMI, by
+  @danste22 (#79), thanks!** The kernel moves from 6.12.109 to 6.18.63. The
+  Realtek switch is now driven by the mainline `rtl8365mb` code (VLAN, FDB and
+  bridge offload, backported commit by commit) on a GPIO SMI bus, and a new
+  arbiter, written by @danste22, shares the two pins with the EEPROM and the
+  RTC. The node power rails still hold across a BMC reboot through a rewritten
+  `preserve-boot-state` patch. The default flat `br0` behaviour is unchanged.
+  Not released until it has run on a board: the hardware test plan is in the
+  pull request. The hardware LAG patches of #79 follow in a separate change.
+
+  Credit where it is due: the preserve-boot-state patch builds on work by Sven
+  Rademakers, and the RTL8370MB-CG chip row and the mv64xxx bus-error fix on
+  work by Sam Edwards, both from turing-machines/BMC-Firmware; the PWM fan
+  driver is Aleksandr Shubin's and the switch driver is mainline Linux by its
+  authors, Alvin Šipraga among them. Copyright lines are kept.
+
+### Added
+
+- **The promotion gate also requires `ge0` and `ge1`, a readable EEPROM and a
+  bound RTC driver.** After a new image boots, the switch, the EEPROM and the
+  RTC now share two pins, so a broken hand-over between them has to stop the
+  update. Interfaces are checked for existence, never for carrier: a board with
+  an uplink unplugged still passes.
+
 ## [v2.50.0] — 2026-11-20
 
 bmcd 2.44.0 and BMC-UI 4.6.1; tpi 1.10.0 is unchanged.
