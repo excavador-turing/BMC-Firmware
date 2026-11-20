@@ -38,9 +38,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   kept under his authorship. The switch at the other end needs LACP on both
   ports.
 
+### Fixed
+
+- **A reboot of the BMC on the 6.18 kernel is read as a warm boot again.**
+  bmcd up to 2.45.0 logged `cold boot: restoring persisted power state` after every
+  reboot of the BMC on 6.18 (v2.51.0 and v2.52.0-rc.1), with all four modules
+  running, where on 6.12 it adopted the live state. It now reads which nodes
+  are powered from the latch shadow word in SoC SRAM, the cooperative contract
+  of the gpio-latch patch (`tp2/power/0002`, by @danste22, from an idea of
+  Sven Rademakers), and requests the node enable lines with that value, so
+  starting the daemon no longer pulses running modules either (bmcd#58). A
+  cold boot still restores the persisted state. No kernel change.
+
 ### Changed
 
-- **bmcd 2.45.0, BMC-UI 4.7.0 and tpi 1.11.0** are the pinned versions (the
+- **bmcd 2.46.0, BMC-UI 4.7.0 and tpi 1.11.0** are the pinned versions (the
   latest of each).
 
 ## [v2.51.0] — 2026-11-20
