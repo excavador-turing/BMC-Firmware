@@ -1,0 +1,92 @@
+From: Daniel Steinhauf <daniel@steinhauf.eu>
+Date: Tue, 10 Nov 2026 00:00:00 +0000
+Subject: [PATCH] linux-headers: add Kconfig series 6.13–6.18 for kernel 6.18.x pins
+
+Buildroot 2025.02.17 stops at BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12
+and BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_12. A defconfig line
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_18=y is dropped silently; the
+"custom headers series" choice defaults to 2.6.x, glibc becomes
+unselectable, the internal toolchain falls back to uClibc, and
+check-kernel-headers.sh fails once real 6.18 headers are staged
+(BR2_KERNEL_HEADERS_AS_KERNEL=y).
+
+Backport the 6.13–6.18 host-series and toolchain AT_LEAST chain from
+current Buildroot so 6.18.y pins behave like hive's 6_12 pin.
+
+Provenance: the Kconfig symbols (BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_13
+to 6_18, BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_13 to 6_18) are Buildroot's own,
+backported to 2025.02; Buildroot is GPL-2.0-or-later and the symbols were
+added there by the Buildroot developers. See
+https://gitlab.com/buildroot.org/buildroot/-/blob/master/toolchain/Config.in
+and package/linux-headers/Config.in.host. This is not Turing Machines work
+and none was found in turing-machines/BMC-Firmware.
+
+TODO(#79): the header of this file originally read "Turing Pi 2 BMC
+<bmc@turingpi.com>" in both From: and Signed-off-by:. That identity does not
+appear anywhere else in either repository. From: now follows the git author
+of the commit that added the file (Daniel Steinhauf); the Signed-off-by is
+left out until Daniel confirms he wrote this backport and signs it himself.
+---
+--- a/package/linux-headers/Config.in.host
++++ b/package/linux-headers/Config.in.host
+@@ -125,8 +125,12 @@
+ 	  If your kernel headers are more recent than the latest version
+ 	  in the choice, then select the latest version.
+ 
++config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_18
++	bool "6.18.x or later"
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_18
++
+ config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12
+-	bool "6.12.x or later"
++	bool "6.12.x"
+ 	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_12
+ 
+ config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_11
+
+--- a/toolchain/Config.in
++++ b/toolchain/Config.in
+@@ -645,6 +645,30 @@
+ config BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_12
+ 	bool
+ 	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_11
++
++config BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_13
++	bool
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_12
++
++config BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_14
++	bool
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_13
++
++config BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_15
++	bool
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_14
++
++config BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_16
++	bool
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_15
++
++config BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_17
++	bool
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_16
++
++config BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_18
++	bool
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_17
+ 	select BR2_TOOLCHAIN_HEADERS_LATEST
+ 
+ # This should be selected by the latest version, above, to indicate that
+@@ -658,6 +682,12 @@
+ # stops affecting a value on the first matching default.
+ config BR2_TOOLCHAIN_HEADERS_AT_LEAST
+ 	string
++	default "6.18" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_18
++	default "6.17" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_17
++	default "6.16" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_16
++	default "6.15" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_15
++	default "6.14" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_14
++	default "6.13" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_13
+ 	default "6.12" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_12
+ 	default "6.11" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_11
+ 	default "6.10" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_10

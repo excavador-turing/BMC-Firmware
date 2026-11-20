@@ -51,7 +51,7 @@ BR2_PER_PACKAGE_DIRECTORIES=y
 # files: this one and that patch.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.109"
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.18.63"
 # The headers series must be named too. BR2_TOOLCHAIN_HEADERS_AT_LEAST_*
 # is selected by BR2_LINUX_KERNEL_LATEST_VERSION, NOT by a custom version
 # (linux/Config.in), so with BR2_KERNEL_HEADERS_AS_KERNEL a custom version
@@ -61,7 +61,7 @@ BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.109"
 # so the toolchain quietly becomes uclibc without wchar or locale and eight
 # packages (dosfstools, f2fs-tools, iproute2, libgpiod, parted, ...) vanish
 # from the image. Name the series so the pin is a pin.
-BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_18=y
 # gcc 13 is this Buildroot release's default and was never named here. It is
 # named now because CI's prebuilt toolchain (tp2bmc/configs/
 # ci-external-toolchain.fragment) must state the gcc it carries, and
