@@ -182,6 +182,7 @@ jobs:
           set -eu
           shellcheck --shell=busybox --severity=warning \
             tests/gate.sh \
+            tests/lag-parts.sh \
             tests/dashboard.sh \
             tests/pins-are-current.sh \
             tests/toolchain-fragment.sh \
@@ -251,3 +252,25 @@ jobs:
 
       - name: fragment against defconfig
         run: sh tests/toolchain-fragment.sh
+
+  # A bond on this board needs four things that fail silently one by one: the
+  # three LAG patches in the series, bonding in the kernel, bonding.max_bonds=0
+  # on the command line, and ifupdown-ng with iproute2 in the image. See
+  # tests/lag-parts.sh.
+  lag:
+    name: the hardware LAG parts are in the image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: install shells
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/*.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dash busybox
+
+      - name: lag parts (dash)
+        run: dash tests/lag-parts.sh
+
+      - name: lag parts (busybox ash, as on the board)
+        run: busybox ash tests/lag-parts.sh

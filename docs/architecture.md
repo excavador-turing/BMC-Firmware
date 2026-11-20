@@ -79,6 +79,16 @@ work — and also how any process on the board can power off a module. The
 replacement is a Unix socket authenticated by peer credentials, so the loopback
 bypass can be removed rather than narrowed. Planned, not shipped (SQU-165).
 
+**The LACP uplink is a bond that is asked for, never a default.** The switch
+can aggregate `ge0` and `ge1` in hardware, but only for a Linux bond: the
+kernel carries the LAG patches (`net-dsa/0014` to `0016`) and bonding is built
+in, with `bonding.max_bonds=0` on the command line so that no `bond0` exists at
+boot. A bond appears only when bmcd writes one into `/etc/network/interfaces`
+and ifupdown-ng's bond executor (`/usr/libexec/ifupdown-ng/bond`, installed by
+the `ifupdown-ng` package) runs `ip link add type bond`. Without that stanza the
+board is the flat `br0` it always was, and the single-uplink case runs none of
+the LAG code. `tests/lag-parts.sh` keeps the four pieces in the tree.
+
 **The toolchain is built once per change to it.** Every CI run spent its first
 eleven minutes on binutils, gcc, glibc and the kernel headers — with a warm
 ccache, since what remains is extraction, configure and link — and no target
