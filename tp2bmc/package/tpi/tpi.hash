@@ -39,6 +39,7 @@ sha256  db77ed3d20ae3455726d23ebfae0b7c5461e1c3e6878e9e87d8eaa5ddfd37895  tpi-90
 # `--replace-hand-written` for a hand-written /etc/network/interfaces (tpi#16,
 # carried on as #17, by @danste22). Needs bmcd 2.45.0 for the daemon side.
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  tpi-70953f927028cdbda981d1fc5452962e51ca0ee2-cargo2.tar.gz
+# Measured 2026-11-20: the PR build in CI's own container (run 44708171616),
+# against a placeholder line, reported got bc51e724; this is that value.
+sha256  bc51e7246500b08bed73d68bdbad7db896dc7a4ae329a169c0f7cbebca4e6b71  tpi-70953f927028cdbda981d1fc5452962e51ca0ee2-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE
