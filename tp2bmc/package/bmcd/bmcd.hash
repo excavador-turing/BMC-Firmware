@@ -221,3 +221,14 @@ sha256  085f2a9e7d6ebedcb452066f49b57d1aa09a1637a912cec145cb2ea639d4cf51  bmcd-c
 # Measured 2026-11-20: the PR build in CI's own container (run 44708171616),
 # against a placeholder line, reported got 29ba6315; this is that value.
 sha256  29ba6315cf4678ba31cc4790565b01b0b63c66b38ac692946a18d0054559be3c  bmcd-1c7949e1fe5c98f68019189d1f7931372d1ac705-cargo2.tar.gz
+#
+# 2.46.0 (98c053fb, tag v2.46.0): the live power state on 6.18. bmcd reads
+# which nodes are powered from the gpio-latch shadow word in SoC SRAM (the
+# SPL/kernel contract of the gpio-latch patch, tp2/power/0002, by @danste22,
+# from an idea of Sven Rademakers) and requests the node enable lines with
+# that value, so a reboot of the BMC logs `adopted live power state` again and
+# starting the daemon no longer pulses running modules (bmcd#58). Nothing else
+# changed.
+#
+# Placeholder until CI's own container reports the got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-98c053fbd59ec7375ab13dbee5dc7fada55526ee-cargo2.tar.gz
