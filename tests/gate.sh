@@ -47,7 +47,10 @@ SYS_I2C="$WORK/sys-i2c"
 GATEWAY_NOTE="$WORK/staged-gateway"
 PING_BIN="$WORK/ping"
 # Two seconds of retrying, not sixty: the loop is the same, the test is not slow.
+# Both are read by the sourced gate, which shellcheck cannot see.
+# shellcheck disable=SC2034
 GATEWAY_TIMEOUT=2
+# shellcheck disable=SC2034
 GATEWAY_INTERVAL=1
 
 # The stager writes what the gate reads, so the harness runs it too, against
