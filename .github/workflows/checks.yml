@@ -83,6 +83,12 @@ jobs:
                  'a version mismatch is never rejected'
           mutate 's|\t\t\*bmcd_build_info\*)|\t\t*)|' \
                  'any metrics body is accepted'
+          mutate 's|if \[ ! -d "$SYS_NET/$port" \]; then|if false; then|' \
+                 'a missing switch or uplink port is never rejected'
+          mutate 's|if \[ "${got:-0}" -gt 0 \]; then|if true; then|' \
+                 'an unreadable EEPROM is accepted'
+          mutate 's|if \[ ! -e "$rtc/driver" \]; then|if false; then|' \
+                 'an RTC with no driver is accepted'
 
           # And the ordering. Dropping this one guard is exactly the old
           # behaviour: a release candidate compares as newer than its own

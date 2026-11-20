@@ -26,6 +26,13 @@
 # consumed by u-boot. The next boot therefore has no "postupdate" in its command
 # line and this script does nothing, so there is no reboot loop.
 #
+# The 6.18 kernel moved the switch onto the same two pins as the EEPROM and the
+# RTC (PE12/PE13), serialised by an arbiter. A switch that probes while that
+# arbiter or the I2C side is broken would pass the checks above, so the gate
+# also asks for the two uplink ports, a readable EEPROM and a bound RTC.
+# Interfaces are checked for existence, never for carrier: a board with no
+# cable in ge0 or ge1 is a good board.
+#
 # A false rollback costs one extra BMC reboot. That does not power-cycle the
 # compute nodes, so the cost of being wrong is small and the direction is safe.
 
@@ -70,6 +77,15 @@ HEALTH_INTERVAL=3
 # If the driver fails to probe, these do not appear at all.
 SWITCH_PORTS="node1 node2 node3 node4"
 
+# The two uplink ports of the same switch. Existence is required, carrier is
+# not: an uplink with no cable is down, and that is normal.
+UPLINK_PORTS="ge0 ge1"
+
+# Where the kernel lists network interfaces and I2C devices. Variables rather
+# than literals so tests/gate.sh can point them at a scratch directory.
+SYS_NET=/sys/class/net
+SYS_I2C=/sys/bus/i2c/devices
+
 #
 # log MESSAGE
 #
@@ -110,12 +126,86 @@ bmcd_answers() {
 #
 switch_ports_present() {
 	for port in $SWITCH_PORTS; do
-		if [ ! -d "/sys/class/net/$port" ]; then
+		if [ ! -d "$SYS_NET/$port" ]; then
 			log "FAILED: switch port $port does not exist"
 			return 1
 		fi
 	done
 
+	return 0
+}
+
+#
+# uplinks_present
+#
+# True when ge0 and ge1 exist. The same reasoning as above and the same limit:
+# the interface is there when the switch driver registered the port, whether or
+# not a cable is plugged in, so this never looks at operstate or carrier.
+#
+uplinks_present() {
+	for port in $UPLINK_PORTS; do
+		if [ ! -d "$SYS_NET/$port" ]; then
+			log "FAILED: uplink port $port does not exist"
+			return 1
+		fi
+	done
+
+	return 0
+}
+
+#
+# eeprom_readable
+#
+# True when the board EEPROM answers a read. The EEPROM holds the board
+# identity and MAC that bmcd and `tpi about` read, and it sits on the I2C
+# controller whose pins the switch now shares, so a broken hand-over between
+# the two shows up here. The at24 driver exposes it as
+# <bus>-0050/eeprom; sixteen bytes are enough to prove the bus works, and the
+# content is deliberately not judged (a blank EEPROM reads as 0xFF and is a
+# provisioning matter, not a kernel one).
+#
+eeprom_readable() {
+	for eeprom in "$SYS_I2C"/*/eeprom; do
+		[ -e "$eeprom" ] || continue
+		got=$(dd if="$eeprom" bs=1 count=16 2>/dev/null | wc -c)
+		if [ "${got:-0}" -gt 0 ]; then
+			log "EEPROM readable: $got bytes from $eeprom"
+			return 0
+		fi
+		log "FAILED: EEPROM $eeprom returned no data"
+		return 1
+	done
+
+	log "FAILED: no EEPROM is exposed under $SYS_I2C"
+	return 1
+}
+
+#
+# rtc_bound
+#
+# True when the real-time clock the device tree declares at address 0x51 has a
+# driver. The PCF8563 driver reads the chip while it probes, so "bound" means
+# the I2C transfer worked. A bus read of the time is not used instead: a clock
+# that lost its battery refuses to report a time, and that is a hardware state
+# that no kernel can fix, so failing it here would refuse every update on such
+# a board. A board whose device tree declares no clock at 0x51 skips the check.
+#
+rtc_bound() {
+	found=0
+	for rtc in "$SYS_I2C"/*-0051; do
+		[ -e "$rtc" ] || continue
+		found=1
+		if [ ! -e "$rtc/driver" ]; then
+			log "FAILED: the RTC at $rtc has no driver"
+			return 1
+		fi
+	done
+
+	if [ "$found" -eq 0 ]; then
+		log "no RTC declared at 0x51; RTC check skipped"
+	else
+		log "RTC driver bound"
+	fi
 	return 0
 }
 
@@ -205,8 +295,9 @@ release_matches() {
 #
 # health_ok
 #
-# The gate. Waits for the daemon, checks the switch, then checks that this
-# is the release that was staged and that it serves metrics.
+# The gate. Waits for the daemon, checks the switch and its uplinks, the EEPROM
+# and the RTC, then checks that this is the release that was staged and that it
+# serves metrics.
 #
 health_ok() {
 	waited=0
@@ -231,6 +322,19 @@ health_ok() {
 		return 1
 	fi
 	log "switch ports present: $SWITCH_PORTS"
+
+	if ! uplinks_present; then
+		return 1
+	fi
+	log "uplink ports present: $UPLINK_PORTS"
+
+	if ! eeprom_readable; then
+		return 1
+	fi
+
+	if ! rtc_bound; then
+		return 1
+	fi
 
 	if ! release_matches; then
 		return 1

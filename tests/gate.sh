@@ -42,6 +42,8 @@ LOGFILE="$WORK/postupdate.log"
 STAGED_NOTE="$WORK/staged-firmware"
 OS_RELEASE="$WORK/os-release"
 CURL_BIN="$WORK/curl"
+SYS_NET="$WORK/sys-net"
+SYS_I2C="$WORK/sys-i2c"
 
 # The URL the gate is REQUIRED to request. Deliberately a literal, and
 # deliberately not assigned to the gate's own METRICS_URL: overriding that
@@ -92,7 +94,11 @@ STUB
 }
 
 #
-# check NAME EXPECTED_RC EXPECTED_LOG_SUBSTRING
+# check NAME EXPECTED_RC EXPECTED_LOG_SUBSTRING [FUNCTION]
+#
+# FUNCTION is the gate function to run; release_matches when left out. An
+# empty EXPECTED_LOG_SUBSTRING asserts the verdict only, for the checks that
+# say nothing when they pass.
 #
 # Runs the gate against whatever the caller just staged and asserts both the
 # verdict and the reason. Asserting the log too is deliberate: a gate that
@@ -102,9 +108,10 @@ check() {
 	name=$1
 	want_rc=$2
 	want_log=$3
+	fn=${4:-release_matches}
 
 	: >"$LOGFILE"
-	if release_matches >/dev/null 2>&1; then rc=0; else rc=1; fi
+	if "$fn" >/dev/null 2>&1; then rc=0; else rc=1; fi
 
 	if [ "$rc" -ne "$want_rc" ]; then
 		printf 'FAIL  %s\n        expected rc=%s, got rc=%s\n' "$name" "$want_rc" "$rc"
@@ -112,7 +119,7 @@ check() {
 		FAIL=$((FAIL + 1))
 		return
 	fi
-	if ! grep -q "$want_log" "$LOGFILE"; then
+	if [ -n "$want_log" ] && ! grep -q "$want_log" "$LOGFILE"; then
 		printf 'FAIL  %s\n        rc=%s as expected, but the log never said "%s"\n' \
 			"$name" "$rc" "$want_log"
 		sed 's/^/        | /' "$LOGFILE"
@@ -127,6 +134,17 @@ check() {
 running_is() { printf 'ID=tp2bmc\nVERSION=%s\n' "$1" >"$OS_RELEASE"; }
 note_says()  { printf '%s\n' "$1" >"$STAGED_NOTE"; }
 no_note()    { rm -f "$STAGED_NOTE"; }
+
+# Scratch stand-ins for /sys/class/net and /sys/bus/i2c/devices. Interfaces
+# are directories; an EEPROM is a file; a bound RTC is a directory with a
+# `driver` entry. A real board's carrier state never enters into it, which is
+# the point of the uplink cases.
+net_ports() { rm -rf "$SYS_NET"; mkdir -p "$SYS_NET"; for p in "$@"; do mkdir "$SYS_NET/$p"; done; }
+i2c_reset() { rm -rf "$SYS_I2C"; mkdir -p "$SYS_I2C"; }
+eeprom_ok() { mkdir -p "$SYS_I2C/2-0050"; dd if=/dev/zero bs=256 count=1 2>/dev/null | tr '\0' '\377' >"$SYS_I2C/2-0050/eeprom"; }
+eeprom_empty() { mkdir -p "$SYS_I2C/2-0050"; : >"$SYS_I2C/2-0050/eeprom"; }
+rtc_with_driver() { mkdir -p "$SYS_I2C/2-0051"; : >"$SYS_I2C/2-0051/driver"; }
+rtc_without_driver() { mkdir -p "$SYS_I2C/2-0051"; rm -f "$SYS_I2C/2-0051/driver"; }
 
 echo "gate contract tests -- $SCRIPT"
 echo
@@ -202,6 +220,44 @@ STAGED_AT=2026-09-08T23:32:57Z
 SOURCE=upload'
 stub_curl ok
 check 'the board, as it stands' 0 'version matches the staged note: v2.8.1-rc1'
+
+# --- the switch and its uplinks -----------------------------------------
+# The ports are directories under SYS_NET. There is no carrier in this
+# fixture at all, and none is asked for: an uplink with no cable must pass.
+net_ports node1 node2 node3 node4 ge0 ge1
+check 'all four node ports present' 0 '' switch_ports_present
+check 'ge0 and ge1 present, no carrier anywhere' 0 '' uplinks_present
+
+net_ports node1 node2 node3 node4
+check 'ge0 and ge1 missing' 1 'FAILED: uplink port ge0 does not exist' uplinks_present
+net_ports node1 node2 node3 node4 ge0
+check 'ge1 missing' 1 'FAILED: uplink port ge1 does not exist' uplinks_present
+net_ports node1 node2 node3 ge0 ge1
+check 'node4 missing' 1 'FAILED: switch port node4 does not exist' switch_ports_present
+
+# --- the EEPROM ----------------------------------------------------------
+i2c_reset
+eeprom_ok
+check 'EEPROM answers' 0 'EEPROM readable' eeprom_readable
+
+i2c_reset
+eeprom_empty
+check 'EEPROM returns no data' 1 'FAILED: EEPROM .* returned no data' eeprom_readable
+
+i2c_reset
+check 'no EEPROM exposed at all' 1 'FAILED: no EEPROM is exposed' eeprom_readable
+
+# --- the RTC -------------------------------------------------------------
+i2c_reset
+rtc_with_driver
+check 'RTC declared and bound' 0 'RTC driver bound' rtc_bound
+
+i2c_reset
+rtc_without_driver
+check 'RTC declared, driver did not bind' 1 'FAILED: the RTC at .* has no driver' rtc_bound
+
+i2c_reset
+check 'no RTC declared (a board without one)' 0 'RTC check skipped' rtc_bound
 
 echo
 printf '%s passed, %s failed\n' "$PASS" "$FAIL"
