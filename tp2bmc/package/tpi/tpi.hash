@@ -34,4 +34,11 @@
 # Measured 2026-09-21 with the pinned container: `make tpi-source` reported
 # got db77ed3d against a zeroed expectation.
 sha256  db77ed3d20ae3455726d23ebfae0b7c5461e1c3e6878e9e87d8eaa5ddfd37895  tpi-90c22266b5100a0e2f07874f6bd9e6f53b4786c5-cargo2.tar.gz
+# v1.10.0 -> v1.11.0 (70953f92). `tpi network switch` takes the LACP uplink:
+# `--preset flat-lag` / `trunk-lag` or `--second-uplink lag`, and
+# `--replace-hand-written` for a hand-written /etc/network/interfaces (tpi#16,
+# carried on as #17, by @danste22). Needs bmcd 2.45.0 for the daemon side.
+#
+# Placeholder until CI's own container reports the got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  tpi-70953f927028cdbda981d1fc5452962e51ca0ee2-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE
