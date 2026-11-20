@@ -22,10 +22,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   ifupdown-ng creates the configured one (the built-in default would otherwise
   stop its bond executor from applying the mode, hash policy and members).
   Nothing creates a bond by itself: without a bond in `/etc/network/interfaces`
-  the board behaves as before. The daemon and the interface that ask for one
-  follow in their own releases. `tests/lag-parts.sh` checks the four pieces
+  the board behaves as before. `tests/lag-parts.sh` checks the four pieces
   offline. The patches keep their `From:` and `Signed-off-by:` headers.
   Hardware evidence for the LAG path is still to come from a pre-release.
+- **LACP from the daemon, the interface and the command line, by @danste22
+  (bmcd#50, BMC-UI#58, tpi#16), thanks!** bmcd 2.45.0 creates `bond0`
+  (802.3ad, layer2+3 hash, fast LACP) over ge0 and ge1 when the switch asks for
+  `second_uplink: lag`, and writes it into `/etc/network/interfaces` so the
+  bond is up before the daemon starts. BMC-UI 4.7.0 has the LACP switch and the
+  `flat-lag` and `trunk-lag` presets on the Switch page, and tpi 1.11.0 has
+  `tpi network switch --preset flat-lag` and `--replace-hand-written`. Each
+  was carried on from his pull request ([bmcd#56](https://github.com/excavador-turing/bmcd/pull/56),
+  [BMC-UI#60](https://github.com/excavador-turing/BMC-UI/pull/60),
+  [tpi#17](https://github.com/excavador-turing/tpi/pull/17)) with his commits
+  kept under his authorship. The switch at the other end needs LACP on both
+  ports.
+
+### Changed
+
+- **bmcd 2.45.0, BMC-UI 4.7.0 and tpi 1.11.0** are the pinned versions (the
+  latest of each).
 
 ## [v2.51.0] — 2026-11-20
 
