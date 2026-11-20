@@ -200,3 +200,14 @@ sha256  1c380695c12c18023d31ed89c47fc4dd0661851733fee26581d8d0280d4f50cd  bmcd-3
 # Measured 2026-11-14: the PR build in CI's own container (run 43645501659),
 # against a placeholder line, reported got d8192343; this is that value.
 sha256  d8192343136c15f35e47750ade049e85c856d3bed73866d0dd0fc077ba1b5946  bmcd-ee3690c9eb39b22c8881cf774ad5f69b8b24fc7c-cargo2.tar.gz
+#
+# 2.44.0 (c88f7af0, tag v2.44.0): every confirmed config write is flushed to
+# flash before the rename (bmcd#51, replacing #48); a switch plan puts the BMC
+# itself in its VLAN on `br0 self` (bmcd#52, replacing #49); a session token the
+# daemon forgot no longer counts as a wrong password (bmcd#39); posting
+# `uart_baud: null` clears a node's console speed (bmcd#54). Nothing else
+# changed.
+#
+# Measured 2026-11-20: the PR build in CI's own container (run 44667563491),
+# against a placeholder line, reported got 085f2a9e; this is that value.
+sha256  085f2a9e7d6ebedcb452066f49b57d1aa09a1637a912cec145cb2ea639d4cf51  bmcd-c88f7af0e4a2c02e8c5f4ea0d29c926249731dee-cargo2.tar.gz
