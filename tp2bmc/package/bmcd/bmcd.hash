@@ -230,5 +230,6 @@ sha256  29ba6315cf4678ba31cc4790565b01b0b63c66b38ac692946a18d0054559be3c  bmcd-1
 # starting the daemon no longer pulses running modules (bmcd#58). Nothing else
 # changed.
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-98c053fbd59ec7375ab13dbee5dc7fada55526ee-cargo2.tar.gz
+# Measured 2026-11-20: the PR build in CI's own container (run 44727468906),
+# against a placeholder line, reported got c50a2a20; this is that value.
+sha256  c50a2a20637a680eb9d8a9f62181a0987a6a2190e777297893656423edb387d2  bmcd-98c053fbd59ec7375ab13dbee5dc7fada55526ee-cargo2.tar.gz
