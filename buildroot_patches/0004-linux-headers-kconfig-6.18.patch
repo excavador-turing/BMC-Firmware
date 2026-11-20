@@ -11,10 +11,16 @@ check-kernel-headers.sh fails once real 6.18 headers are staged
 (BR2_KERNEL_HEADERS_AS_KERNEL=y).
 
 Backport the 6.13–6.18 host-series and toolchain AT_LEAST chain from
-current Buildroot so 6.18.y pins behave like hive's 6_12 pin.
+current Buildroot so 6.18.y pins behave like hive's 6_12 pin. The same series
+is added to the external-toolchain choice (toolchain-external-custom
+Config.in.options), which CI's prebuilt toolchain uses: without
+BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_18 that build stops with "Incorrect selection
+of kernel headers: expected 2.6.x, got 6.18.x". (The CI of #79 never met this,
+as a fork PR has no prebuilt toolchain and builds its own.)
 
 Provenance: the Kconfig symbols (BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_13
-to 6_18, BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_13 to 6_18) are Buildroot's own,
+to 6_18, BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_13 to 6_18,
+BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_13 to 6_18) are Buildroot's own,
 backported to 2025.02; Buildroot is GPL-2.0-or-later and the symbols were
 added there by the Buildroot developers. See
 https://gitlab.com/buildroot.org/buildroot/-/blob/master/toolchain/Config.in
@@ -90,3 +96,40 @@ left out until Daniel confirms he wrote this backport and signs it himself.
  	default "6.12" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_12
  	default "6.11" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_11
  	default "6.10" if BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_10
+
+--- a/toolchain/toolchain-external/toolchain-external-custom/Config.in.options
++++ b/toolchain/toolchain-external/toolchain-external-custom/Config.in.options
+@@ -166,8 +166,32 @@
+ 	  If your toolchain uses headers newer than the latest version
+ 	  in the choice, then select the latest version.
+ 
++config BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_18
++	bool "6.18.x or later"
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_18
++
++config BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_17
++	bool "6.17.x"
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_17
++
++config BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_16
++	bool "6.16.x"
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_16
++
++config BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_15
++	bool "6.15.x"
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_15
++
++config BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_14
++	bool "6.14.x"
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_14
++
++config BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_13
++	bool "6.13.x"
++	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_13
++
+ config BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_12
+-	bool "6.12.x or later"
++	bool "6.12.x"
+ 	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_12
+ 
+ config BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_11
