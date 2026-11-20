@@ -4,9 +4,10 @@
 # order, and each directory's *.patch files are applied in name order.
 #
 # Series taken from excavador-turing/BMC-Firmware#79 (Daniel Steinhauf,
-# @danste22). The hardware LAG patches of that PR are not in this tree yet.
-# net-dsa/0014 was 0017 there: it is not LAG code, it fixes the FDB keying of
-# the bridge offload in 0009 (see the patch).
+# @danste22), hardware LAG included: net-dsa/0014 to 0016 offload a bond onto
+# the switch's trunk hardware. net-dsa/0017 is not LAG code, it fixes the FDB
+# keying of the bridge offload in 0009 (see the patch); it comes after the LAG
+# patches because that is the order #79 built and tested.
 generic/i2c/0001-i2c-mv64xxx-Clear-bus-errors-before-transfer.patch
 generic/pwm/0001-dt-bindings-pwm-Add-binding-for-Allwinner-D1-T113-S3.patch
 generic/pwm/0002-pwm-Add-Allwinner-s-D1-T113-S3-R329-SoCs-PWM-support.patch
@@ -24,7 +25,10 @@ net-dsa/0010-net-dsa-realtek-rtl8365mb-add-port_bridge_-join-leav.patch
 net-dsa/0011-net-dsa-realtek-rtl8365mb-add-bridge-port-flags.patch
 net-dsa/0012-net-dsa-realtek-rtl8365mb-provide-field_get-on-v6.18.patch
 net-dsa/0013-net-dsa-rtl8365mb-add-RTL8370MB-CG-support.patch
-net-dsa/0014-net-dsa-rtl8365mb-key-FDB-entries-with-the-VLAN-s-le.patch
+net-dsa/0014-net-dsa-rtl8365mb-add-hardware-LAG-trunk-offload.patch
+net-dsa/0015-net-dsa-rtl8365mb-LAG-bridge-uplink-VLAN-sync-fixups.patch
+net-dsa/0016-net-dsa-rtl8365mb-LAG-PHY-autoneg-kick.patch
+net-dsa/0017-net-dsa-rtl8365mb-key-FDB-entries-with-the-VLAN-s-le.patch
 tp2/gpio/0001-gpio-aggregator-Add-turing-pi2-nodes-compatible.patch
 tp2/power/0001-regulator-fixed-add-preserve-boot-state-DT-property.patch
 tp2/power/0002-gpio-latch-persist-shadow-in-SoC-SRAM-across-warm-re.patch

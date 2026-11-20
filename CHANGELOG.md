@@ -13,6 +13,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Hardware LAG (LACP) support in the kernel, by @danste22 (#79), thanks!**
+  Three kernel patches (`net-dsa/0014` to `0016`) offload a Linux bond onto the
+  RTL8370MB-CG's own trunk hardware, `CONFIG_BONDING` is built in, and the
+  kernel command line carries `bonding.max_bonds=0`, so no `bond0` exists until
+  ifupdown-ng creates the configured one (the built-in default would otherwise
+  stop its bond executor from applying the mode, hash policy and members).
+  Nothing creates a bond by itself: without a bond in `/etc/network/interfaces`
+  the board behaves as before. The daemon and the interface that ask for one
+  follow in their own releases. `tests/lag-parts.sh` checks the four pieces
+  offline. The patches keep their `From:` and `Signed-off-by:` headers.
+  Hardware evidence for the LAG path is still to come from a pre-release.
+
 ### Fixed
 
 - **`tpi-selfupdate` cleans up after a failed update and says what to do.** A
