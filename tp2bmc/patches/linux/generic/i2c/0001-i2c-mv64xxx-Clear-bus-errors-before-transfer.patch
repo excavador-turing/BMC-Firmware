@@ -24,6 +24,8 @@ does NOT also call i2c_recover_bus(): the assumption is that the bus is
 fine, just the hardware is upset; if the bus is also in a bad state,
 this should not pass silently.
 
+Link: https://github.com/turing-machines/BMC-Firmware/blob/57eb97288804658d0ec6c2d6055001d1c6d01640/tp2bmc/patches/linux/i2c.patch
+Signed-off-by: Sam Edwards <sam@turingpi.com>
 Signed-off-by: Sam Edwards <CFSworks@gmail.com>
 ---
  drivers/i2c/busses/i2c-mv64xxx.c | 6 ++++++

@@ -13,6 +13,9 @@ Originally written by Sam Edwards <CFSworks@gmail.com>; rebased onto
 v6.18.27, which kept the aggregator OF table layout unchanged but moved
 the table to line 1637.
 
+Link: https://github.com/turing-machines/BMC-Firmware/blob/master/tp2bmc/patches/linux/0002-gpio-aggregator-Add-turingmachines-tp2-nodes-compati.patch
+(The original upstream patch, written 2023-05-20, carries no Signed-off-by;
+the compatible string was "turingmachines,tp2-nodes" there.)
 Signed-off-by: Sam Edwards <CFSworks@gmail.com>
 Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
 ---

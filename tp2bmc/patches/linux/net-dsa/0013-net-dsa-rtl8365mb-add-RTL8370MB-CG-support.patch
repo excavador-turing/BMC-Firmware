@@ -9,8 +9,10 @@ and maps extension interfaces 8 and 9; neither is verified against the
 Realtek SDK for this die. The Turing Pi 2 uses GPHY port 4 as its CPU
 port, so the extension interfaces are not exercised there.
 
-Based on Sam Edwards' RTL8370MB-CG hack for the pre-split rtl8365mb
-driver in turing-machines/BMC-Firmware.
+Based on work by Sam Edwards <CFSworks@gmail.com>: his RTL8370MB-CG hack
+for the pre-split rtl8365mb driver in turing-machines/BMC-Firmware
+(realtek-switch.patch, "local: hack in RTL8370MB-CG to dsa driver"). The
+original carries no Signed-off-by.
 
 Link: https://github.com/turing-machines/BMC-Firmware/commit/1bda9cc7b547f46968c82f4191dae17fe0501138
 Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>

@@ -10,9 +10,10 @@ explicitly toggles the regulator.
 
 Used on Turing Pi 2 to keep node-power rails alive across warm reboot.
 
-Based on Sven Rademakers' 2024 "regulator-fixed: perserve boot state"
-patch in turing-machines/BMC-Firmware, which carried both the regulator
-and the gpio-latch shadow change.
+Based on work by Sven Rademakers <sven.rademakers@gmail.com>: his 2024
+"regulator-fixed: perserve boot state" patch in
+turing-machines/BMC-Firmware, which carried both the regulator and the
+gpio-latch shadow change. The original carries no Signed-off-by.
 
 Link: https://github.com/turing-machines/BMC-Firmware/commit/a9ffaab25b8d4e65453c5d0c0855de4e8e7dca64
 Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
