@@ -218,5 +218,6 @@ sha256  085f2a9e7d6ebedcb452066f49b57d1aa09a1637a912cec145cb2ea639d4cf51  bmcd-c
 # the VLANs are up before the daemon starts, and boot heal checks the kernel
 # (bmcd#50, carried on as #56, by @danste22). Nothing else changed.
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-1c7949e1fe5c98f68019189d1f7931372d1ac705-cargo2.tar.gz
+# Measured 2026-11-20: the PR build in CI's own container (run 44708171616),
+# against a placeholder line, reported got 29ba6315; this is that value.
+sha256  29ba6315cf4678ba31cc4790565b01b0b63c66b38ac692946a18d0054559be3c  bmcd-1c7949e1fe5c98f68019189d1f7931372d1ac705-cargo2.tar.gz
