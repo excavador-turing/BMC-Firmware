@@ -1,0 +1,56 @@
+#!/bin/sh -u
+
+# Record the default gateway, and whether it answered a ping, for the
+# promotion gate (/etc/init.d/S99postupdate) to read on the tentative boot.
+#
+# Why. The gate checks local things: bmcd answers, the switch ports exist, the
+# version matches. A switch driver that registers its ports and then does not
+# carry a frame passes all of them, the image is made permanent, and the board
+# is unreachable. The one fact that proves the network works end to end is that
+# the gateway the board could reach before the update is still reachable after
+# it, so the stager records it while the OLD image is still running.
+#
+# Who calls it. /sbin/osupdate, which both staging paths run: tpi-selfupdate
+# and the upload worker inside bmcd. The staged-firmware note cannot carry this,
+# because bmcd writes that file itself, after osupdate returns, and replaces it
+# whole. A file of its own survives both writers.
+#
+# Never fatal and never blocks an update: a board with no route, no ping, or
+# no overlay records "nothing", and the gate skips its check for it. Only a
+# gateway that DID answer here is required to answer again.
+
+NOTE=${GATEWAY_NOTE:-/mnt/overlay/staged-gateway}
+IP_BIN=${IP_BIN:-ip}
+PING_BIN=${PING_BIN:-ping}
+
+# The IPv4 gateway of the default route, or nothing.
+default_gateway() {
+	"$IP_BIN" -4 route show default 2>/dev/null \
+		| awk '$1 == "default" { for (i = 1; i < NF; i++) if ($i == "via") { print $(i + 1); exit } }'
+}
+
+dir=$(dirname "$NOTE")
+[ -d "$dir" ] || exit 0
+
+# A note from an earlier staging describes a network that may be gone.
+rm -f "$NOTE" 2>/dev/null || true
+
+gw=$(default_gateway)
+case "$gw" in
+	'' | *[!0-9.]*) echo "stage-gateway-note: no IPv4 default gateway; nothing recorded" >&2; exit 0 ;;
+esac
+
+if "$PING_BIN" -c 2 -W 2 "$gw" >/dev/null 2>&1; then
+	answered=ok
+else
+	answered=none
+fi
+
+{
+	printf 'GATEWAY=%s\n' "$gw"
+	printf 'GATEWAY_PING=%s\n' "$answered"
+	printf 'RECORDED_AT=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+} >"$NOTE" 2>/dev/null || true
+
+echo "stage-gateway-note: gateway $gw, ping $answered" >&2
+exit 0

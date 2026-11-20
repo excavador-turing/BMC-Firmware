@@ -38,6 +38,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   RTC now share two pins, so a broken hand-over between them has to stop the
   update. Interfaces are checked for existence, never for carrier: a board with
   an uplink unplugged still passes.
+- **The promotion gate also requires the default gateway to answer again, if
+  it answered when the update was staged.** `osupdate` (so both `tpi-selfupdate`
+  and an upload through the web interface) now runs `/sbin/stage-gateway-note`,
+  which records the default gateway and whether it answered a ping in
+  `/mnt/overlay/staged-gateway`. On the tentative boot the gate retries for up
+  to 60 s and rolls back if the gateway stays silent, so a switch driver that
+  probes but carries no traffic can no longer make a board permanent and
+  unreachable. A board with no gateway, or one that never answered, is not
+  blocked. The check needs the staging tools of the image that is *running*, so
+  it first protects the update after the one that installs it.
 
 ## [v2.50.0] — 2026-11-20
 

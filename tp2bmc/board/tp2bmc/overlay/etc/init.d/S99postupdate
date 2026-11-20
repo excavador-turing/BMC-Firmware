@@ -33,6 +33,14 @@
 # Interfaces are checked for existence, never for carrier: a board with no
 # cable in ge0 or ge1 is a good board.
 #
+# And the network has to work. Every check above is local: a switch driver that
+# registers its ports and then carries no frame passes all of them, the image
+# is made permanent, and the board is unreachable. So the stager
+# (/sbin/stage-gateway-note, run by osupdate) records the default gateway and
+# whether it answered a ping while the OLD image was still running, and this
+# boot must reach it again. Only a gateway that answered before is demanded: a
+# board with no gateway, or one that never answered, is not blocked.
+#
 # A false rollback costs one extra BMC reboot. That does not power-cycle the
 # compute nodes, so the cost of being wrong is small and the direction is safe.
 
@@ -53,6 +61,12 @@ LOGFILE=/mnt/overlay/postupdate.log
 # already running, or one that was rejected.
 STAGED_NOTE=/mnt/overlay/staged-firmware
 
+# What the stager recorded about the network: GATEWAY=<ip> and
+# GATEWAY_PING=ok|none, written by /sbin/stage-gateway-note while the old image
+# still ran. A file of its own, because bmcd writes STAGED_NOTE itself, and
+# replaces it whole, on the upload path. Removed with the staged note.
+GATEWAY_NOTE=/mnt/overlay/staged-gateway
+
 # What the rollback volume holds, written here at promotion because this is
 # the only moment anything knows: the volume itself is never mounted.
 ROLLBACK_VERSION=/mnt/overlay/rollback-version
@@ -72,6 +86,13 @@ CURL_BIN=/usr/bin/curl
 # certificate before it binds.
 HEALTH_TIMEOUT=120
 HEALTH_INTERVAL=3
+
+# How long to wait for the recorded gateway to answer. The link, DHCP and the
+# switch may all still be coming up when the gate gets here, so it retries;
+# each attempt is itself a `ping -c 2 -W 2`.
+GATEWAY_TIMEOUT=60
+GATEWAY_INTERVAL=3
+PING_BIN=ping
 
 # The network interfaces the DSA switch driver creates, one per compute node.
 # If the driver fails to probe, these do not appear at all.
@@ -210,6 +231,47 @@ rtc_bound() {
 }
 
 #
+# gateway_reachable
+#
+# True when the gateway the stager saw answering still answers. Reads
+# GATEWAY_NOTE; skipped, with a logged reason, when it names no gateway or
+# says the gateway never answered, so an offline board is never blocked.
+# Retries for up to GATEWAY_TIMEOUT seconds: the interface, its DHCP lease and
+# the switch's forwarding take a while after the kernel is up.
+#
+gateway_reachable() {
+	gw=$(sed -n 's/^GATEWAY=//p' "$GATEWAY_NOTE" 2>/dev/null | head -1 | tr -d '\r')
+	answered=$(sed -n 's/^GATEWAY_PING=//p' "$GATEWAY_NOTE" 2>/dev/null | head -1 | tr -d '\r')
+
+	if [ -z "$gw" ] || [ "$answered" != "ok" ]; then
+		log "no gateway answered before the update; gateway check skipped"
+		return 0
+	fi
+	case "$gw" in
+		*[!0-9.]*)
+			log "gateway note names '$gw', not an address; gateway check skipped"
+			return 0
+			;;
+	esac
+
+	gwwaited=0
+	while :; do
+		if "$PING_BIN" -c 2 -W 2 "$gw" >/dev/null 2>&1; then
+			log "gateway $gw answers, after ${gwwaited}s"
+			return 0
+		fi
+		if [ "$gwwaited" -ge "$GATEWAY_TIMEOUT" ]; then
+			break
+		fi
+		sleep "$GATEWAY_INTERVAL"
+		gwwaited=$((gwwaited + GATEWAY_INTERVAL))
+	done
+
+	log "FAILED: gateway $gw answered before the update and not within ${GATEWAY_TIMEOUT}s of this boot"
+	return 1
+}
+
+#
 # note_version
 #
 # The version the staged note claims, reduced to a tag. The two writers of
@@ -296,8 +358,8 @@ release_matches() {
 # health_ok
 #
 # The gate. Waits for the daemon, checks the switch and its uplinks, the EEPROM
-# and the RTC, then checks that this is the release that was staged and that it
-# serves metrics.
+# and the RTC, then checks that this is the release that was staged, that it
+# serves metrics, and that a gateway which answered before still answers.
 #
 health_ok() {
 	waited=0
@@ -340,6 +402,10 @@ health_ok() {
 		return 1
 	fi
 
+	if ! gateway_reachable; then
+		return 1
+	fi
+
 	return 0
 }
 
@@ -352,7 +418,7 @@ health_ok() {
 # Never fatal: a board that cannot remove it is still a board that just
 # promoted or rejected an image, and that outcome matters more.
 clear_staged_note() {
-	rm -f "$STAGED_NOTE" 2>/dev/null || true
+	rm -f "$STAGED_NOTE" "$GATEWAY_NOTE" 2>/dev/null || true
 }
 
 rollback() {
@@ -447,7 +513,7 @@ postupdate() {
 #
 drop_stale_notes() {
 	if ! ubi_exists rootfs_new; then
-		rm -f "$STAGED_NOTE" 2>/dev/null || true
+		rm -f "$STAGED_NOTE" "$GATEWAY_NOTE" 2>/dev/null || true
 	fi
 	if ! ubi_exists "$ROOTFS_SECONDARY"; then
 		rm -f "$ROLLBACK_VERSION" 2>/dev/null || true
