@@ -40,18 +40,17 @@ BR2_PER_PACKAGE_DIRECTORIES=y
 # version here so a Buildroot upgrade and a kernel upgrade are two
 # separate, reviewable changes.
 #
-# 6.12 is a longterm series (maintained to Dec 2026 at least); .109 is
-# its current point release. Buildroot 2025.02.17 defaults to .104, and
-# linux/linux.hash lists only the release each Buildroot was cut against,
-# so moving off .104 also moves off the one sum Buildroot has for us. It
-# will not complain: linux.mk puts a custom-version kernel tarball in
+# 6.18 is a longterm series; .63 is the point release pinned here.
+# Buildroot 2025.02.17 defaults to a 6.12 kernel, and linux/linux.hash
+# lists only the releases that Buildroot was cut against, so it has no sum
+# for 6.18.63. It will not complain: linux.mk puts a custom-version kernel tarball in
 # BR_NO_CHECK_HASH_FOR, so a missing sum means the kernel is downloaded
 # unverified, quietly. buildroot_patches/0003 supplies ours, from
 # kernel.org's signed sha256sums.asc. A kernel bump is therefore two
 # files: this one and that patch.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.109"
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.18.63"
 # The headers series must be named too. BR2_TOOLCHAIN_HEADERS_AT_LEAST_*
 # is selected by BR2_LINUX_KERNEL_LATEST_VERSION, NOT by a custom version
 # (linux/Config.in), so with BR2_KERNEL_HEADERS_AS_KERNEL a custom version
@@ -61,14 +60,14 @@ BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.109"
 # so the toolchain quietly becomes uclibc without wchar or locale and eight
 # packages (dosfstools, f2fs-tools, iproute2, libgpiod, parted, ...) vanish
 # from the image. Name the series so the pin is a pin.
-BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_18=y
 # gcc 13 is this Buildroot release's default and was never named here. It is
 # named now because CI's prebuilt toolchain (tp2bmc/configs/
 # ci-external-toolchain.fragment) must state the gcc it carries, and
 # tests/toolchain-fragment.sh checks that statement against THIS file. A
 # default cannot be checked; a line can. No change to what is built.
 BR2_GCC_VERSION_13_X=y
-BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux"
+BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/i2c $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/pwm $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/net-dsa $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/gpio $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/power $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/tpi-smi-mux"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/linux_defconfig"
 BR2_LINUX_KERNEL_DTS_SUPPORT=y

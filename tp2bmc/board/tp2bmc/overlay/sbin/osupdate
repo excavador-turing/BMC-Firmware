@@ -11,6 +11,9 @@
 #    appropriate size in LEBs.
 # 4) Run `ubiupdatevol` to put the new filesystem image in "rootfs_new"
 # 5) Set the bootloader's "nextboot" variable to boot into "rootfs_new" once.
+#    Also record the default gateway and whether it answers a ping
+#    (/sbin/stage-gateway-note), so the new image has to prove the network
+#    works before it is made permanent.
 # 6) Next boot, the bootloader will tentatively boot to the new rootfs. If the
 #    boot fails, a subsequent hard reboot will rollback the update. But if the
 #    boot succeeds, the postupdate script will make it permanent.
@@ -84,6 +87,11 @@ perform_update() {
 	ubi_cleanup
 	ubi_create "$NEWVOL_NAME" "$NEWVOL_LEBS" "$IMAGE"
 	fw_setenv nextboot "$NEXTBOOT"
+
+	# Record the default gateway and whether it answers, for the promotion
+	# gate. Last, after nextboot is armed, and never fatal: it is a safeguard,
+	# not a precondition of the update.
+	/sbin/stage-gateway-note || true
 }
 
 perform_update "$1"

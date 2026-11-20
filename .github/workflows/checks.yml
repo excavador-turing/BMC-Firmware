@@ -63,9 +63,11 @@ jobs:
           set -eu
           gate=tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate
           updater=tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate
+          stager=tp2bmc/board/tp2bmc/overlay/sbin/stage-gateway-note
           cp "$gate" /tmp/gate.orig
           cp "$updater" /tmp/updater.orig
-          trap 'cp /tmp/gate.orig "$gate"; cp /tmp/updater.orig "$updater"' EXIT
+          cp "$stager" /tmp/stager.orig
+          trap 'cp /tmp/gate.orig "$gate"; cp /tmp/updater.orig "$updater"; cp /tmp/stager.orig "$stager"' EXIT
 
           fails=0
           mutate() {
@@ -83,6 +85,34 @@ jobs:
                  'a version mismatch is never rejected'
           mutate 's|\t\t\*bmcd_build_info\*)|\t\t*)|' \
                  'any metrics body is accepted'
+          mutate 's|if \[ ! -d "$SYS_NET/$port" \]; then|if false; then|' \
+                 'a missing switch or uplink port is never rejected'
+          mutate 's|if \[ "${got:-0}" -gt 0 \]; then|if true; then|' \
+                 'an unreadable EEPROM is accepted'
+          mutate 's|if \[ ! -e "$rtc/driver" \]; then|if false; then|' \
+                 'an RTC with no driver is accepted'
+          mutate 's|if "$PING_BIN" -c 2 -W 2 "$gw" >/dev/null 2>&1; then|if true; then|' \
+                 'a gateway that stopped answering is accepted'
+          mutate 's|if \[ -z "$gw" \] \|\| \[ "$answered" != "ok" \]; then|if true; then|' \
+                 'the gateway is never required to answer'
+          mutate 's|if ! gateway_reachable; then|if false; then|' \
+                 'the gate never asks about the gateway'
+
+          # The stager is the other half of the safeguard: a gate that asks is
+          # worthless if the note it reads always says "answered", or never
+          # says anything.
+          cp /tmp/gate.orig "$gate"
+          for m in 's|answered=none|answered=ok|' 's|answered=ok|answered=none|'; do
+            cp /tmp/stager.orig "$stager"
+            sed -i "$m" "$stager"
+            if dash tests/gate.sh >/dev/null 2>&1; then
+              echo "NOT CAUGHT: stager mutation $m"
+              fails=$((fails + 1))
+            else
+              echo "caught: stager mutation $m"
+            fi
+          done
+          cp /tmp/stager.orig "$stager"
 
           # And the ordering. Dropping this one guard is exactly the old
           # behaviour: a release candidate compares as newer than its own
@@ -140,7 +170,8 @@ jobs:
             tp2bmc/board/tp2bmc/overlay/sbin/preinit \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate \
-            tp2bmc/board/tp2bmc/overlay/sbin/osupdate
+            tp2bmc/board/tp2bmc/overlay/sbin/osupdate \
+            tp2bmc/board/tp2bmc/overlay/sbin/stage-gateway-note
 
   # A firmware release ships the LATEST bmcd, BMC-UI and tpi. Standing rule,
   # owner's, 2026-09-11. It is a check rather than a habit because every one of

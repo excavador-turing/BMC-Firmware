@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Sat, 6 Jun 2026 05:29:28 -0300
+Subject: [PATCH] net: dsa: realtek: rtl8365mb: prepare for multiple source
+ files
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+commit 0e692c27fe84db294866fe726f9944f7e125b817 upstream.
+
+Rename rtl8365mb.c to rtl8365mb_main.c in preparation for subsequent
+commits which add additional source files to the driver.
+
+The trailing backslash in the Makefile is deliberate. It allows for new
+files to be added without clobbering git history.
+
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Linus Walleij <linusw@kernel.org>
+Reviewed-by: Mieczyslaw Nalewaj <namiltd@yahoo.com>
+Co-developed-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Link: https://patch.msgid.link/20260606-realtek_forward-v13-4-b9e409687cbe@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
+---
+ drivers/net/dsa/realtek/Makefile                          | 2 ++
+ drivers/net/dsa/realtek/{rtl8365mb.c => rtl8365mb_main.c} | 0
+ 2 files changed, 2 insertions(+)
+ rename drivers/net/dsa/realtek/{rtl8365mb.c => rtl8365mb_main.c} (100%)
+
+diff --git a/drivers/net/dsa/realtek/Makefile b/drivers/net/dsa/realtek/Makefile
+index 17367bcba..a1486e7ed 100644
+--- a/drivers/net/dsa/realtek/Makefile
++++ b/drivers/net/dsa/realtek/Makefile
+@@ -16,3 +16,5 @@ ifdef CONFIG_NET_DSA_REALTEK_RTL8366RB_LEDS
+ rtl8366-objs 				+= rtl8366rb-leds.o
+ endif
+ obj-$(CONFIG_NET_DSA_REALTEK_RTL8365MB) += rtl8365mb.o
++rtl8365mb-objs := rtl8365mb_main.o \
++# end of rtl8365mb-objs
+diff --git a/drivers/net/dsa/realtek/rtl8365mb.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
+similarity index 100%
+rename from drivers/net/dsa/realtek/rtl8365mb.c
+rename to drivers/net/dsa/realtek/rtl8365mb_main.c

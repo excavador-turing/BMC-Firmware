@@ -27,8 +27,11 @@ if [ -z "$gcc" ]; then
 else
 	set_in $FRAGMENT "BR2_TOOLCHAIN_EXTERNAL_GCC_$gcc" && ok "gcc $gcc" || bad "defconfig builds gcc $gcc; fragment does not say GCC_$gcc"
 fi
-if set_in $DEFCONFIG BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12; then
-	set_in $FRAGMENT BR2_TOOLCHAIN_EXTERNAL_HEADERS_6_12 && ok "headers 6.12" || bad "defconfig uses 6.12 headers; fragment does not say HEADERS_6_12"
+hdr=$(sed -n 's/^BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_\([0-9_]*\)=y$/\1/p' $DEFCONFIG)
+if [ -z "$hdr" ]; then
+	bad "the defconfig names no kernel headers series; name it (BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_N_N=y) so this can be checked"
+else
+	set_in $FRAGMENT "BR2_TOOLCHAIN_EXTERNAL_HEADERS_$hdr" && ok "headers $hdr" || bad "defconfig uses $hdr headers; fragment does not say HEADERS_$hdr"
 fi
 if set_in $DEFCONFIG BR2_TOOLCHAIN_BUILDROOT_GLIBC || ! grep -qE '^BR2_TOOLCHAIN_BUILDROOT_(UCLIBC|MUSL)=y' $DEFCONFIG; then
 	set_in $FRAGMENT BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC && ok "glibc" || bad "defconfig builds glibc; fragment does not say CUSTOM_GLIBC"
