@@ -1,0 +1,70 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Daniel Steinhauf <daniel@steinhauf.eu>
+Date: Wed, 18 Nov 2026 01:18:20 +0100
+Subject: [PATCH] net: dsa: rtl8365mb: LAG PHY autoneg kick
+
+Restart auto-negotiation on node ports that report no PHY link during the
+LAG bridge fixup (board quirk for internal PHY link detection latency).
+
+An earlier revision also cleared skb->offload_fwd_mark in tag_rtl8_4 for
+all non-LAG ingress while a LAG was active, so the software bridge would
+forward node traffic to the bond instead of relying on the ASIC. That was
+a workaround for the ASIC not forwarding node ports to the trunk, which
+was really the VLAN filtering bug fixed in the lag-bridge-uplink patch:
+lag members enforced VLAN membership against an empty table and dropped
+everything.
+
+Clearing the mark also costs wire speed: the bridge then hairpins every
+node frame through the 100M CPU port. Measured node->WAN 94 Mbit/s with
+~120 MB in each direction on the conduit for a 112 MB transfer. With the
+ASIC path working the mark is left alone, so the bridge skips software
+forwarding and the trunk carries node traffic in hardware.
+
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
+---
+ drivers/net/dsa/realtek/rtl8365mb_lag.c | 32 +++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_lag.c b/drivers/net/dsa/realtek/rtl8365mb_lag.c
+index 5c94d5652..a447923fb 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb_lag.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_lag.c
+@@ -558,6 +558,38 @@ static void rtl8365mb_lag_bridge_isolation_fixup(struct dsa_switch *ds, u32 lag_
+ 	dev_info(priv->dev,
+ 		 "LAG bridge uplink fixup: nodes 0x%x <-> lag 0x%x cpu 0x%x efid %u\n",
+ 		 node_pmask, lag_pmask, cpu_pmask, br_efid);
++
++	/*
++	 * The internal PHY for node ports may not have completed
++	 * auto-negotiation (BMC shows NO-CARRIER even though the compute
++	 * module's link is up).  The ASIC uses its internal PHY link status
++	 * for forwarding decisions: it won't forward TO a port whose PHY
++	 * reports no link.  CPU-tagged traffic bypasses this check, which is
++	 * why node→BMC works but node→gateway doesn't.  Kick the PHY by
++	 * restarting auto-negotiation on any node port with no link.
++	 */
++	dsa_switch_for_each_user_port(dp, ds) {
++		int bmsr, bmcr;
++
++		if (!(node_pmask & BIT(dp->index)))
++			continue;
++		if (!priv->ops->phy_read || !priv->ops->phy_write)
++			continue;
++
++		bmsr = priv->ops->phy_read(priv, dp->index, MII_BMSR);
++		if (bmsr < 0 || (bmsr & BMSR_LSTATUS))
++			continue;
++
++		bmcr = priv->ops->phy_read(priv, dp->index, MII_BMCR);
++		if (bmcr < 0)
++			continue;
++
++		priv->ops->phy_write(priv, dp->index, MII_BMCR,
++				     bmcr | BMCR_ANRESTART);
++		dev_dbg(priv->dev,
++			 "  port %d: PHY no link (BMSR=0x%04x), restarted autoneg\n",
++			 dp->index, bmsr);
++	}
+ }
+ 
+ static int rtl8365mb_lag_apply_group(struct realtek_priv *priv,
