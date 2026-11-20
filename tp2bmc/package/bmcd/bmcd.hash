@@ -208,5 +208,6 @@ sha256  d8192343136c15f35e47750ade049e85c856d3bed73866d0dd0fc077ba1b5946  bmcd-e
 # `uart_baud: null` clears a node's console speed (bmcd#54). Nothing else
 # changed.
 #
-# PLACEHOLDER until CI reports the "got" line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-c88f7af0e4a2c02e8c5f4ea0d29c926249731dee-cargo2.tar.gz
+# Measured 2026-11-20: the PR build in CI's own container (run 44667563491),
+# against a placeholder line, reported got 085f2a9e; this is that value.
+sha256  085f2a9e7d6ebedcb452066f49b57d1aa09a1637a912cec145cb2ea639d4cf51  bmcd-c88f7af0e4a2c02e8c5f4ea0d29c926249731dee-cargo2.tar.gz
