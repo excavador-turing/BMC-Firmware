@@ -211,3 +211,12 @@ sha256  d8192343136c15f35e47750ade049e85c856d3bed73866d0dd0fc077ba1b5946  bmcd-e
 # Measured 2026-11-20: the PR build in CI's own container (run 44667563491),
 # against a placeholder line, reported got 085f2a9e; this is that value.
 sha256  085f2a9e7d6ebedcb452066f49b57d1aa09a1637a912cec145cb2ea639d4cf51  bmcd-c88f7af0e4a2c02e8c5f4ea0d29c926249731dee-cargo2.tar.gz
+#
+# 2.45.0 (1c7949e1, tag v2.45.0): LACP. `second_uplink: lag` puts `bond0`
+# (802.3ad, layer2+3 hash, fast LACP) over ge0 and ge1 on Flat and Trunk, a
+# confirmed switch change also writes /etc/network/interfaces so the bond and
+# the VLANs are up before the daemon starts, and boot heal checks the kernel
+# (bmcd#50, carried on as #56, by @danste22). Nothing else changed.
+#
+# Placeholder until CI's own container reports the got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-1c7949e1fe5c98f68019189d1f7931372d1ac705-cargo2.tar.gz

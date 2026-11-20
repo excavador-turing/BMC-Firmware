@@ -392,3 +392,12 @@ sha256  b6ea78962c375ecc131100ddc023ff709b7cc8cf5c93a036c946b8cd0af0a73a  bmc-ui
 # cross-check. dist/LICENSE present, 66 archive entries; the archive is the
 # board build ("ttyNode" is in the built bundle).
 sha256  8c4ada802179e8a5c4c50c3052cc94abab29e02db4b03998197e218c85a47fbd  bmc-ui-v4.6.1.tar.gz
+#
+# v4.6.1 -> v4.7.0: LACP on the Switch page (BMC-UI#58, carried on as #60, by
+# @danste22); the API types are generated from bmcd v2.45.0.
+#
+# Measured 2026-11-20: 679563 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 65 archive entries; the archive is the
+# board build ("ttyNode" is in the built bundle, and so is the LACP switch).
+sha256  81d49a92b95abea556e30fa9a8ca9017336038d581c0d0f68df6de371229e86b  bmc-ui-v4.7.0.tar.gz
