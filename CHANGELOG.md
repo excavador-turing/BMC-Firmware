@@ -29,7 +29,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Rademakers, and the RTL8370MB-CG chip row and the mv64xxx bus-error fix on
   work by Sam Edwards, both from turing-machines/BMC-Firmware; the PWM fan
   driver is Aleksandr Shubin's and the switch driver is mainline Linux by its
-  authors, Alvin Šipraga among them. Copyright lines are kept.
+  authors, Alvin Šipraga and Luiz Angelo Daros de Luca. Copyright lines are kept.
 
 ### Added
 
