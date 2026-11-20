@@ -13,6 +13,66 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.50.0] — 2026-11-20
+
+bmcd 2.44.0 and BMC-UI 4.6.1; tpi 1.10.0 is unchanged.
+
+Fixes <https://github.com/excavador-turing/BMC-Firmware/issues/81> (a power cut
+could leave a settings file empty) and
+<https://github.com/excavador-turing/BMC-Firmware/issues/82> (Split and Trunk
+cut the BMC off), and lets a node's console speed go back to its default.
+
+Thanks to the people outside the project whose work is in this release:
+[@danste22](https://github.com/danste22) found both problems by reading the
+code, reported them as #81 and #82, and wrote the first fixes
+([bmcd#48](https://github.com/excavador-turing/bmcd/pull/48) and
+[bmcd#49](https://github.com/excavador-turing/bmcd/pull/49), carried on as
+[bmcd#51](https://github.com/excavador-turing/bmcd/pull/51) and
+[bmcd#52](https://github.com/excavador-turing/bmcd/pull/52));
+[@cloudlabworks](https://github.com/cloudlabworks) wrote the fix for a
+forgotten session token counting as a wrong password
+([bmcd#39](https://github.com/excavador-turing/bmcd/pull/39)) and corrected the
+toolchain note in the daemon's Justfile
+([bmcd#40](https://github.com/excavador-turing/bmcd/pull/40)).
+
+### Fixed
+
+- **A power cut just after confirming a change could leave a settings file empty
+  (bmcd 2.44.0, [#81](https://github.com/excavador-turing/BMC-Firmware/issues/81)).**
+  The switch table, `/etc/network/interfaces`, the access overrides, the
+  managed client CA and the TLS key and certificate were written to a temporary
+  file and renamed, but never flushed to flash. On the board's flash a power
+  cut right after confirm could leave a file with the right name and nothing in
+  it: the switch fell back to Flat with no message, or the board came up with
+  no network. Each of them is now flushed, and so is its directory, before the
+  change counts as saved. Thanks @danste22
+  ([bmcd#48](https://github.com/excavador-turing/bmcd/pull/48) →
+  [#51](https://github.com/excavador-turing/bmcd/pull/51)).
+- **Going from Flat to Split or Trunk cut the BMC off and the change was
+  reverted (bmcd 2.44.0, [#82](https://github.com/excavador-turing/BMC-Firmware/issues/82)).**
+  The switch plan took the front ports out of VLAN 1 but left the BMC's own
+  bridge address in it, so the board became unreachable and the confirm window
+  undid the change. The plan now puts the BMC in the VLAN the table gives it,
+  joining the new one before leaving the old, so it is never in none. Thanks
+  @danste22 ([bmcd#49](https://github.com/excavador-turing/bmcd/pull/49) →
+  [#52](https://github.com/excavador-turing/bmcd/pull/52)).
+- **A session token the board had forgotten counted as a wrong password (bmcd
+  2.44.0).** A browser tab left open across a reboot sent its old token on
+  every request, and each refusal counted toward banning that address, so the
+  right password typed from the same machine could then be refused. An unknown
+  token is still refused, but no longer counts. Thanks @cloudlabworks
+  ([bmcd#39](https://github.com/excavador-turing/bmcd/pull/39)).
+- **Setting a node's console speed to `null` did nothing (bmcd 2.44.0).** A
+  node's speed starts as `null`, meaning 115200, but sending `null` again
+  answered 200 and kept the speed that was stored. `null` now clears it and
+  the open port goes back to 115200 at once, without disconnecting the web
+  console. Leaving the speed out of a request still keeps it.
+
+### Changed
+
+- **BMC-UI 4.6.1** takes its API types from bmcd 2.44.0. Nothing in the
+  interface changes.
+
 ## [v2.49.0] — 2026-11-14
 
 bmcd 2.43.0 and BMC-UI 4.6.0; tpi 1.10.0 is unchanged.

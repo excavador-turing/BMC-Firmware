@@ -383,3 +383,12 @@ sha256  762969597c88efda974c51e76c69040110736739686ed7e83662a57e6e9d33f4  bmc-ui
 # cross-check. dist/LICENSE present, 66 archive entries; the archive is the
 # board build ("ttyNode" is in the built bundle).
 sha256  b6ea78962c375ecc131100ddc023ff709b7cc8cf5c93a036c946b8cd0af0a73a  bmc-ui-v4.6.0.tar.gz
+#
+# v4.6.0 -> v4.6.1: the API types follow bmcd v2.44.0 (the description of
+# `uart_baud` is the only difference). Nothing in the interface changed.
+#
+# Measured 2026-11-20: 675262 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 66 archive entries; the archive is the
+# board build ("ttyNode" is in the built bundle).
+sha256  8c4ada802179e8a5c4c50c3052cc94abab29e02db4b03998197e218c85a47fbd  bmc-ui-v4.6.1.tar.gz
