@@ -1,0 +1,156 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: excavador <excavador@proton.me>
+Date: Sat, 21 Nov 2026 22:49:38 +0100
+Subject: [PATCH] gpio: latch: export the shadow word and the boot cookie in
+ sysfs
+
+The latch shadow word at 0x0709010c and the SPL boot cookie at
+0x07090108 can only be read from userspace through /dev/mem, which a
+hardened kernel need not provide and which needs a mapping of SoC SRAM
+that the daemon has no other use for.
+
+Export both from the driver that owns them, read-only, on the platform
+device (/sys/bus/platform/devices/gpio-latch/):
+
+  shadow        the shadow word, printed as 0x%08x
+  shadow_valid  1 when the SPL's boot cookie is present, 0 otherwise
+
+The words stay where they are, so a userspace that reads /dev/mem keeps
+working unchanged. shadow_valid does not tell a cold boot from a warm
+one: the cookie is left on every boot. A cold boot is a shadow with the
+ATX bit (bit 0) clear.
+
+Documented in Documentation/ABI/testing/sysfs-platform-gpio-latch.
+
+The shadow-word contract with the SPL is from Daniel Steinhauf's
+"gpio: latch: persist shadow in SoC SRAM across warm reboot", itself
+based on Sven Rademakers' 2024 patch in turing-machines/BMC-Firmware.
+
+Signed-off-by: excavador <excavador@proton.me>
+
+---
+ Documentation/ABI/testing/sysfs-platform-gpio-latch | 23 +++++++++++
+ drivers/gpio/gpio-latch.c | 46 +++++++++++++++++++++++
+ 2 files changed, 69 insertions(+)
+
+diff --git a/Documentation/ABI/testing/sysfs-platform-gpio-latch b/Documentation/ABI/testing/sysfs-platform-gpio-latch
+new file mode 100644
+index 0000000..8f670fc
+--- /dev/null
++++ b/Documentation/ABI/testing/sysfs-platform-gpio-latch
+@@ -0,0 +1,23 @@
++What:		/sys/bus/platform/devices/<gpio-latch>/shadow
++Date:		November 2026
++KernelVersion:	6.18
++Contact:	excavador <excavador@proton.me>
++Description:
++		(RO) The latch shadow word of the Turing Pi 2, as kept in SoC
++		SRAM at 0x0709010c, printed as 0x%08x. Bits 0..8 are the nine
++		latched lines (bit 0 the ATX PSU, bits 1..4 the slot rails,
++		bits 5..8 the node enable lines, node 1 on bit 8 and node 4 on
++		bit 5, active low). The SPL clears them on a cold boot only, so
++		the word survives a reboot of the BMC. Bits above 8 carry no
++		meaning. The value is only meaningful when shadow_valid reads 1.
++
++What:		/sys/bus/platform/devices/<gpio-latch>/shadow_valid
++Date:		November 2026
++KernelVersion:	6.18
++Contact:	excavador <excavador@proton.me>
++Description:
++		(RO) 1 when the SPL's boot cookie ("TPi2", 0x32695054) is
++		present in SoC SRAM at 0x07090108, i.e. the SPL ran and the
++		shadow word is meaningful, 0 otherwise. The cookie is left on
++		every boot, cold or warm, so this does not tell the two apart:
++		a cold boot is a shadow with the ATX bit (bit 0) clear.
+diff --git a/drivers/gpio/gpio-latch.c b/drivers/gpio/gpio-latch.c
+index cac299b..671c4f9 100644
+--- a/drivers/gpio/gpio-latch.c
++++ b/drivers/gpio/gpio-latch.c
+@@ -47,6 +47,7 @@
+ #include <linux/mod_devicetable.h>
+ #include <linux/platform_device.h>
+ #include <linux/property.h>
++#include <linux/sysfs.h>
+ #include <linux/delay.h>
+ 
+ #include "gpiolib.h"
+@@ -73,6 +74,8 @@
+  *
+  *   Bumping this address requires a matching change in the SPL.
+  */
++#define TURING_PI2_BOOT_COOKIE_ADDR	0x07090108UL
++#define TURING_PI2_BOOT_COOKIE		0x32695054U	/* "TPi2" */
+ #define TURING_PI2_LATCH_STATE_ADDR	0x0709010cUL
+ #define TURING_PI2_LATCH_STATE_SIZE	sizeof(u32)
+ 
+@@ -84,6 +87,7 @@ struct gpio_latch_priv {
+ 	unsigned int setup_duration_ns;
+ 	unsigned int clock_duration_ns;
+ 	void __iomem *shadow;
++	void __iomem *cookie;
+ 	/*
+ 	 * Depending on whether any of the underlying GPIOs may sleep we either
+ 	 * use a mutex or a spinlock to protect our shadow map.
+@@ -104,6 +108,42 @@ static void gpio_latch_shadow_write(struct gpio_latch_priv *priv, u32 val)
+ 	iowrite32(val, priv->shadow);
+ }
+ 
++/*
++ * Userspace view of the shadow word, so that a daemon does not need /dev/mem
++ * for it:
++ *
++ *   shadow       the shadow word, as 0x%08x
++ *   shadow_valid 1 when the SPL's boot cookie is present, i.e. the SPL ran and
++ *                the shadow word is meaningful; 0 otherwise
++ *
++ * Both are read-only. A single 32-bit read is atomic, so they take no lock.
++ */
++static ssize_t shadow_show(struct device *dev, struct device_attribute *attr,
++			   char *buf)
++{
++	struct gpio_latch_priv *priv = dev_get_drvdata(dev);
++
++	return sysfs_emit(buf, "0x%08x\n", gpio_latch_shadow_read(priv));
++}
++static DEVICE_ATTR_RO(shadow);
++
++static ssize_t shadow_valid_show(struct device *dev,
++				 struct device_attribute *attr, char *buf)
++{
++	struct gpio_latch_priv *priv = dev_get_drvdata(dev);
++
++	return sysfs_emit(buf, "%d\n",
++			  ioread32(priv->cookie) == TURING_PI2_BOOT_COOKIE);
++}
++static DEVICE_ATTR_RO(shadow_valid);
++
++static struct attribute *gpio_latch_attrs[] = {
++	&dev_attr_shadow.attr,
++	&dev_attr_shadow_valid.attr,
++	NULL
++};
++ATTRIBUTE_GROUPS(gpio_latch);
++
+ static int gpio_latch_get_direction(struct gpio_chip *gc, unsigned int offset)
+ {
+ 	return GPIO_LINE_DIRECTION_OUT;
+@@ -221,6 +261,11 @@ static int gpio_latch_probe(struct platform_device *pdev)
+ 	if (!priv->shadow)
+ 		return -ENOMEM;
+ 
++	priv->cookie = devm_ioremap(dev, TURING_PI2_BOOT_COOKIE_ADDR,
++				    sizeof(u32));
++	if (!priv->cookie)
++		return -ENOMEM;
++
+ 	if (gpio_latch_can_sleep(priv, n_latches)) {
+ 		priv->gc.can_sleep = true;
+ 		priv->gc.set = gpio_latch_set_can_sleep;
+@@ -271,6 +316,7 @@ static struct platform_driver gpio_latch_driver = {
+ 	.driver	= {
+ 		.name		= "gpio-latch",
+ 		.of_match_table	= gpio_latch_ids,
++		.dev_groups	= gpio_latch_groups,
+ 	},
+ 	.probe	= gpio_latch_probe,
+ };

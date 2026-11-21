@@ -32,6 +32,7 @@ net-dsa/0017-net-dsa-rtl8365mb-key-FDB-entries-with-the-VLAN-s-le.patch
 tp2/gpio/0001-gpio-aggregator-Add-turing-pi2-nodes-compatible.patch
 tp2/power/0001-regulator-fixed-add-preserve-boot-state-DT-property.patch
 tp2/power/0002-gpio-latch-persist-shadow-in-SoC-SRAM-across-warm-re.patch
+tp2/power/0003-gpio-latch-export-the-shadow-word-and-the-boot-cookie.patch
 tp2/tpi-smi-mux/0001-dt-bindings-i2c-add-turing-i2c-smi-arbiter.patch
 tp2/tpi-smi-mux/0002-i2c-add-turing-i2c-smi-arbiter-for-shared-TWI-SMI-pi.patch
 tp2/tpi-smi-mux/0003-net-dsa-realtek-smi-bracket-SMI-ops-with-shared-bus-.patch

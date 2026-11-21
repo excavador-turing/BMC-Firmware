@@ -13,6 +13,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **The latch shadow word and the boot cookie in sysfs.** A new kernel patch,
+  `tp2/power/0003`, makes the gpio-latch driver export two read-only
+  attributes on its platform device: `/sys/bus/platform/devices/gpio-latch/shadow`
+  (the shadow word, `0x%08x`) and `.../shadow_valid` (`1` when the bootloader's
+  boot cookie is present). A daemon no longer needs `/dev/mem` to learn which
+  nodes are powered. The words stay in SoC SRAM and `/dev/mem` reads them as
+  before, so bmcd 2.46.0 keeps working. The shadow-word contract is the one
+  [@danste22](https://github.com/danste22) carried to 6.18 (`tp2/power/0002`,
+  from Sven Rademakers' 2024 patch); that patch is untouched. The attributes are
+  documented in `Documentation/ABI/testing/sysfs-platform-gpio-latch`. Nothing
+  reads them yet: a bmcd release that does, and a firmware pin of it, come
+  after this.
+
 ## [v2.52.0] — 2026-11-21
 
 LACP on the two uplink ports, and the nodes' power state kept across a BMC
