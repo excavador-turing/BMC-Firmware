@@ -13,6 +13,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`tpi-selfupdate` cleans up after a failed update and says what to do.** A
+  write that failed on the last partial LEB (`ubiupdatevol: ... error 110`)
+  left the ~39 MB download in `/mnt/overlay`, which has very little room, and
+  printed nothing about the state the board was in. After a write error other
+  than EIO UBI goes read-only until the next boot, so retrying is useless and
+  even `tpi reboot` can fail. The download is now removed on every exit
+  (failure, checksum mismatch, interrupted transfer, SIGINT/SIGTERM) and only
+  that file, under a name carrying the PID so a file already in the directory
+  is never touched. A failed write exits 1 and states that the running firmware
+  is untouched and will boot, that UBI may be read-only, and to power-cycle the
+  board and retry or flash from the SD card. `--keep` keeps the image only
+  after a successful write.
+- **Staging says when it is not on the SD card.** The card was already
+  preferred; it is now also required to be writable (a card remounted read-only
+  after an error used to be picked and then failed), and the script names the
+  reason when it falls back to the overlay or `/tmp`.
+
+### Tests
+
+- `tests/selfupdate-failure.sh` covers the failure paths with stubbed `curl`,
+  `df` and `osupdate`, under dash and busybox ash; the mutation check in
+  `checks.yml` fails if the cleanup, the advice or the writability test is
+  removed.
+
 ## [v2.51.0] — 2026-11-20
 
 Linux 6.18.63. bmcd 2.44.0, BMC-UI 4.6.1 and tpi 1.10.0 are unchanged.

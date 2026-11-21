@@ -49,12 +49,14 @@ jobs:
           dash tests/gate.sh
           dash tests/version.sh
           dash tests/listing.sh
+          dash tests/selfupdate-failure.sh
 
       - name: contract tests (busybox ash, as on the board)
         run: |
           busybox ash tests/gate.sh
           busybox ash tests/version.sh
           busybox ash tests/listing.sh
+          busybox ash tests/selfupdate-failure.sh
 
       # The gate is only as good as its ability to say no. If a mutation that
       # removes a rejection still passes the suite, the suite is decorative.
@@ -127,6 +129,26 @@ jobs:
           fi
           cp /tmp/updater.orig "$updater"
 
+          # And the failure handling: an updater that leaves its download
+          # behind, or never tells the operator to power-cycle, is the bug.
+          for m in 's|^trap cleanup EXIT$|true|' \
+                   's|^\t\[ -z "$STAGED_IMAGE" \] \|\| rm -f "$STAGED_IMAGE"$|\ttrue|' \
+                   's|power-cycle|restart|' \
+                   's|^\t\t\[ -w "$dir" \] \|\| continue$|\t\ttrue|'; do
+            cp /tmp/updater.orig "$updater"
+            sed -i "$m" "$updater"
+            if cmp -s /tmp/updater.orig "$updater"; then
+              echo "MUTATION DID NOT APPLY: $m"
+              fails=$((fails + 1))
+            elif dash tests/selfupdate-failure.sh >/dev/null 2>&1; then
+              echo "NOT CAUGHT: failure-handling mutation $m"
+              fails=$((fails + 1))
+            else
+              echo "caught: failure-handling mutation $m"
+            fi
+          done
+          cp /tmp/updater.orig "$updater"
+
           [ "$fails" -eq 0 ]
 
   shell:
@@ -163,6 +185,7 @@ jobs:
             tests/dashboard.sh \
             tests/pins-are-current.sh \
             tests/toolchain-fragment.sh \
+            tests/selfupdate-failure.sh \
             tp2bmc/package/bmcd/generate_self_signedx509.sh \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S00sysrq \
             tp2bmc/board/tp2bmc/overlay/usr/sbin/mdnsd-guard \
