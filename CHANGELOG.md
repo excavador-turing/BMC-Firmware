@@ -24,9 +24,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   before, so bmcd 2.46.0 keeps working. The shadow-word contract is the one
   [@danste22](https://github.com/danste22) carried to 6.18 (`tp2/power/0002`,
   from Sven Rademakers' 2024 patch); that patch is untouched. The attributes are
-  documented in `Documentation/ABI/testing/sysfs-platform-gpio-latch`. Nothing
-  reads them yet: a bmcd release that does, and a firmware pin of it, come
-  after this.
+  documented in `Documentation/ABI/testing/sysfs-platform-gpio-latch`. bmcd
+  2.47.0 (pinned below) reads them first.
+
+### Changed
+
+- **bmcd 2.47.0 reads the latch shadow from the kernel's sysfs attributes
+  first** (bmcd#61), and falls back to `/dev/mem` where they are absent, so it
+  still works on a kernel without `tp2/power/0003`. What counts as a powered
+  node does not change. Its reboot endpoint also says the v2.4 caveat, that a
+  BMC reboot keeps the modules running on a v2.5 board and power-cycles them on
+  a v2.4 board (bmcd#62). The shadow-word contract is the one
+  [@danste22](https://github.com/danste22) (Daniel Steinhauf) carried to 6.18,
+  from Sven Rademakers' 2024 patch.
+- **tpi 1.11.1**: `tpi reboot --help` says the same, for both board revisions
+  (tpi#19). Help text only.
+- **bmcd 2.47.0, BMC-UI 4.7.0 and tpi 1.11.1** are the pinned versions (the
+  latest of each).
 
 ## [v2.52.0] — 2026-11-21
 
