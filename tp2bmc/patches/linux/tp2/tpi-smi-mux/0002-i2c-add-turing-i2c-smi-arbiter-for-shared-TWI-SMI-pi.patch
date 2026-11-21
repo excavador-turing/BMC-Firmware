@@ -17,20 +17,13 @@ GPIO SMI pins are requested per-transaction via gpiolib and released
 before restoring TWI ownership, avoiding probe-time conflicts on the
 shared pins.
 
-Copyright: the new file keeps its "Turing Machines, Inc." line and now also
-names its author. TODO(#79): the only turing-machines/BMC-Firmware code with
-that line is the 2024 header Sam Edwards added to i2c-mv64xxx.c, and this
-driver is a new file that does not appear to derive from it. The author is
-asked whether it derives from Turing Machines code; the line is kept either
-way until that is answered.
-
 Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
 ---
  drivers/i2c/busses/Kconfig               |   9 ++
  drivers/i2c/busses/Makefile              |   1 +
- drivers/i2c/busses/tpi-i2c-smi-arbiter.c | 198 +++++++++++++++++++++++
+ drivers/i2c/busses/tpi-i2c-smi-arbiter.c | 197 ++++++++++++++++++++++
  include/linux/tpi-i2c-smi-arbiter.h      |  15 ++
- 4 files changed, 223 insertions(+)
+ 4 files changed, 222 insertions(+)
  create mode 100644 drivers/i2c/busses/tpi-i2c-smi-arbiter.c
  create mode 100644 include/linux/tpi-i2c-smi-arbiter.h
 
@@ -65,10 +58,10 @@ index fb985769f..1ce375063 100644
  ccflags-$(CONFIG_I2C_DEBUG_BUS) := -DDEBUG
 diff --git a/drivers/i2c/busses/tpi-i2c-smi-arbiter.c b/drivers/i2c/busses/tpi-i2c-smi-arbiter.c
 new file mode 100644
-index 000000000..16ba967b8
+index 000000000..8bcf6dd64
 --- /dev/null
 +++ b/drivers/i2c/busses/tpi-i2c-smi-arbiter.c
-@@ -0,0 +1,198 @@
+@@ -0,0 +1,197 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Turing Pi 2: arbitrate HW I2C vs GPIO SMI on shared TWI pins.
@@ -80,7 +73,6 @@ index 000000000..16ba967b8
 + * before each SMI transaction.
 + *
 + * Copyright (C) 2026 Daniel Steinhauf <daniel@steinhauf.eu>
-+ * Copyright (C) 2026 Turing Machines, Inc.
 + */
 +
 +#include <linux/debugfs.h>
