@@ -13,51 +13,81 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.52.0] — 2026-11-21
+
+LACP on the two uplink ports, and the nodes' power state kept across a BMC
+reboot on Linux 6.18. Pins **bmcd 2.46.0**, **BMC-UI 4.7.0** and **tpi 1.11.0**
+(they were 2.44.0, 4.6.1 and 1.10.0); the kernel stays at 6.18.63.
+
+LACP is off unless you turn it on: a board that does not use it changes in
+nothing.
+
+Thank you, [@danste22](https://github.com/danste22) (Daniel Steinhauf). The
+whole LACP work in this release is his: the kernel's hardware LAG patches for
+the RTL8370MB-CG, the bonding, the SMI arbiter driver, the bmcd LACP uplink,
+the BMC-UI Switch page and the `tpi` commands. He also tested it on a board
+against a Zyxel LACP switch and wrote up the result
+([#79](https://github.com/excavador-turing/BMC-Firmware/pull/79),
+[#87](https://github.com/excavador-turing/BMC-Firmware/pull/87),
+[bmcd#50](https://github.com/excavador-turing/bmcd/pull/50) →
+[bmcd#56](https://github.com/excavador-turing/bmcd/pull/56),
+[BMC-UI#58](https://github.com/excavador-turing/BMC-UI/pull/58) →
+[#60](https://github.com/excavador-turing/BMC-UI/pull/60),
+[tpi#16](https://github.com/excavador-turing/tpi/pull/16) →
+[#17](https://github.com/excavador-turing/tpi/pull/17)). His commits keep his
+authorship, and the copyright and `Signed-off-by` lines are his.
+
 ### Added
 
-- **Hardware LAG (LACP) support in the kernel, by @danste22 (#79), thanks!**
+- **LACP uplink: `ge0` and `ge1` as one 802.3ad `bond0` on the RTL8370
+  hardware LAG, by @danste22 (#79, #87, bmcd#50, BMC-UI#58, tpi#16), thanks!**
   Three kernel patches (`net-dsa/0014` to `0016`) offload a Linux bond onto the
-  RTL8370MB-CG's own trunk hardware, `CONFIG_BONDING` is built in, and the
+  switch chip's own trunk hardware, `CONFIG_BONDING` is built in, and the
   kernel command line carries `bonding.max_bonds=0`, so no `bond0` exists until
-  ifupdown-ng creates the configured one (the built-in default would otherwise
-  stop its bond executor from applying the mode, hash policy and members).
-  Nothing creates a bond by itself: without a bond in `/etc/network/interfaces`
-  the board behaves as before. `tests/lag-parts.sh` checks the four pieces
-  offline. The patches keep their `From:` and `Signed-off-by:` headers.
-  Hardware evidence for the LAG path is still to come from a pre-release.
-- **LACP from the daemon, the interface and the command line, by @danste22
-  (bmcd#50, BMC-UI#58, tpi#16), thanks!** bmcd 2.45.0 creates `bond0`
-  (802.3ad, layer2+3 hash, fast LACP) over ge0 and ge1 when the switch asks for
-  `second_uplink: lag`, and writes it into `/etc/network/interfaces` so the
-  bond is up before the daemon starts. BMC-UI 4.7.0 has the LACP switch and the
+  ifupdown-ng creates the configured one. bmcd 2.46.0 creates `bond0` (802.3ad,
+  `layer2+3` hash, fast LACP) over `ge0` and `ge1` when the switch asks for
+  `second_uplink: lag`, and writes it into `/etc/network/interfaces` so the bond
+  is up before the daemon starts. BMC-UI 4.7.0 has the LACP switch and the
   `flat-lag` and `trunk-lag` presets on the Switch page, and tpi 1.11.0 has
-  `tpi network switch --preset flat-lag` and `--replace-hand-written`. Each
-  was carried on from his pull request ([bmcd#56](https://github.com/excavador-turing/bmcd/pull/56),
+  `tpi network switch apply --preset flat-lag` (or `trunk-lag`, or
+  `--second-uplink lag`). A change goes through the usual confirm window and is
+  put back automatically if it is not confirmed; if the uplink never forwards
+  after an apply, bmcd reverts anyway, 60 s after the window would have ended. A
+  hand-written `/etc/network/interfaces` needs an explicit opt-in (the checkbox,
+  `--replace-hand-written`, or `replace_hand_written: true`), and only when the
+  change turns LACP on. A `bond0` that bmcd did not create is refused. The
+  switch at the other end needs LACP on both ports. Nothing creates a bond by
+  itself: without one in `/etc/network/interfaces` the board stays the flat
+  `br0` it is today. `tests/lag-parts.sh` checks the kernel pieces offline. The
+  patches keep their `From:` and `Signed-off-by:` headers.
+
+  Tested by @danste22 on a Zyxel LACP switch: both ports in one aggregator,
+  `ge0` alone (the bond keeps its carrier and nothing is sent to the dead
+  port), the automatic revert in both directions, and an upstream without LACP.
+  We tested it on two boards with LACP off, which is how every board runs it by
+  default. Each part was carried on from his pull request with his commits kept
+  under his authorship ([bmcd#56](https://github.com/excavador-turing/bmcd/pull/56),
   [BMC-UI#60](https://github.com/excavador-turing/BMC-UI/pull/60),
-  [tpi#17](https://github.com/excavador-turing/tpi/pull/17)) with his commits
-  kept under his authorship. The switch at the other end needs LACP on both
-  ports.
+  [tpi#17](https://github.com/excavador-turing/tpi/pull/17)).
 
 ### Fixed
 
-- **A reboot of the BMC on the 6.18 kernel is read as a warm boot again.**
-  bmcd up to 2.45.0 logged `cold boot: restoring persisted power state` after every
-  reboot of the BMC on 6.18 (v2.51.0 and v2.52.0-rc.1), with all four modules
-  running, where on 6.12 it adopted the live state. It now reads which nodes
-  are powered from the latch shadow word in SoC SRAM, the cooperative contract
-  of the gpio-latch patch (`tp2/power/0002`, by @danste22, from an idea of
-  Sven Rademakers), and requests the node enable lines with that value, so
-  starting the daemon no longer pulses running modules either (bmcd#58). A
-  cold boot still restores the persisted state. No kernel change.
-
-### Changed
-
-- **bmcd 2.46.0, BMC-UI 4.7.0 and tpi 1.11.0** are the pinned versions (the
-  latest of each).
-
-### Fixed
-
-- **`tpi-selfupdate` cleans up after a failed update and says what to do.** A
+- **A reboot of the BMC on the 6.18 kernel is read as a warm boot again
+  (bmcd 2.46.0).** bmcd up to 2.45.0 logged `cold boot: restoring persisted
+  power state` after every reboot of the BMC on 6.18 (v2.51.0), with all four
+  modules running, where on 6.12 it adopted the live state. The saved state was
+  then restored over the live one, so a node that was off in the database but on
+  in fact was switched off. bmcd now reads which nodes are powered from the
+  latch shadow word that the kernel's gpio-latch patch keeps in SoC SRAM (the
+  cooperative contract with the bootloader that
+  [@danste22](https://github.com/danste22) carried to 6.18, with the original
+  idea from Sven Rademakers, whose 2024 patch in turing-machines/BMC-Firmware
+  started it; thanks to both), and requests the node enable lines with that
+  value, so starting the daemon no longer pulses running modules either
+  ([bmcd#58](https://github.com/excavador-turing/bmcd/pull/58)). A cold boot
+  still restores the persisted state. No kernel change.
+- **`tpi-selfupdate` cleans up after a failed update and says what to do
+  ([#102](https://github.com/excavador-turing/BMC-Firmware/pull/102)).** A
   write that failed on the last partial LEB (`ubiupdatevol: ... error 110`)
   left the ~39 MB download in `/mnt/overlay`, which has very little room, and
   printed nothing about the state the board was in. After a write error other
@@ -73,6 +103,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   preferred; it is now also required to be writable (a card remounted read-only
   after an error used to be picked and then failed), and the script names the
   reason when it falls back to the overlay or `/tmp`.
+
+### Changed
+
+- **bmcd 2.46.0, BMC-UI 4.7.0 and tpi 1.11.0** are the pinned versions (the
+  latest of each).
+
+### Known issue
+
+- **One over-the-air write was seen to fail, on one board.** Writing the image
+  with `tpi-selfupdate` failed with a UBI write timeout on the final block
+  (`ubiupdatevol: error 110`). The firmware the board was running is untouched
+  and still boots. Power-cycle the board, then retry or flash from the SD card
+  (`tpi-selfupdate` now says so itself). The cause is not found yet.
 
 ### Tests
 
