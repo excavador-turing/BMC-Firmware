@@ -35,7 +35,16 @@ SLOT_BYTES=46981120
 # Same preference order as bmcd's staging: the SD card costs no NAND wear and
 # has room to spare, the overlay is what a card-less board has, and the tmpfs
 # is a 58MB RAM disk on a board with 116MB of RAM and only a last resort.
-STAGING_DIRS="/mnt/sdcard /mnt/overlay /tmp"
+#
+# The first entry is the SD card: when staging lands anywhere else, the script
+# says so, because the overlay has very little free space and is flash.
+#
+# STAGING_DIRS, PROC_MOUNTS, OSUPDATE_BIN and STAGED_NOTE are overridable for
+# the contract tests only (tests/selfupdate-failure.sh), which run on a
+# workstation with no board. Nothing on a board sets them.
+STAGING_DIRS="${STAGING_DIRS:-/mnt/sdcard /mnt/overlay /tmp}"
+PROC_MOUNTS="${PROC_MOUNTS:-/proc/mounts}"
+OSUPDATE_BIN="${OSUPDATE_BIN:-/sbin/osupdate}"
 
 usage() {
 	cat <<EOF
@@ -119,7 +128,7 @@ running_version() {
 #
 # Where the staged version is recorded for bmcd to read. S99postupdate removes
 # it once the image it describes has been promoted or rejected.
-STAGED_NOTE=/mnt/overlay/staged-firmware
+STAGED_NOTE="${STAGED_NOTE:-/mnt/overlay/staged-firmware}"
 
 # True when an update is already staged for the next boot. Staging a second one
 # on top would remove the rootfs_new volume the first one wrote and leave
@@ -236,15 +245,18 @@ is_versioned() {
 #
 # staging_dir BYTES
 #
-# The first of $STAGING_DIRS that is a mount of its own and has room. The mount
-# test matters: /mnt/sdcard exists as an empty directory when no card is in the
-# slot, and writing there would silently fill the root filesystem instead.
+# The first of $STAGING_DIRS that is a mount of its own, is writable and has
+# room. The mount test matters: /mnt/sdcard exists as an empty directory when
+# no card is in the slot, and writing there would silently fill the root
+# filesystem instead. The writable test matters for a card the kernel
+# remounted read-only after an error: df reports its free space all the same.
 #
 staging_dir() {
 	need=$1
 	for dir in $STAGING_DIRS; do
-		awk -v p="$dir" '$2 == p { f = 1 } END { exit !f }' /proc/mounts \
+		awk -v p="$dir" '$2 == p { f = 1 } END { exit !f }' "$PROC_MOUNTS" \
 			|| continue
+		[ -w "$dir" ] || continue
 		free=$(df -kP "$dir" 2>/dev/null | awk 'NR == 2 { print $4 * 1024 }')
 		[ -n "$free" ] || continue
 		[ "$free" -ge "$need" ] || continue
@@ -252,6 +264,27 @@ staging_dir() {
 		return 0
 	done
 	return 1
+}
+
+#
+# STAGED_IMAGE
+#
+# The file this run is downloading or has downloaded, and nothing else: the
+# name carries the PID, so it cannot be a file somebody else left in the
+# staging directory. Empty until the download starts, and emptied again once
+# the image has been handed over (--keep), so cleanup has nothing to remove.
+STAGED_IMAGE=""
+
+#
+# cleanup
+#
+# Runs on every exit, success or failure, and on SIGINT/SIGHUP/SIGTERM (which
+# only turn into an exit). Removes the staged image and nothing else. The
+# overlay holds little free space and a ~39 MB image left behind by a failed
+# update would starve the next attempt, and bmcd, of room.
+#
+cleanup() {
+	[ -z "$STAGED_IMAGE" ] || rm -f "$STAGED_IMAGE"
 }
 
 #
@@ -564,8 +597,24 @@ fi
 
 dir=$(staging_dir "$SLOT_BYTES") \
 	|| die "no writable mount among $STAGING_DIRS has room for the image"
-log "staging in $dir"
-path="$dir/$image"
+sd=${STAGING_DIRS%% *}
+if [ "$dir" = "$sd" ]; then
+	log "staging in $dir"
+else
+	log "staging in $dir: $sd is not usable (no card, not mounted, read-only or too little room)"
+	case "$dir" in
+		/tmp) log "that is RAM, on a board with little of it" ;;
+		*) log "this is flash with very little free space; an SD card avoids that" ;;
+	esac
+fi
+
+# From here on there is something to clean up.
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+path="$dir/.$image.$$"
+STAGED_IMAGE="$path"
 
 curl -sSfL --max-time 900 --retry 3 -o "$path" "$base/$image" \
 	|| die "download failed: $base/$image"
@@ -585,9 +634,44 @@ fi
 log "image is $size bytes, $((size * 100 / SLOT_BYTES))% of the rootfs volume"
 
 log "writing the image; do not cut power until this returns"
-/sbin/osupdate "$path"
+rc=0
+"$OSUPDATE_BIN" "$path" || rc=$?
+if [ "$rc" -ne 0 ]; then
+	# osupdate runs under `sh -eu` and stops before `fw_setenv nextboot`, so a
+	# failed write never arms the new volume and the board still boots what it
+	# is running. Say that, because the error above it (ubiupdatevol's, from
+	# the kernel) says nothing about it.
+	#
+	# Any write error other than EIO makes UBI switch the whole device
+	# read-only until the next boot, so a retry now cannot succeed, and a plain
+	# `reboot` may fail as well. Seen on a board whose
+	# last partial LEB timed out (error 110): `tpi reboot` then failed with EIO.
+	#
+	# Exits 1, whatever osupdate returned: 2 means "already up to date" here.
+	rm -f "$path"
+	STAGED_IMAGE=""
+	log "FAILED: writing the image to the rootfs volume failed (osupdate exit status $rc)"
+	log "the running firmware is untouched, nothing is staged and the board will boot as before"
+	log "UBI may now be read-only until the next boot, so do not retry yet and"
+	log "expect a plain reboot to fail: power-cycle the board (remove power), then"
+	log "run tpi-selfupdate again, or flash the image from the SD card"
+	log "the downloaded image has been deleted"
+	exit 1
+fi
 
-[ "$KEEP_IMAGE" -eq 1 ] || rm -f "$path"
+if [ "$KEEP_IMAGE" -eq 1 ]; then
+	# Under its real name now; if the rename fails, cleanup still owns the
+	# temporary one.
+	if mv -f "$path" "$dir/$image"; then
+		STAGED_IMAGE=""
+		log "kept the image as $dir/$image"
+	else
+		log "warning: could not keep the image; it will be deleted"
+	fi
+else
+	rm -f "$path"
+	STAGED_IMAGE=""
+fi
 
 # Record WHICH image is staged, for bmcd to report and the web interface to
 # show. The staging volume is static and never mounted, so nothing can read a
