@@ -46,6 +46,7 @@ sha256  bc51e7246500b08bed73d68bdbad7db896dc7a4ae329a169c0f7cbebca4e6b71  tpi-70
 # keeps the modules running on a v2.5 board and power-cycles them on a v2.4
 # board (tpi#19). Help text only.
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  tpi-2a24029da605be38cf3c276a37c47310924dc092-cargo2.tar.gz
+# Measured 2026-11-21: the PR build in CI's own container (run 44955559834),
+# against a placeholder line, reported got 25001bb9; this is that value.
+sha256  25001bb91dff52b22340237be5d218be430d20149797cbcbae810f6446fd128c  tpi-2a24029da605be38cf3c276a37c47310924dc092-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE

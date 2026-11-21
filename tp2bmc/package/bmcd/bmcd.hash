@@ -241,5 +241,6 @@ sha256  c50a2a20637a680eb9d8a9f62181a0987a6a2190e777297893656423edb387d2  bmcd-9
 # the v2.4 caveat (bmcd#61, #62). What counts as a powered node does not
 # change.
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-93ac03fdcf354d8aec9b2169a0adcf08c895e211-cargo2.tar.gz
+# Measured 2026-11-21: the PR build in CI's own container (run 44955559834),
+# against a placeholder line, reported got 3f077eef; this is that value.
+sha256  3f077eef81e0594021c5965807ceef207a591c7d7e3102a8d12c357f472680ff  bmcd-93ac03fdcf354d8aec9b2169a0adcf08c895e211-cargo2.tar.gz
