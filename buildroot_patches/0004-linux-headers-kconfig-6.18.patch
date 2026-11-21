@@ -27,11 +27,7 @@ https://gitlab.com/buildroot.org/buildroot/-/blob/master/toolchain/Config.in
 and package/linux-headers/Config.in.host. This is not Turing Machines work
 and none was found in turing-machines/BMC-Firmware.
 
-TODO(#79): the header of this file originally read "Turing Pi 2 BMC
-<bmc@turingpi.com>" in both From: and Signed-off-by:. That identity does not
-appear anywhere else in either repository. From: now follows the git author
-of the commit that added the file (Daniel Steinhauf); the Signed-off-by is
-left out until Daniel confirms he wrote this backport and signs it himself.
+Signed-off-by: Daniel Steinhauf <daniel@steinhauf.eu>
 ---
 --- a/package/linux-headers/Config.in.host
 +++ b/package/linux-headers/Config.in.host
