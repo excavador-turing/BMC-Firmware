@@ -19,6 +19,7 @@ work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 export BMCD_SSL_DIR="$work"
 C="$work/bmcd_cert.pem"; K="$work/bmcd_key.pem"
 fp() { openssl x509 -in "$C" -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2; }
+pub() { openssl x509 -in "$C" -noout -pubkey 2>/dev/null; }
 pass=0; fail=0
 ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
@@ -58,14 +59,18 @@ rm -f "$C" "$K"; sh "$SCRIPT" >/dev/null 2>&1
 subj=$(openssl x509 -in "$C" -noout -subject)
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -nodes \
   -subj "/CN=Turing Pi BMC self-signed" -days 5 -keyout "$K" -out "$C" >/dev/null 2>&1
-old=$(fp); sh "$SCRIPT" >/dev/null 2>&1
+old=$(fp); oldpub=$(pub); sh "$SCRIPT" >/dev/null 2>&1
 [ "$(fp)" != "$old" ] && ok "renews before it expires" || bad "did not renew a 5-day certificate"
+# tpi pins the public key, so a renewal that changed it would break every pin.
+[ "$(pub)" = "$oldpub" ] && ok "keeps the key it renews" || bad "renewal made a new key"
 openssl x509 -in "$C" -noout -checkend $((800*86400)) >/dev/null 2>&1 && ok "the replacement is long-lived" || bad "replacement is short"
 
 echo "6. our certificate with a key that is not its own"
 openssl ecparam -genkey -name secp384r1 -out "$K" >/dev/null 2>&1
 old=$(fp); sh "$SCRIPT" >/dev/null 2>&1
 [ "$(fp)" != "$old" ] && ok "reissues a mismatched pair" || bad "kept a mismatched pair"
+openssl x509 -in "$C" -noout -pubkey 2>/dev/null | cmp -s - <(openssl pkey -in "$K" -pubout 2>/dev/null) \
+  && ok "the reissued pair belongs together" || bad "the reissued pair does not match"
 
 # THE BUG THIS CASE EXISTS FOR. The script reissued on four conditions -- no
 # certificate, a mismatched pair, expiry within the window, and never for a
@@ -96,7 +101,7 @@ echo "$said" | grep -q "does NOT match" \
   && ok "says 'does NOT match' for one it has not" || bad "cannot deny a name it has not: $said"
 
 echo "8. the board is renamed"
-before=$(fp)
+before=$(fp); beforepub=$(pub)
 # The script asks `hostname` for the board's name, so a hostname on PATH that
 # answers differently is a renamed board as far as it can tell.
 fake="$work/bin"; mkdir -p "$fake"
@@ -106,6 +111,7 @@ echo bmc-renamed
 out=$(PATH="$fake:$PATH" sh "$SCRIPT" 2>&1)
 [ "$(fp)" != "$before" ] && ok "reissues when the board's name changes" || bad "kept a certificate naming the wrong board"
 echo "$out" | grep -q "no longer names this board" && ok "says why" || bad "silent about it: $out"
+[ "$(pub)" = "$beforepub" ] && ok "keeps the key across a rename" || bad "a rename made a new key"
 openssl x509 -in "$C" -noout -ext subjectAltName 2>/dev/null | grep -q "bmc-renamed" \
   && ok "the new certificate carries the new name" || bad "the new certificate does not name the board"
 
