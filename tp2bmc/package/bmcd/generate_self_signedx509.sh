@@ -96,6 +96,11 @@ build_san() {
     echo "$san"
 }
 
+# Issues the certificate. With `keep-key`, the key already on disk signs the
+# new certificate and stays where it is: a renewal or a rename changes the
+# certificate, not the key, so a client that pinned the public key (tpi does)
+# keeps working. A new key is made only when there is none or it is not the
+# certificate's own.
 generate() {
     log "issuing a new self-signed certificate for $(build_san)"
     mkdir -p "${ssl_dir}"
@@ -107,9 +112,17 @@ generate() {
     # untouched rather than a board with no certificate at all.
     trap 'rm -f "${tmp_key}" "${tmp_cert}"' EXIT
 
-    openssl req -x509 \
-        -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 \
-        -keyout "${tmp_key}" -out "${tmp_cert}" \
+    # The key arguments go in the positional parameters, the one list POSIX sh
+    # has, so a directory with a space in it stays one argument.
+    if [ "${1:-}" = keep-key ]; then
+        cp -p "${key_file}" "${tmp_key}"
+        set -- -key "${tmp_key}"
+    else
+        set -- -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -keyout "${tmp_key}"
+    fi
+
+    openssl req -x509 "$@" \
+        -out "${tmp_cert}" \
         -days "${days_valid}" -nodes \
         -subj "${self_subject}" \
         -addext "subjectAltName=$(build_san)" \
@@ -242,7 +255,7 @@ fi
 
 if ! still_fresh; then
     log "our certificate expires within ${renew_within_days} days; reissuing"
-    generate
+    generate keep-key
     exit 0
 fi
 
@@ -253,7 +266,7 @@ if ! names_current; then
     log "our certificate no longer names this board; reissuing"
     log "  it has:   $(cert_names)"
     log "  it needs: $(build_san)"
-    generate
+    generate keep-key
     exit 0
 fi
 
