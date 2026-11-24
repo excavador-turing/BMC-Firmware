@@ -58,3 +58,25 @@ overwrite_os_release() {
 }
 
 overwrite_os_release
+
+# Node MSD: /dev/disk/by-tpi/nodeN. '*' runs the helper on add and on remove.
+# '@' would skip remove, so a link would survive RockUSB teardown until another disk appeared.
+mdev_script="mdev-tpi-msd-symlink"
+mconf="${TARGET_DIR}/etc/mdev.conf"
+chmod 755 "${TARGET_DIR}/usr/bin/${mdev_script}" 2>/dev/null || true
+if [ -f "${mconf}" ]; then
+	sed -i '\|tp2bmc/board.*mdev-tpi-msd-symlink|d' "${mconf}"
+	sed -i 's/root:usb/root:root/g' "${mconf}"
+	sed -i '/# mdev-tpi-msd-symlink (#225)/d' "${mconf}"
+	sed -i '/# mdev-tpi-msd-usb (#225)/d' "${mconf}"
+	sed -i '/sd\[a-z\].*mdev-tpi-msd-symlink/d' "${mconf}"
+	sed -i '/[12]-1\\.[1-4].*mdev-tpi-msd-symlink/d' "${mconf}"
+	if ! grep -q '\*/usr/bin/mdev-tpi-msd-symlink' "${mconf}"; then
+		printf '\n# mdev-tpi-msd-symlink (#225)\nsd[a-z]\troot:disk\t660\t*/usr/bin/%s\n' \
+			"${mdev_script}" >>"${mconf}"
+		printf '# mdev-tpi-msd-usb (#225) — stale by-tpi on hub port disconnect\n' >>"${mconf}"
+		# root:root — there is no "usb" group in Buildroot; root:usb breaks mdev -s.
+		printf '1-1\\.[1-4](:.*)?\troot:root\t660\t*/usr/bin/%s\n' "${mdev_script}" >>"${mconf}"
+		printf '2-1\\.[1-4](:.*)?\troot:root\t660\t*/usr/bin/%s\n' "${mdev_script}" >>"${mconf}"
+	fi
+fi
