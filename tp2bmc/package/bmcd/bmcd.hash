@@ -284,3 +284,10 @@ sha256  64d19ac6d3bccac62844efd87cfbc19a0af5d569f999bd859ad197405f1868a6  bmcd-e
 # Measured 2026-11-24: the PR build in CI's own container (run 45482450540),
 # against a placeholder line, reported got 6c4dc88b; this is that value.
 sha256  6c4dc88b0112a5673fec76533c70dff17386b26d14948420b8e7f3b14fe7975c  bmcd-2937cbde5e2a2deb19ffb36a7637f2089291412f-cargo2.tar.gz
+#
+# 2.50.2 (16f6169c, tag v2.50.2): the serial console WebSocket refuses a
+# handshake opened from another site (bmcd#93). No other code change from
+# 2.50.1.
+#
+# Placeholder until CI's own container reports the got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-16f6169cb606acd54229ae8f0cd1ab29408eb26a-cargo2.tar.gz

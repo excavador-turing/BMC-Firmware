@@ -16,11 +16,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 v2.56.0 was never published; its changes ship in v2.57.0, together with the
 security fixes below.
 
-Pins **bmcd 2.50.1** (v2.55.0 had 2.49.0), **tpi 2.0.1** (2.0.0) and **BMC-UI
-4.8.1** (4.8.0). The kernel stays at 6.18.63. Two security fixes in the daemon
-reported by adberger, the RK1 flash path moves to `rockusb` 0.4, the hashing and
-checksum loops are built for speed, and the console node picker is readable
-under the pointer. There is nothing to do on a board or in a script: no
+Pins **bmcd 2.50.2** (v2.55.0 had 2.49.0), **tpi 2.0.1** (2.0.0) and **BMC-UI
+4.8.1** (4.8.0). The kernel stays at 6.18.63. Three security fixes in the
+daemon (two reported by adberger), the RK1 flash path moves to `rockusb` 0.4,
+the hashing and checksum loops are built for speed, and the console node picker
+is readable under the pointer. There is nothing to do on a board or in a script: no
 behaviour a client relies on changes.
 
 Thanks to adberger ([@adberger](https://github.com/adberger)) for
@@ -58,6 +58,17 @@ an API request (no client we know of does) now gets 400.
   renamed into place without flushing its data, so a power cut on UBIFS could
   leave bmcd starting on new, default storage. It is written through
   `write_durably` now: data flushed before the rename, directory after.
+
+- **The serial console WebSocket refuses a handshake opened from another site**
+  (bmcd 2.50.2, bmcd#93, found in our own review). The console reads and writes
+  a node's UART. A handshake is a `GET`, so the cross-site refusal for state
+  changes did not see it, and a browser does not hold a WebSocket to the
+  same-origin policy. Behind a reverse proxy that authenticates with a client
+  certificate the browser sends no token of its own, so a page on another site
+  could open the console; directly on the board it was not reachable this way.
+  A handshake whose `Sec-Fetch-Site` is not `same-origin` or `none` is now 403,
+  and without that header one whose `Origin` is not the `Host`. `tpi`, `curl`
+  and BMC-UI, which opens the socket on its own host, are served as before.
 
 ### Changed
 
