@@ -382,6 +382,26 @@ else
 	pass "D5 no GS0 respawn spam"
 fi
 
+# --- E: node MSD links ---
+section "E — node MSD by-tpi"
+[ -x /usr/bin/mdev-tpi-msd-symlink ] && pass "E mdev-tpi-msd-symlink installed" || fail "E helper missing"
+grep -q mdev-tpi-msd-symlink /etc/mdev.conf 2>/dev/null && pass "E mdev.conf hook" || fail "E mdev.conf hook missing"
+if [ -d /dev/disk/by-tpi ]; then
+	ls -la /dev/disk/by-tpi/ 2>/dev/null | while read -r line; do info "$line"; done
+	for n in 1 2 3 4; do
+		link=/dev/disk/by-tpi/node${n}
+		[ -L "$link" ] || continue
+		tgt=$(readlink -f "$link" 2>/dev/null || true)
+		if [ -n "$tgt" ] && [ -b "$tgt" ]; then
+			pass "E node${n} -> $tgt"
+		else
+			fail "E node${n} symlink target is gone"
+		fi
+	done
+else
+	info "E /dev/disk/by-tpi absent until a node MSD is attached"
+fi
+
 # --- F: I2C shared bus ---
 section "F — I2C / EEPROM / RTC / SMI arbiter"
 if dmesg 2>/dev/null | grep -qi 'arbiter on .*i2c'; then
