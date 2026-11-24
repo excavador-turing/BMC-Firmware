@@ -11,7 +11,14 @@
 # the internet would be a way to brick the board from the comfort of a script.
 #
 # Deliberately does NOT reboot unless asked. Staging is reversible right up to
-# the reboot -- `fw_setenv nextboot` alone puts everything back.
+# the reboot: `tpi firmware unstage` (or /sbin/osunstage on the board) puts
+# everything back.
+#
+# One stager at a time. This script, bmcd (an upload or an install) and
+# /sbin/osupdate share one lock, STAGE_LOCK; see the notes in osupdate. A
+# second stager is told "an update is being staged" and nothing is touched.
+# bmcd takes the lock itself when it runs this script and exports
+# STAGE_LOCK_HELD=1, which this script honours.
 
 REPO="excavador-turing/BMC-Firmware"
 # An HTTP directory to scan instead of a GitHub repository. Set with --url.
@@ -39,12 +46,13 @@ SLOT_BYTES=46981120
 # The first entry is the SD card: when staging lands anywhere else, the script
 # says so, because the overlay has very little free space and is flash.
 #
-# STAGING_DIRS, PROC_MOUNTS, OSUPDATE_BIN and STAGED_NOTE are overridable for
+# STAGING_DIRS, PROC_MOUNTS, OSUPDATE_BIN, STAGE_LOCK and STAGED_NOTE are overridable for
 # the contract tests only (tests/selfupdate-failure.sh), which run on a
 # workstation with no board. Nothing on a board sets them.
 STAGING_DIRS="${STAGING_DIRS:-/mnt/sdcard /mnt/overlay /tmp}"
 PROC_MOUNTS="${PROC_MOUNTS:-/proc/mounts}"
 OSUPDATE_BIN="${OSUPDATE_BIN:-/sbin/osupdate}"
+STAGE_LOCK="${STAGE_LOCK:-/run/firmware-stage.lock}"
 
 usage() {
 	cat <<EOF
@@ -82,7 +90,8 @@ Usage: tpi-selfupdate [options]
   -h, --help             this text
 
 Exit status is 0 when an update was staged, 1 on error, and 2 when the board
-is already up to date.
+is already up to date. To take back a staged update: tpi firmware unstage, or
+/sbin/osunstage on the board.
 EOF
 }
 
@@ -131,11 +140,36 @@ running_version() {
 STAGED_NOTE="${STAGED_NOTE:-/mnt/overlay/staged-firmware}"
 
 # True when an update is already staged for the next boot. Staging a second one
-# on top would remove the rootfs_new volume the first one wrote and leave
-# nextboot pointing at a volume that is being rebuilt.
+# on top would remove the rootfs_new volume the first one wrote.
+#
+# This only says "armed", which is the END of a staging: it cannot see a stager
+# that is still downloading or writing. That is what take_stage_lock is for,
+# and it is taken first, so this answer is accurate while the lock is held.
 #
 update_pending() {
 	[ -n "$(fw_printenv -n nextboot 2>/dev/null || true)" ]
+}
+
+#
+# take_stage_lock
+#
+# One stager at a time (BMC-Firmware#127). Never waits: a second stager is told
+# so at once, and is not given advice about power cycles. The lock is released
+# when this process exits. Honours STAGE_LOCK_HELD=1, which bmcd exports when
+# it holds the lock for this very run.
+#
+take_stage_lock() {
+	if [ "${STAGE_LOCK_HELD:-}" = 1 ]; then
+		return 0
+	fi
+	command -v flock >/dev/null 2>&1 \
+		|| die "no flock on this board; refusing to stage without the staging lock"
+	[ -d "$(dirname "$STAGE_LOCK")" ] \
+		|| die "$(dirname "$STAGE_LOCK") does not exist; cannot take the staging lock"
+	exec 9>"$STAGE_LOCK"
+	flock -n 9 || die "an update is being staged; try again when it has finished"
+	STAGE_LOCK_HELD=1
+	export STAGE_LOCK_HELD
 }
 
 #
@@ -275,16 +309,25 @@ staging_dir() {
 # the image has been handed over (--keep), so cleanup has nothing to remove.
 STAGED_IMAGE=""
 
+# The note this run hands to osupdate and the file that catches osupdate's
+# stderr, both beside the image and both named for this PID. Removed on every
+# exit, like the image.
+NOTE_FILE=""
+ERR_FILE=""
+
 #
 # cleanup
 #
 # Runs on every exit, success or failure, and on SIGINT/SIGHUP/SIGTERM (which
-# only turn into an exit). Removes the staged image and nothing else. The
-# overlay holds little free space and a ~39 MB image left behind by a failed
-# update would starve the next attempt, and bmcd, of room.
+# only turn into an exit). Removes the staged image and this run's two small
+# files, and nothing else. The overlay holds little free space and a ~39 MB
+# image left behind by a failed update would starve the next attempt, and
+# bmcd, of room.
 #
 cleanup() {
 	[ -z "$STAGED_IMAGE" ] || rm -f "$STAGED_IMAGE"
+	[ -z "$NOTE_FILE" ] || rm -f "$NOTE_FILE"
+	[ -z "$ERR_FILE" ] || rm -f "$ERR_FILE"
 }
 
 #
@@ -591,8 +634,12 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
 	exit 0
 fi
 
+# The lock first, then the question: "already staged" is only true while no
+# other stager is between "started" and "armed".
+take_stage_lock
+
 if update_pending; then
-	die "an update is already staged for the next boot; reboot first, or clear it with 'fw_setenv nextboot'"
+	die "an update is already staged for the next boot; reboot to take it, or cancel it with 'tpi firmware unstage'"
 fi
 
 dir=$(staging_dir "$SLOT_BYTES") \
@@ -633,28 +680,66 @@ if [ "$size" -gt "$SLOT_BYTES" ]; then
 fi
 log "image is $size bytes, $((size * 100 / SLOT_BYTES))% of the rootfs volume"
 
+# What this stager knows about the image, written BEFORE osupdate runs and
+# handed to it, so that osupdate can install it ahead of arming nextboot
+# (BMC-Firmware#126). It used to be written here, after osupdate returned: a
+# cut or a reboot between the two armed an image with no note, and the gate
+# then skipped its version check.
+#
+# VERSION is the release tag; REPLACES is what this image replaces. Only the
+# stager knows it: the gate runs as the NEW image, and the old one's volume is
+# unmounted, so its version cannot be read from a running board. The note
+# lives beside the image until osupdate has moved it onto the overlay, which
+# both images mount, so it survives the reboot it describes; postupdate.log is
+# next to it for the same reason, and S99postupdate removes the note once it
+# has decided.
+NOTE_FILE="$dir/.$image.$$.note"
+{
+	printf 'VERSION=%s\n' "$target"
+	printf 'SHA256=%s\n' "$expected"
+	printf 'STAGED_AT=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+	printf 'SIZE_BYTES=%s\n' "$size"
+	printf 'SOURCE=tpi-selfupdate\n'
+	printf 'REPLACES=%s\n' "$running"
+} > "$NOTE_FILE" || die "cannot write the staged-version note in $dir"
+
 log "writing the image; do not cut power until this returns"
+ERR_FILE="$dir/.$image.$$.err"
 rc=0
-"$OSUPDATE_BIN" "$path" || rc=$?
+"$OSUPDATE_BIN" "$path" "$NOTE_FILE" 2> "$ERR_FILE" || rc=$?
+cat "$ERR_FILE" >&2
 if [ "$rc" -ne 0 ]; then
-	# osupdate runs under `sh -eu` and stops before `fw_setenv nextboot`, so a
+	# osupdate runs under `sh -eu` and stops before it arms nextboot, so a
 	# failed write never arms the new volume and the board still boots what it
 	# is running. Say that, because the error above it (ubiupdatevol's, from
 	# the kernel) says nothing about it.
 	#
-	# Any write error other than EIO makes UBI switch the whole device
-	# read-only until the next boot, so a retry now cannot succeed, and a plain
-	# `reboot` may fail as well. Seen on a board whose
-	# last partial LEB timed out (error 110): `tpi reboot` then failed with EIO.
-	#
 	# Exits 1, whatever osupdate returned: 2 means "already up to date" here.
 	rm -f "$path"
 	STAGED_IMAGE=""
-	log "FAILED: writing the image to the rootfs volume failed (osupdate exit status $rc)"
-	log "the running firmware is untouched, nothing is staged and the board will boot as before"
-	log "UBI may now be read-only until the next boot, so do not retry yet and"
-	log "expect a plain reboot to fail: power-cycle the board (remove power), then"
-	log "run tpi-selfupdate again, or flash the image from the SD card"
+	if [ "$rc" -eq 75 ]; then
+		# Another stager took the lock between our check and osupdate's: only
+		# possible when STAGE_LOCK_HELD was not honoured. Nothing was touched.
+		log "FAILED: an update is being staged by something else; nothing was changed"
+		log "try again when it has finished"
+	elif grep -q 'error 16 (Device or resource busy)' "$ERR_FILE"; then
+		# EBUSY from ubirmvol/ubiupdatevol: something else holds the volume.
+		# UBI is not read-only after it, and a power cycle would hard-cut all
+		# four compute modules for nothing.
+		log "FAILED: the staging volume is busy (osupdate exit status $rc)"
+		log "something else is using it; nothing was changed and the board will boot as before"
+		log "do NOT power-cycle the board for this: wait a minute, then run this again"
+	else
+		# Any write error other than EIO makes UBI switch the whole device
+		# read-only until the next boot, so a retry now cannot succeed, and a
+		# plain `reboot` may fail as well. Seen on a board whose last partial
+		# LEB timed out (error 110): `tpi reboot` then failed with EIO.
+		log "FAILED: writing the image to the rootfs volume failed (osupdate exit status $rc)"
+		log "the running firmware is untouched, nothing is staged and the board will boot as before"
+		log "UBI may now be read-only until the next boot, so do not retry yet and"
+		log "expect a plain reboot to fail: power-cycle the board (remove power), then"
+		log "run tpi-selfupdate again, or flash the image from the SD card"
+	fi
 	log "the downloaded image has been deleted"
 	exit 1
 fi
@@ -673,33 +758,6 @@ else
 	STAGED_IMAGE=""
 fi
 
-# Record WHICH image is staged, for bmcd to report and the web interface to
-# show. The staging volume is static and never mounted, so nothing can read a
-# version out of it from a running system -- the same reason the rollback slot
-# has none. So the stager, which knows the tag, leaves it here.
-#
-# The overlay, because both images mount it: the note has to survive the
-# reboot it describes. postupdate.log is next to it for the same reason, and
-# S99postupdate removes this file once it has decided.
-#
-# Written AFTER osupdate returns. `set -eu` at the top means a failed write
-# ends the script, so a note can never claim an image that was not staged --
-# but a board with no overlay mounted should still be able to update, which
-# is why the directory is checked rather than assumed.
-if [ -d "$(dirname "$STAGED_NOTE")" ]; then
-	{
-		printf 'VERSION=%s\n' "$target"
-		printf 'SHA256=%s\n' "$expected"
-		printf 'STAGED_AT=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-		printf 'SIZE_BYTES=%s\n' "$size"
-		printf 'SOURCE=tpi-selfupdate\n'
-		# What this image replaces. Only the stager knows: the gate runs
-		# as the NEW image, and the old one's volume is unmounted, so its
-		# version cannot be read from a running board.
-		printf 'REPLACES=%s\n' "$running"
-	} > "$STAGED_NOTE" || log "warning: could not record the staged version in $STAGED_NOTE"
-fi
-
 log "staged $target for the next boot"
 log "the next boot is tentative: if bmcd does not answer or the switch does not"
 log "come up, S99postupdate rejects it and reboots back onto $running"
@@ -709,5 +767,5 @@ if [ "$DO_REBOOT" -eq 1 ]; then
 	sync
 	reboot
 else
-	log "reboot when ready, or run 'fw_setenv nextboot' to cancel"
+	log "reboot when ready, or run 'tpi firmware unstage' (osunstage on the board) to cancel"
 fi

@@ -11,17 +11,34 @@
 # it, so the stager records it while the OLD image is still running.
 #
 # Who calls it. /sbin/osupdate, which both staging paths run: tpi-selfupdate
-# and the upload worker inside bmcd. The staged-firmware note cannot carry this,
-# because bmcd writes that file itself, after osupdate returns, and replaces it
-# whole. A file of its own survives both writers.
+# and the upload worker inside bmcd. It runs BEFORE osupdate arms nextboot
+# (BMC-Firmware#126): the note has to be on disk when the tentative boot starts,
+# and arming nextboot is the last thing a stager does. The staged-firmware
+# note cannot carry this, because bmcd writes the upload path's note itself
+# and replaces it whole; a file of its own survives both writers.
 #
 # Never fatal and never blocks an update: a board with no route, no ping, or
 # no overlay records "nothing", and the gate skips its check for it. Only a
 # gateway that DID answer here is required to answer again.
+#
+# It always leaves a note when there is an overlay to leave one on, even for
+# "nothing": a tentative boot that finds the gateway note missing, after the
+# staged note said it was written, is an interrupted staging and is rejected;
+# a note that says "no gateway" is a board with no route, and is not.
+#
+# One ping is not a measurement. A network blip during a single 2 s ping used
+# to record GATEWAY_PING=none right after a download through the same gateway
+# had worked, and the gate then skipped its network check for that image
+# (BMC-Firmware#126). The ping is tried GATEWAY_TRIES times (default 5, about
+# 20 s when nothing answers, like the gate's own retries) and "none" is
+# recorded only when every attempt failed. Failing open when the gateway never
+# answers is intended; deciding it on one sample is not.
 
 NOTE=${GATEWAY_NOTE:-/mnt/overlay/staged-gateway}
 IP_BIN=${IP_BIN:-ip}
 PING_BIN=${PING_BIN:-ping}
+GATEWAY_TRIES=${GATEWAY_TRIES:-5}
+GATEWAY_SLEEP=${GATEWAY_SLEEP:-1}
 
 # The IPv4 gateway of the default route, or nothing.
 default_gateway() {
@@ -33,24 +50,35 @@ dir=$(dirname "$NOTE")
 [ -d "$dir" ] || exit 0
 
 # A note from an earlier staging describes a network that may be gone.
-rm -f "$NOTE" 2>/dev/null || true
+rm -f "$NOTE" "$NOTE.new" 2>/dev/null || true
 
 gw=$(default_gateway)
 case "$gw" in
-	'' | *[!0-9.]*) echo "stage-gateway-note: no IPv4 default gateway; nothing recorded" >&2; exit 0 ;;
+	'' | *[!0-9.]*)
+		echo "stage-gateway-note: no IPv4 default gateway; recording that" >&2
+		gw=""
+		answered=none
+		;;
+	*)
+		answered=none
+		tries=0
+		while [ "$tries" -lt "$GATEWAY_TRIES" ]; do
+			if "$PING_BIN" -c 2 -W 2 "$gw" >/dev/null 2>&1; then
+				answered=ok
+				break
+			fi
+			tries=$((tries + 1))
+			[ "$tries" -lt "$GATEWAY_TRIES" ] && sleep "$GATEWAY_SLEEP"
+		done
+		;;
 esac
 
-if "$PING_BIN" -c 2 -W 2 "$gw" >/dev/null 2>&1; then
-	answered=ok
-else
-	answered=none
-fi
-
+# Written beside and renamed, so a cut leaves either no note or a whole one.
 {
 	printf 'GATEWAY=%s\n' "$gw"
 	printf 'GATEWAY_PING=%s\n' "$answered"
 	printf 'RECORDED_AT=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
-} >"$NOTE" 2>/dev/null || true
+} >"$NOTE.new" 2>/dev/null && mv -f "$NOTE.new" "$NOTE" 2>/dev/null || true
 
-echo "stage-gateway-note: gateway $gw, ping $answered" >&2
+echo "stage-gateway-note: gateway ${gw:-none}, ping $answered" >&2
 exit 0

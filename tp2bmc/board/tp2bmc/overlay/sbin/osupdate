@@ -3,20 +3,52 @@
 # This script implements the pre-reboot half of the OTA update procedure. For
 # the post-reboot half, see `/etc/init.d/S99postupdate`
 #
+# Usage: osupdate IMAGE [NOTE]
+#
+# NOTE is a file holding what the stager knows about the image (VERSION=,
+# SHA256=, REPLACES= ...): tpi-selfupdate and bmcd's upload worker write it
+# and hand it over. osupdate installs it as the staged-version note. Without
+# one it writes a minimal note of its own, so a hand-run `osupdate IMAGE` is
+# still an image the gate accepts.
+#
 # This script needs to do a few steps:
+# 0) Take the staging lock, so only one stager runs at a time (see below),
+#    and disarm `nextboot` if an earlier staging left it armed.
 # 1) Clear away all UBI volumes with "rootfs*" names, except for the
 #    currently-mounted rootfs block device.
 # 2) Rename the currently-mounted rootfs device to "rootfs" if it isn't.
 # 3) Create a new static UBI volume, named "rootfs_new", with skipcheck and the
 #    appropriate size in LEBs.
 # 4) Run `ubiupdatevol` to put the new filesystem image in "rootfs_new"
-# 5) Set the bootloader's "nextboot" variable to boot into "rootfs_new" once.
-#    Also record the default gateway and whether it answers a ping
-#    (/sbin/stage-gateway-note), so the new image has to prove the network
-#    works before it is made permanent.
-# 6) Next boot, the bootloader will tentatively boot to the new rootfs. If the
+# 5) Write, and sync, every note the promotion gate reads: the default gateway
+#    and whether it answers a ping (/sbin/stage-gateway-note), then the
+#    staged-version note.
+# 6) LAST, set the bootloader's "nextboot" variable to boot into "rootfs_new"
+#    once. Arming nextboot is the commit point of the whole update: until
+#    this line runs, a power cut leaves a board that boots what it ran before
+#    (and S99postupdate drops the notes); after it, the next boot is
+#    tentative and the gate finds everything it needs.
+# 7) Next boot, the bootloader will tentatively boot to the new rootfs. If the
 #    boot fails, a subsequent hard reboot will rollback the update. But if the
 #    boot succeeds, the postupdate script will make it permanent.
+#
+# Why the order. nextboot used to be armed before the notes were written. A
+# power cut or a reboot from another client in that window produced a
+# tentative boot with neither note, and the gate then skipped the very checks
+# that judge the image beyond "bmcd answers" -- the network check exists for
+# an image whose switch registers its ports and carries no frame, and that
+# image was made permanent (BMC-Firmware#126). S99postupdate now also treats
+# a tentative boot with no staged note as a rejection.
+#
+# The staging lock. Nothing used to serialise two stagers (two browser tabs,
+# the page and `tpi`, a script): both passed the "already staged" check while
+# the first was still writing, and met in ubi_cleanup, where one removed
+# rootfs_new while the other wrote it (BMC-Firmware#127). Every stager now
+# holds one flock on STAGE_LOCK for the whole of its work: bmcd for an upload
+# or an install, tpi-selfupdate, and this script when it is run by hand. A
+# stager that already holds it says so by exporting STAGE_LOCK_HELD=1, which
+# its children (this script) honour instead of trying to take it again.
+# Exit status 75 means "somebody else is staging".
 
 UBIDEV=/dev/ubi0
 RMVOL_REGEX='rootfs.*'
@@ -24,6 +56,35 @@ OLDVOL_NAME=rootfs
 NEWVOL_NAME=rootfs_new
 NEWVOL_LEBS=370
 NEXTBOOT="bootmode=postupdate; distro_bootpart=$NEWVOL_NAME; run boot_do_scan"
+
+# Where the kernel lists UBI volumes and block devices. Variables so that
+# tests/osupdate.sh can point them at a scratch directory; nothing on a
+# board sets them.
+UBI_SYS=${UBI_SYS:-/sys/class/ubi}
+BLOCK_SYS=${BLOCK_SYS:-/sys/class/block}
+
+# What the gate reads (S99postupdate has the same two paths), and the script
+# that writes the second of them. Same reason for the variables.
+STAGED_NOTE=${STAGED_NOTE:-/mnt/overlay/staged-firmware}
+GATEWAY_NOTE=${GATEWAY_NOTE:-/mnt/overlay/staged-gateway}
+GATEWAY_NOTE_BIN=${GATEWAY_NOTE_BIN:-/sbin/stage-gateway-note}
+
+# The sync that makes the notes durable before nextboot is armed. A variable
+# so the test can see it run: busybox ash runs its own `sync` applet for a bare
+# name and never looks at PATH.
+SYNC_BIN=${SYNC_BIN:-sync}
+
+# The one staging lock. The same file in tpi-selfupdate, osunstage, bmcd and
+# S99postupdate; /run is a tmpfs, so a lock never survives a boot.
+STAGE_LOCK=${STAGE_LOCK:-/run/firmware-stage.lock}
+
+# Written into the staged note when both notes were written before nextboot
+# was armed. The gate then requires the gateway note to exist; a note from an
+# older stager does not carry it, and the gate keeps its old leniency there.
+NOTES_MARK='GATE_NOTES=1'
+
+# Exit status for "another stager holds the lock".
+EX_BUSY=75
 
 #
 # ubi_cleanup
@@ -34,13 +95,13 @@ NEXTBOOT="bootmode=postupdate; distro_bootpart=$NEWVOL_NAME; run boot_do_scan"
 #
 ubi_cleanup() {
 	blockname=
-	for entry in /sys/class/ubi/$(basename "$UBIDEV")/ubi*; do
+	for entry in "$UBI_SYS/$(basename "$UBIDEV")"/ubi*; do
 		if [ ! -f $entry/name ]; then continue; fi
 		if grep -xq "$RMVOL_REGEX" $entry/name; then
 			ubichar=$(basename "$entry")
-			ubiblock=${ubichar//ubi/ubiblock}
+			ubiblock=ubiblock${ubichar#ubi}
 			ubiname=$(cat "$entry/name")
-			if [ -e "/sys/class/block/$ubiblock" ]; then
+			if [ -e "$BLOCK_SYS/$ubiblock" ]; then
 				blockname=$ubiname
 			else
 				ubirmvol "$UBIDEV" -N "$ubiname"
@@ -64,7 +125,7 @@ ubi_create() {
 
 	ubimkvol "$UBIDEV" --type=static --skipcheck --name "$NAME" --lebs "$LEBS"
 
-	for entry in /sys/class/ubi/$(basename "$UBIDEV")/ubi*; do
+	for entry in "$UBI_SYS/$(basename "$UBIDEV")"/ubi*; do
 		if [ ! -f $entry/name ]; then continue; fi
 		if grep -Fxq "$NAME" $entry/name; then
 			volpath=/dev/$(basename "$entry")
@@ -76,22 +137,128 @@ ubi_create() {
 }
 
 #
-# perform_update IMAGE
+# take_stage_lock
+#
+# Holds STAGE_LOCK until this process (and its children) exit, unless a parent
+# stager already holds it. Never waits: a second stager is told so at once.
+#
+take_stage_lock() {
+	if [ "${STAGE_LOCK_HELD:-}" = 1 ]; then
+		return 0
+	fi
+	if ! command -v flock >/dev/null 2>&1; then
+		echo "osupdate: no flock on this board; refusing to stage without the staging lock" >&2
+		exit 1
+	fi
+	if [ ! -d "$(dirname "$STAGE_LOCK")" ]; then
+		echo "osupdate: $(dirname "$STAGE_LOCK") does not exist; cannot take the staging lock" >&2
+		exit 1
+	fi
+	exec 9>"$STAGE_LOCK"
+	if ! flock -n 9; then
+		echo "osupdate: an update is being staged; try again when it has finished" >&2
+		exit "$EX_BUSY"
+	fi
+	STAGE_LOCK_HELD=1
+	export STAGE_LOCK_HELD
+}
+
+#
+# nextboot_armed
+#
+# True when nextboot is set. An unreadable environment counts as "not armed":
+# fw_setenv would fail the same way and stop the update before it starts.
+#
+nextboot_armed() {
+	[ -n "$(fw_printenv -n nextboot 2>/dev/null || true)" ]
+}
+
+# True once nextboot has been armed. Until then the EXIT trap removes the
+# notes: they describe an update that is not going to boot.
+ARMED=0
+
+drop_notes() {
+	rm -f "$STAGED_NOTE" "$STAGED_NOTE.new" "$GATEWAY_NOTE" "$GATEWAY_NOTE.new" 2>/dev/null || true
+}
+
+cleanup() {
+	if [ "$ARMED" -ne 1 ]; then
+		drop_notes
+	fi
+}
+
+#
+# write_staged_note IMAGE NOTE
+#
+# Installs the staged-version note: the stager's NOTE (or a minimal one), plus
+# the mark that says the gateway note came first. Written beside the target
+# and renamed, so the gate never reads half a note. Skipped, like the
+# gateway note, on a board with no overlay mounted: such a board can still
+# update, and the gate skips what it cannot find a place for.
+#
+write_staged_note() {
+	image=$1
+	src=${2:-}
+
+	dir=$(dirname "$STAGED_NOTE")
+	[ -d "$dir" ] || return 0
+
+	{
+		if [ -n "$src" ] && [ -f "$src" ]; then
+			cat "$src"
+		else
+			printf 'FILE=%s\n' "$(basename "$image")"
+			printf 'STAGED_AT=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+			printf 'SOURCE=osupdate\n'
+		fi
+		if [ -f "$GATEWAY_NOTE" ]; then
+			printf '%s\n' "$NOTES_MARK"
+		fi
+	} >"$STAGED_NOTE.new"
+	mv -f "$STAGED_NOTE.new" "$STAGED_NOTE"
+}
+
+#
+# perform_update IMAGE [NOTE]
 #
 # Installs the update to the file path given by IMAGE and stages it for the
 # next reboot, but does not perform the reboot.
 #
 perform_update() {
 	IMAGE=$1
+	NOTE=${2:-}
+
+	take_stage_lock
+	trap cleanup EXIT
+
+	# An earlier staging may still be armed (a stager is supposed to refuse
+	# that, but this script can be run by hand). Disarm it before the volume
+	# it points at is removed: a cut between ubi_cleanup and ubi_create would
+	# otherwise boot a volume that is gone. And its notes describe an image
+	# that is about to stop existing.
+	if nextboot_armed; then
+		fw_setenv nextboot
+	fi
+	drop_notes
 
 	ubi_cleanup
 	ubi_create "$NEWVOL_NAME" "$NEWVOL_LEBS" "$IMAGE"
-	fw_setenv nextboot "$NEXTBOOT"
 
-	# Record the default gateway and whether it answers, for the promotion
-	# gate. Last, after nextboot is armed, and never fatal: it is a safeguard,
-	# not a precondition of the update.
-	/sbin/stage-gateway-note || true
+	# Everything the gate reads, written and synced BEFORE nextboot. The
+	# gateway note first, because the staged note carries the mark that says
+	# it exists. Never fatal for the gateway note: it is a safeguard, not a
+	# precondition of the update (a board with no route records "nothing").
+	GATEWAY_NOTE=$GATEWAY_NOTE "$GATEWAY_NOTE_BIN" || true
+	write_staged_note "$IMAGE" "$NOTE"
+	"$SYNC_BIN"
+
+	fw_setenv nextboot "$NEXTBOOT"
+	ARMED=1
 }
 
-perform_update "$1"
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+	echo "usage: osupdate IMAGE [NOTE]" >&2
+	exit 2
+fi
+
+perform_update "$@"

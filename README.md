@@ -139,7 +139,7 @@ for example when installing a version whose *purpose* is to fix the upload
 path:
 
 ```sh
-ssh root@BMC "/sbin/osupdate /mnt/sdcard/firmware.tpu"   # writes, arms nextboot
+ssh root@BMC "/sbin/osupdate /mnt/sdcard/firmware.tpu"   # writes, then the notes, then arms nextboot LAST
 ssh root@BMC reboot
 ```
 
@@ -172,11 +172,36 @@ ssh root@BMC "cat /mnt/overlay/postupdate.log"
 ssh root@BMC "sed -n 's/^VERSION=//p' /etc/os-release"   # what is running now
 ```
 
-To cancel a staged update before rebooting, clear the pending boot:
+To cancel a staged update before rebooting:
 
 ```sh
-ssh root@BMC "fw_setenv nextboot"
+tpi firmware unstage                    # from a workstation
+ssh root@BMC "/sbin/osunstage"          # on the board, whatever the daemon is doing
 ```
+
+The Firmware page has the same thing, "Cancel staged update", next to "Reboot
+to apply". The next boot then starts the firmware that is running; the image
+already written to the spare slot stays there until the next install replaces
+it. Cancelling is refused, and changes nothing, while an install is still
+writing and while the new firmware is being checked on its first boot.
+`install --force` (and `force=1` on an upload) is the same cancel followed by
+the install.
+
+### Staging is one at a time, and in a fixed order
+
+Everything that writes the spare volume -- an upload through the interface,
+`firmware_install`, `tpi-selfupdate`, `osupdate` by hand -- holds one lock,
+`/run/firmware-stage.lock`, for the whole of its work. A second one is told
+`an update is being staged; try again when it has finished` and nothing is
+touched; the answer to that is to wait, never to power-cycle the board.
+
+Inside a staging, **`nextboot` is armed last**. The stager writes the volume,
+then the gateway note, then the staged-version note, syncs, and only then sets
+`nextboot`. Until that last line a power cut leaves a board that boots what it
+ran before, and the next normal boot discards the notes it finds
+(`postupdate.log`: `tentative boot did not complete; staged vX discarded`).
+After it, the tentative boot finds everything the gate reads, and a tentative
+boot that finds a note missing is **rejected**, not waved through.
 
 ### When the board is genuinely stuck
 

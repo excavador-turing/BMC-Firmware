@@ -78,17 +78,32 @@ echo "Filesystem 1K-blocks Used Available Use% Mounted"
 echo "stub 900000 0 900000 0% $dir"
 STUB
 
-# fw_printenv: nothing is staged.
-printf '#!/bin/sh\nexit 0\n' > "$bin/fw_printenv"
+# fw_printenv: nothing is staged, unless $STUB_NEXTBOOT says what is.
+cat > "$bin/fw_printenv" <<'STUB'
+#!/bin/sh
+[ -z "${STUB_NEXTBOOT:-}" ] || echo "$STUB_NEXTBOOT"
+exit 0
+STUB
 
 # osupdate: records that it ran and where the image was, then does what
-# $STUB_OSUPDATE says.
+# $STUB_OSUPDATE says. The real one installs the note it is handed ($2) as the
+# staged-version note, before it arms nextboot; this one does the same on
+# success, and records what it was handed and whether it was told the staging
+# lock is held.
 cat > "$bin/osupdate" <<'STUB'
 #!/bin/sh
 echo "$1" > "$STUB_SEEN"
 [ -f "$1" ] || exit 99
+echo "note_arg=${2:-} lock_held=${STAGE_LOCK_HELD:-}" > "$STUB_SEEN.args"
+[ -z "${2:-}" ] || cp "$2" "$STUB_SEEN.note"
 case "${STUB_OSUPDATE:-ok}" in
-	ok) exit 0 ;;
+	ok) [ -z "${2:-}" ] || cp "$2" "$STAGED_NOTE"; exit 0 ;;
+	busy)
+		echo 'ubirmvol: error!: cannot remove volume "rootfs_new"' >&2
+		echo 'error 16 (Device or resource busy)' >&2
+		exit 1
+		;;
+	locked) echo 'osupdate: an update is being staged; try again when it has finished' >&2; exit 75 ;;
 	fail)
 		echo 'ubiupdatevol: error!: cannot write 94208 bytes to volume "/dev/ubi0_3"' >&2
 		echo 'error 110 (Connection timed out)' >&2
@@ -110,12 +125,13 @@ set_mounts() {
 
 # run ARGS... -- stdout and stderr kept apart; prints the exit status.
 run() {
-	rm -f "$work/out" "$work/err" "$work/seen" "$work/note"
+	rm -f "$work/out" "$work/err" "$work/seen" "$work/seen.args" "$work/seen.note" "$work/note"
 	STUB_SUM="$sum" STUB_IMAGE="$image" STUB_PAYLOAD="$work/payload" \
 	STUB_SEEN="$work/seen" STUB_STARTED="$work/started" \
 	PATH="$bin:$PATH" OS_RELEASE="$osrelease" \
 	OSUPDATE_BIN="$bin/osupdate" PROC_MOUNTS="$work/mounts" \
 	STAGING_DIRS="$sd $overlay" STAGED_NOTE="$work/note" \
+	STAGE_LOCK="$work/stage.lock" \
 		sh "$SCRIPT" --tag "$target" "$@" > "$work/out" 2> "$work/err"
 	echo $?
 }
@@ -135,7 +151,7 @@ reset() {
 	rm -rf "$sd" "$overlay"
 	mkdir -p "$sd" "$overlay"
 	sentinels
-	unset STUB_OSUPDATE STUB_CURL_FAIL
+	unset STUB_OSUPDATE STUB_CURL_FAIL STUB_NEXTBOOT STAGE_LOCK_HELD
 }
 
 echo "1. the write fails (error 110 from ubiupdatevol)"
@@ -247,6 +263,7 @@ STUB_SEEN="$work/seen" STUB_STARTED="$work/started" \
 PATH="$bin:$PATH" OS_RELEASE="$osrelease" \
 OSUPDATE_BIN="$bin/osupdate" PROC_MOUNTS="$work/mounts" \
 STAGING_DIRS="$sd $overlay" STAGED_NOTE="$work/note" \
+STAGE_LOCK="$work/stage.lock" \
 	sh "$SCRIPT" --tag "$target" > "$work/out" 2> "$work/err" &
 pid=$!
 n=0
@@ -306,6 +323,108 @@ else
 		&& ok "says so" \
 		|| bad "$(cat "$work/err")"
 fi
+
+echo "12. the note is written BEFORE osupdate runs, and handed to it"
+reset
+set_mounts "$sd"
+status=$(run)
+[ "$status" -eq 0 ] && ok "exits 0" || bad "exit status $status: $(cat "$work/err")"
+grep -q '^note_arg=.*\.note ' "$work/seen.args" \
+	&& ok "osupdate was given a note file as its second argument" \
+	|| bad "args: $(cat "$work/seen.args" 2>&1)"
+grep -q "^VERSION=$target\$" "$work/seen.note" \
+	&& grep -q '^REPLACES=v2.35.0$' "$work/seen.note" \
+	&& grep -q '^SOURCE=tpi-selfupdate$' "$work/seen.note" \
+	&& ok "and that note names the version, what it replaces and who staged it" \
+	|| bad "note: $(cat "$work/seen.note" 2>&1)"
+only_sentinels "$sd" \
+	&& ok "neither the note file nor the stderr file is left behind" \
+	|| bad "left in the staging dir: $(ls -A "$sd" | tr '\n' ' ')"
+
+echo "13. a failed write leaves no note file and installs no note"
+reset
+set_mounts "$sd"
+STUB_OSUPDATE=fail; export STUB_OSUPDATE
+status=$(run)
+[ ! -e "$work/note" ] && only_sentinels "$sd" \
+	&& ok "no installed note, nothing left in the staging dir" \
+	|| bad "status $status; left: $(ls -A "$sd" | tr '\n' ' ')"
+
+echo "14. the lock is held by another stager: refused before anything is downloaded"
+reset
+set_mounts "$sd"
+( exec 9> "$work/stage.lock"; flock -n 9 && sleep 4 ) &
+holder=$!
+sleep 1
+status=$(run)
+[ "$status" -eq 1 ] && ok "exits 1" || bad "exit status $status"
+grep -q 'an update is being staged' "$work/err" \
+	&& ok "says an update is being staged" || bad "$(cat "$work/err")"
+grep -qi 'power' "$work/err" \
+	&& bad "advises a power cycle for a busy lock: $(cat "$work/err")" \
+	|| ok "and gives no power-cycle advice"
+[ ! -e "$work/seen" ] && only_sentinels "$sd" \
+	&& ok "osupdate never ran and the staging directory was not touched" \
+	|| bad "something ran: $(ls -A "$sd" | tr '\n' ' ')"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+
+echo "15. the caller holds the lock (bmcd does): this run does not wait on it"
+reset
+set_mounts "$sd"
+( exec 9> "$work/stage.lock"; flock -n 9 && sleep 4 ) &
+holder=$!
+sleep 1
+STAGE_LOCK_HELD=1; export STAGE_LOCK_HELD
+status=$(run)
+unset STAGE_LOCK_HELD
+[ "$status" -eq 0 ] && ok "exits 0" || bad "exit status $status: $(cat "$work/err")"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+
+echo "16. a run that took the lock tells osupdate so"
+reset
+set_mounts "$sd"
+status=$(run)
+grep -q 'lock_held=1$' "$work/seen.args" \
+	&& ok "osupdate saw STAGE_LOCK_HELD=1 and will not take the lock again" \
+	|| bad "args: $(cat "$work/seen.args" 2>&1)"
+
+echo "17. an update is already armed: refused, and the advice is to unstage"
+reset
+set_mounts "$sd"
+STUB_NEXTBOOT='bootmode=postupdate; distro_bootpart=rootfs_new'; export STUB_NEXTBOOT
+status=$(run)
+unset STUB_NEXTBOOT
+[ "$status" -eq 1 ] && ok "exits 1" || bad "exit status $status"
+grep -q "tpi firmware unstage" "$work/err" \
+	&& ok "points at tpi firmware unstage" || bad "$(cat "$work/err")"
+grep -q "fw_setenv" "$work/err" \
+	&& bad "still advises fw_setenv by hand" || ok "and no longer at fw_setenv by hand"
+[ ! -e "$work/seen" ] && ok "osupdate never ran" || bad "osupdate ran over an armed update"
+
+echo "18. EBUSY from the volume tools: no power-cycle advice (BMC-Firmware#127)"
+reset
+set_mounts "$sd"
+STUB_OSUPDATE=busy; export STUB_OSUPDATE
+status=$(run)
+[ "$status" -eq 1 ] && ok "exits 1" || bad "exit status $status"
+grep -q 'remove power' "$work/err" \
+	&& bad "advises a power cycle for EBUSY: $(cat "$work/err")" \
+	|| ok "no power-cycle advice"
+grep -qi 'busy' "$work/err" && grep -q 'do NOT power-cycle' "$work/err" \
+	&& ok "says the volume is busy and not to power-cycle for it" \
+	|| bad "$(cat "$work/err")"
+only_sentinels "$sd" && ok "the download is still deleted" || bad "left: $(ls -A "$sd" | tr '\n' ' ')"
+
+echo "19. osupdate itself finds the lock taken (exit 75)"
+reset
+set_mounts "$sd"
+STUB_OSUPDATE=locked; export STUB_OSUPDATE
+status=$(run)
+[ "$status" -eq 1 ] && ok "exits 1" || bad "exit status $status"
+grep -q 'remove power' "$work/err" \
+	&& bad "advises a power cycle for a busy lock" || ok "no power-cycle advice"
+grep -q 'an update is being staged' "$work/err" \
+	&& ok "says an update is being staged" || bad "$(cat "$work/err")"
 
 echo
 printf '%s passed, %s failed\n' "$PASS" "$FAIL"

@@ -46,6 +46,13 @@ SYS_NET="$WORK/sys-net"
 SYS_I2C="$WORK/sys-i2c"
 GATEWAY_NOTE="$WORK/staged-gateway"
 PING_BIN="$WORK/ping"
+# Read by the sourced gate, which shellcheck cannot see.
+# shellcheck disable=SC2034
+STAGE_LOCK="$WORK/firmware-stage.lock"
+# shellcheck disable=SC2034
+FW_PRINTENV_BIN="$WORK/fw_printenv"
+# shellcheck disable=SC2034
+PROC_CMDLINE="$WORK/cmdline"
 # Two seconds of retrying, not sixty: the loop is the same, the test is not slow.
 # Both are read by the sourced gate, which shellcheck cannot see.
 # shellcheck disable=SC2034
@@ -143,6 +150,16 @@ check() {
 	PASS=$((PASS + 1))
 }
 
+# assert NAME COMMAND...: PASS when the command succeeds.
+assert() {
+	name=$1; shift
+	if "$@"; then
+		printf 'PASS  %s\n' "$name"; PASS=$((PASS + 1))
+	else
+		printf 'FAIL  %s\n' "$name"; FAIL=$((FAIL + 1))
+	fi
+}
+
 running_is() { printf 'ID=tp2bmc\nVERSION=%s\n' "$1" >"$OS_RELEASE"; }
 note_says()  { printf '%s\n' "$1" >"$STAGED_NOTE"; }
 no_note()    { rm -f "$STAGED_NOTE"; }
@@ -228,12 +245,13 @@ running_is v2.8.0
 note_says 'VERSION=local'
 check "dev build 'local'" 0 "carries no version"
 
-# --- no note at all ------------------------------------------------------
-# A first boot, or a note already cleared. Skip the comparison; still demand
-# metrics, because there is nothing else vouching for this image.
+# --- no note at all, asked of release_matches alone ----------------------
+# release_matches no longer decides what a missing note means: notes_present
+# does, below, and runs first. Reached with no note, it is a board with no
+# overlay to hold one: skip the comparison, still demand metrics.
 running_is v2.8.0
 no_note
-check 'no staged note' 0 'no staged note'
+check 'no staged note, version comparison alone' 0 'no staged note'
 
 # --- the daemon is up but its metrics are broken -------------------------
 # The whole reason for the second half: both earlier checks pass here.
@@ -356,20 +374,155 @@ check 'the whole gate, gateway silent: rejected' 1 'FAILED: gateway 10.0.0.1' he
 no_gateway_note
 check 'the whole gate, no gateway note: promoted' 0 'gateway check skipped' health_ok
 
-# --- the stager ----------------------------------------------------------
-stager() { GATEWAY_NOTE="$GATEWAY_NOTE" IP_BIN="$WORK/ip" PING_BIN="$PING_BIN" sh "$STAGER" >/dev/null 2>&1; }
+# --- missing notes are a rejection ----------------------------------------
+# The stagers write the notes before they arm nextboot, so a tentative boot
+# with none is an interrupted staging (BMC-Firmware#126). It used to log
+# "no staged note; version check skipped" and promote.
+running_is v2.8.0
+note_says 'VERSION=v2.8.0'
+no_gateway_note
+check 'staged note present' 0 '' notes_present
 
-# assert NAME COMMAND...: PASS when the command succeeds.
-assert() {
-	name=$1; shift
-	if "$@"; then
-		printf 'PASS  %s\n' "$name"; PASS=$((PASS + 1))
-	else
-		printf 'FAIL  %s\n' "$name"; FAIL=$((FAIL + 1))
-	fi
+no_note
+check 'no staged note on a tentative boot: rejected' 1 'FAILED: no staged note on a tentative boot' notes_present
+
+saved_note=$STAGED_NOTE
+STAGED_NOTE="$WORK/no-overlay/staged-firmware"
+check 'no overlay at all: the note check is skipped' 0 'note check is skipped' notes_present
+STAGED_NOTE=$saved_note
+
+# A staged note that says the gateway note came first, and the gateway note is
+# gone: an interrupted staging, or a note removed behind its back.
+note_says 'VERSION=v2.8.0
+GATE_NOTES=1'
+no_gateway_note
+check 'the note promises a gateway note that is not there: rejected' 1 'FAILED: the staged note says the gateway note was written first' notes_present
+gateway_note_says 'GATEWAY_PING=none'
+check 'the note promises a gateway note and it is there' 0 '' notes_present
+
+# A note from a stager that never promised one keeps the old leniency, or the
+# first update FROM an older firmware would be rolled back for ever on a board
+# with no default route.
+note_says 'VERSION=v2.8.0'
+no_gateway_note
+check 'an older stager recorded no gateway note: accepted' 0 '' notes_present
+
+# The whole gate: everything local good, and the verdict turns on the note.
+no_note
+check 'the whole gate, no staged note: rejected before anything is asked' 1 'FAILED: no staged note on a tentative boot' health_ok
+note_says 'VERSION=v2.8.0'
+check 'the whole gate, staged note present: promoted' 0 'version matches the staged note' health_ok
+
+# --- a boot that is not tentative: stale notes are discarded --------------
+# U-Boot deletes nextboot before it boots the staged volume. A power cut
+# during that tentative boot leaves the old image running with nextboot unset
+# and the notes still on disk (BMC-Firmware#131).
+stub_printenv() {
+	cat >"$FW_PRINTENV_BIN" <<STUB
+#!/bin/sh
+case "$1" in
+	armed) echo 'bootmode=postupdate; distro_bootpart=rootfs_new; run boot_do_scan'; exit 0 ;;
+	unset) echo '## Error: "nextboot" not defined' >&2; exit 1 ;;
+	unreadable) echo 'Cannot read environment, using default' >&2; exit 1 ;;
+esac
+STUB
+	chmod +x "$FW_PRINTENV_BIN"
 }
+notes_exist() { [ -e "$STAGED_NOTE" ] || [ -e "$GATEWAY_NOTE" ]; }
+no_notes_left() { [ ! -e "$STAGED_NOTE" ] && [ ! -e "$GATEWAY_NOTE" ]; }
+stage_two_notes() {
+	note_says 'VERSION=v2.57.0
+SOURCE=tpi-selfupdate'
+	gateway_note_says 'GATEWAY=10.0.0.1
+GATEWAY_PING=ok'
+}
+
+stage_two_notes; stub_printenv unset
+check 'nextboot unset: the stale notes are discarded' 0 'tentative boot did not complete; staged v2.57.0 discarded' drop_unarmed_notes
+assert 'both notes are gone' no_notes_left
+
+stage_two_notes; stub_printenv armed
+check 'nextboot armed: the notes are kept' 0 '' drop_unarmed_notes
+assert 'both notes are still there' notes_exist
+
+stage_two_notes; stub_printenv unreadable
+check 'the environment cannot be read: the notes are kept' 0 '' drop_unarmed_notes
+assert 'both notes are still there (unknown is not unset)' notes_exist
+
+stage_two_notes; stub_printenv unset
+no_note
+check 'only a gateway note is left: it goes, with its own words' 0 'staging did not finish; the stale gateway note is discarded' drop_unarmed_notes
+assert 'the gateway note is gone' no_notes_left
+
+# A stager that is mid-write holds the lock, has written its notes, and has not
+# armed nextboot yet. Its notes are not ours to remove.
+stage_two_notes; stub_printenv unset
+( exec 9>"$STAGE_LOCK"; flock -n 9 && sleep 3 ) &
+holder=$!
+sleep 1
+check 'a stager holds the staging lock: the notes are left' 0 'a stager holds the staging lock' drop_unarmed_notes
+assert 'both notes are still there while the lock is held' notes_exist
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+check 'the lock is released: they go' 0 'tentative boot did not complete' drop_unarmed_notes
+assert 'both notes are gone once the lock is free' no_notes_left
+
+# start(), the whole decision tree. The volume functions read /sys, which a CI
+# runner does not have, and rollback/postupdate reboot and rename; the harness
+# replaces those four and runs everything else for real.
+ubi_exists() { return 0; }
+ubi_block_name() { echo "$STUB_BLOCK"; }
+rollback() { ROLLED=1; }
+postupdate() { PROMOTED=1; }
+run_start() {
+	ROLLED=0; PROMOTED=0
+	: >"$LOGFILE"
+	start >/dev/null 2>&1
+}
+wrote() { grep -q "$1" "$LOGFILE"; }
+good_image() {
+	bmcd_answers() { return 0; }
+	running_is v2.57.0
+	stub_curl ok
+	net_ports node1 node2 node3 node4 ge0 ge1
+	i2c_reset; eeprom_ok; rtc_with_driver
+	stub_ping up
+}
+good_image
+
+echo 'quiet splash' >"$PROC_CMDLINE"; STUB_BLOCK=rootfs
+stage_two_notes; stub_printenv unset
+run_start
+assert 'a normal boot with nextboot unset: the notes are dropped and it says so' no_notes_left
+assert 'and the decision is in the log' wrote 'tentative boot did not complete; staged v2.57.0 discarded'
+assert 'and nothing was rolled back or promoted' [ "$ROLLED$PROMOTED" = 00 ]
+
+echo 'quiet postupdate' >"$PROC_CMDLINE"; STUB_BLOCK=rootfs_new
+stage_two_notes; stub_printenv unset
+gateway_note_says 'GATEWAY=10.0.0.1
+GATEWAY_PING=ok'
+note_says 'VERSION=v2.57.0
+GATE_NOTES=1'
+run_start
+assert 'a tentative boot with its notes: promoted' [ "$PROMOTED" = 1 ]
+assert 'and its notes were not touched by the stale-note rule' notes_exist
+
+no_note
+run_start
+assert 'a tentative boot with no staged note: rolled back, not promoted' [ "$ROLLED$PROMOTED" = 10 ]
+assert 'and the log says why' wrote 'FAILED: no staged note on a tentative boot'
+
+note_says 'VERSION=v2.57.0
+GATE_NOTES=1'
+no_gateway_note
+run_start
+assert 'a tentative boot that lost its gateway note: rolled back' [ "$ROLLED$PROMOTED" = 10 ]
+
+# --- the stager ----------------------------------------------------------
+stager() { GATEWAY_NOTE="$GATEWAY_NOTE" IP_BIN="$WORK/ip" PING_BIN="$PING_BIN" GATEWAY_SLEEP=0 sh "$STAGER" >/dev/null 2>&1; }
+
 note_has() { grep -qx "$1" "$GATEWAY_NOTE" 2>/dev/null; }
 note_absent() { [ ! -e "$GATEWAY_NOTE" ]; }
+pings() { [ "$(wc -l <"$WORK/ping.calls" 2>/dev/null || echo 0)" -eq "$1" ]; }
 
 stub_ip 'default via 10.0.0.1 dev br0 proto dhcp src 10.0.0.5 metric 10
 '
@@ -378,14 +531,33 @@ no_gateway_note
 stager
 assert 'stager records the gateway address' note_has 'GATEWAY=10.0.0.1'
 assert 'stager records that it answered' note_has 'GATEWAY_PING=ok'
+assert 'stager pinged once when the first answered' pings 1
+
+# One ping is not a measurement (BMC-Firmware#126): a blip during staging used
+# to record "none" right after a download through the same gateway worked, and
+# the gate then skipped its network check for that image.
+stub_ping late
+no_gateway_note
+stager
+assert 'stager retries: a gateway that answers on the third try is ok' note_has 'GATEWAY_PING=ok'
+assert 'stager stopped pinging once it answered' pings 3
 
 stub_ping down
 stager
 assert 'stager records a silent gateway as none, not ok' note_has 'GATEWAY_PING=none'
+assert 'stager tried five times before giving up' pings 5
 
+# No route: still a note, saying so. A tentative boot that finds NO note after
+# the staged note promised one is an interrupted staging; a board with no
+# route is not.
+stub_ping up
+stager
+assert 'a gateway that answers is on record before the route goes' note_has 'GATEWAY_PING=ok'
 stub_ip ''
 stager
-assert 'stager records nothing without a default route, and drops the stale note' note_absent
+assert 'stager records "no gateway" without a default route' note_has 'GATEWAY_PING=none'
+assert 'and an empty gateway address' note_has 'GATEWAY='
+assert 'and the stale "answered" note is gone, not left to be required' sh -c '! grep -q "GATEWAY_PING=ok" "$1"' _ "$GATEWAY_NOTE"
 
 echo
 printf '%s passed, %s failed\n' "$PASS" "$FAIL"
