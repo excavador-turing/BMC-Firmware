@@ -12,6 +12,9 @@ TPI_LICENSE_FILES = LICENSE
 # `openssl` required by crate `openssl-sys` was not found". Declare it.
 TPI_DEPENDENCIES = host-pkgconf libopenssl
 TPI_CARGO_ENV := PKG_CONFIG_ALLOW_CROSS=1
+# tpi's own [profile.release] applies (see tp2bmc/external.mk). Keep this last:
+# it ends in a command, `env`, that runs cargo.
+TPI_CARGO_ENV += $(TP2BMC_CARGO_OWN_PROFILE)
 TPI_CARGO_INSTALL_OPTS = --features localhost,native-tls
 
 # The size of what was installed, in the build log: the only place a change to
