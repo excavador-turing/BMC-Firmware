@@ -13,6 +13,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **bmcd and tpi are built with their own release profile.** Buildroot's cargo
+  infrastructure sets `CARGO_PROFILE_RELEASE_OPT_LEVEL`, `_LTO` and
+  `_CODEGEN_UNITS` for every package, and environment variables outrank the
+  manifest, so the `[profile.release]` of bmcd and tpi (fat LTO, one codegen
+  unit, `opt-level = "z"`) never reached the image: both were built at `-O2`
+  with no LTO and 16 codegen units. `tp2bmc/external.mk` now unsets those three
+  variables for the two packages, and the profile in their `Cargo.toml` decides.
+  The build log also prints the installed size of both binaries. Spotted by
+  Daniel Steinhauf ([@danste22](https://github.com/danste22)) in his review.
+  Refs [#93](https://github.com/excavador-turing/BMC-Firmware/issues/93).
+
 ## [v2.54.0] — 2026-11-24
 
 A security release, from a careful review of the BMC by Daniel Steinhauf

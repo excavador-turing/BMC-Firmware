@@ -21,6 +21,9 @@ BMCD_CARGO_ENV := PKG_CONFIG_ALLOW_CROSS=1
 # BR2_TOOLCHAIN_EXTERNAL). A package should not depend on a symlink one
 # toolchain kind happens to create.
 BMCD_CARGO_ENV += CC_armv7_unknown_linux_gnueabi="$(notdir $(TARGET_CROSS))gcc"
+# bmcd's own [profile.release] applies (see tp2bmc/external.mk). Keep this
+# last: it ends in a command, `env`, that runs cargo.
+BMCD_CARGO_ENV += $(TP2BMC_CARGO_OWN_PROFILE)
 
 # A copy of the default build commands with --path amended, because bmcd's
 # root Cargo.toml is a VIRTUAL manifest from v2.3.5 onward: `feat: split
@@ -35,6 +38,8 @@ BMCD_CARGO_ENV += CC_armv7_unknown_linux_gnueabi="$(notdir $(TARGET_CROSS))gcc"
 # aspirational. Upstream PR #242 bumps the version to v2.3.7 WITHOUT amending
 # the path, which is why it does not build. Plausibly why it has sat unmerged
 # since 2025-02-23.
+# The installed size goes in the build log: the only place a change to the
+# build profile shows up as a number before a board is flashed.
 define BMCD_INSTALL_TARGET_CMDS
 	cd $(BMCD_SRCDIR) && \
 	$(TARGET_MAKE_ENV) \
@@ -49,6 +54,8 @@ define BMCD_INSTALL_TARGET_CMDS
 			--locked \
 			-Z target-applies-to-host \
 			$(BMCD_CARGO_INSTALL_OPTS)
+
+	echo "installed size: $$(stat -c %s $(TARGET_DIR)/usr/bin/bmcd) bytes, /usr/bin/bmcd"
 
 	$(INSTALL) -D -m 744 $(BR2_EXTERNAL_TP2BMC_PATH)/package/bmcd/generate_self_signedx509.sh \
 		$(TARGET_DIR)/etc/bmcd/generate_self_signedx509.sh
