@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.56.0] — 2026-11-24
+
 Pins **bmcd 2.50.0** (it was 2.49.0), **tpi 2.0.1** (2.0.0) and **BMC-UI
 4.8.1** (4.8.0). The kernel stays at 6.18.63. The RK1 flash path moves to
 `rockusb` 0.4, the hashing and checksum loops are built for speed, and the
@@ -26,16 +28,21 @@ for the `opt-level` suggestion in
 and for tpi [#33](https://github.com/excavador-turing/tpi/pull/33) (his commit
 kept, for [BMC-Firmware#115](https://github.com/excavador-turing/BMC-Firmware/issues/115)).
 
+### Upgrading
+
+Nothing changes for whatever talks to a board: scripts, `tpi` 2.0 and BMC-UI 4.8
+keep working as they did with v2.55.0.
+
 ### Changed
 
 - **The RK1 flash path uses `rockusb` 0.4** (bmcd 2.50.0, bmcd#85, step 3 of
   BMC-Firmware#93). `rockusb` 0.2.0 to 0.4.0 is the library that puts an RK1
   (RK3588) into USB download mode and loads its SPL loader before the eMMC is
   written; the bytes it sends are the same. Written by Daniel Steinhauf, who
-  flashed an RK1 three times with it on a board. Its new crates (`maybe-async-cfg`
-  and the proc-macro crates it builds with, `strum` 0.28) all come from
-  crates.io and passed `cargo deny`. **A board that flashes an RK1 is what the
-  hardware test of this release looks at.**
+  flashed an RK1 three times with it on a board (we have no RK1 ourselves). Its
+  new crates (`maybe-async-cfg` and the proc-macro crates it builds with,
+  `strum` 0.28) all come from crates.io and passed `cargo deny`. The RK1 flash
+  path is tested by him, not by us.
 - **`sha2`, `crc` and `crc32fast` are built at `opt-level = 3`** (bmcd 2.50.0,
   bmcd#86, suggested by Daniel Steinhauf in BMC-Firmware#93). The rest of bmcd
   stays at `"z"`; these three run the per-byte loops of a flash (the SHA-256 of
@@ -44,12 +51,29 @@ kept, for [BMC-Firmware#115](https://github.com/excavador-turing/BMC-Firmware/is
   `[profile.release]`, so this is what reaches the image.
 - **The token and certificate-pin file helpers exist once in `tpi`** (tpi 2.0.1,
   tpi#33, BMC-Firmware#115). A refactor by Daniel Steinhauf with no change in
-  behaviour: the same files, paths and modes. #115 stays open
-  until the final release that carries this.
+  behaviour: the same files, paths and modes. #115 is closed once
+  this release is out.
 - **BMC-UI 4.8.1: the selected node stays readable on hover** (BMC-UI#69). In the
   node picker of the Console, Flash Node and USB pages, hovering the selected
   segment turned its text to the page colour, dark on dark in the light theme and
   light on light in the dark theme. It keeps its own colours now.
+
+### Tested
+
+- On two Turing Pi 2 v2.5 boards, eight compute nodes, with v2.56.0-rc.1
+  (2026-11-24): the update over the network; a BMC reboot adopts the live power
+  state with no node power-cycled; the switch VLAN configuration is unchanged;
+  the power latch shadow is valid.
+- Every state change sent as GET still answers 405 with `Allow: POST`, while the
+  same change sent as POST works.
+- Response times do not change: about 0.135 s per request on the board.
+- BMC-UI 4.8.1: the selected node stays readable on hover (confirmed in a
+  browser).
+- The RK1 flash path (`rockusb` 0.4) was tested by Daniel Steinhauf
+  ([@danste22](https://github.com/danste22)), three flashes on an RK1. We have
+  no RK1, so we did not test it.
+- The speed of a node flash's checksums was not measured by us. The three
+  checksum crates are built at full speed; everything else is unchanged.
 
 ## [v2.55.0] — 2026-11-24
 
