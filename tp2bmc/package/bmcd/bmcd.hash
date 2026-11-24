@@ -252,5 +252,6 @@ sha256  3f077eef81e0594021c5965807ceef207a591c7d7e3102a8d12c357f472680ff  bmcd-9
 # component and no longer reaches a shell; the login body is capped; a backup
 # leaves out secrets; HTTP/2 is removed.
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-b9e2c2490a88f3b2c1dba73cbdb1ce4c87e58797-cargo2.tar.gz
+# Measured 2026-11-24: the PR build in CI's own container (run 45366845299),
+# against a placeholder line, reported got 3a03c2ab; this is that value.
+sha256  3a03c2ab88d9e526bce116dae56c9cd1e48fa533e1520fe1b55057a21d052529  bmcd-b9e2c2490a88f3b2c1dba73cbdb1ce4c87e58797-cargo2.tar.gz
