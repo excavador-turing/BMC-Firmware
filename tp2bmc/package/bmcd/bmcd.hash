@@ -244,3 +244,13 @@ sha256  c50a2a20637a680eb9d8a9f62181a0987a6a2190e777297893656423edb387d2  bmcd-9
 # Measured 2026-11-21: the PR build in CI's own container (run 44955559834),
 # against a placeholder line, reported got 3f077eef; this is that value.
 sha256  3f077eef81e0594021c5965807ceef207a591c7d7e3102a8d12c357f472680ff  bmcd-93ac03fdcf354d8aec9b2169a0adcf08c895e211-cargo2.tar.gz
+#
+# 2.48.0 (b9e2c249, tag v2.48.0): the security fixes from a review of the web
+# and command interface (bmcd#64, #65, #66, #70 through #78). The loopback
+# exemption is gone and the on-board `tpi` uses /run/bmcd/local-token; a state
+# change over GET needs a Bearer token; a firmware file name is one safe path
+# component and no longer reaches a shell; the login body is capped; a backup
+# leaves out secrets; HTTP/2 is removed.
+#
+# Placeholder until CI's own container reports the got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-b9e2c2490a88f3b2c1dba73cbdb1ce4c87e58797-cargo2.tar.gz

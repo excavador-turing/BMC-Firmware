@@ -13,6 +13,144 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+A security release, from a careful review of the BMC by Daniel Steinhauf
+([@danste22](https://github.com/danste22)). It pins **bmcd 2.48.0**,
+**tpi 2.0.0** and **BMC-UI 4.8.0** (they were 2.47.0, 1.11.1 and 4.7.0), and the
+board keeps its TLS key when it renews its own certificate. The kernel stays at
+6.18.63. Several changes below break a script or an older client; read
+"Breaking changes" before you update a board that something else talks to.
+
+Thanks to Daniel Steinhauf ([@danste22](https://github.com/danste22)) for a
+careful security review of the BMC —
+[BMC-Firmware#88](https://github.com/excavador-turing/BMC-Firmware/issues/88)–[#101](https://github.com/excavador-turing/BMC-Firmware/issues/101),
+[#109](https://github.com/excavador-turing/BMC-Firmware/issues/109),
+[#110](https://github.com/excavador-turing/BMC-Firmware/issues/110),
+[#112](https://github.com/excavador-turing/BMC-Firmware/issues/112) — and for
+the fixes across bmcd, tpi, BMC-UI and this firmware. His pull requests, with
+the replacement pull requests that carried his commits (his authorship is kept):
+
+- **bmcd:** [#64](https://github.com/excavador-turing/bmcd/pull/64),
+  [#65](https://github.com/excavador-turing/bmcd/pull/65),
+  [#66](https://github.com/excavador-turing/bmcd/pull/66),
+  [#70](https://github.com/excavador-turing/bmcd/pull/70) (merged through #76),
+  [#71](https://github.com/excavador-turing/bmcd/pull/71) (through #78),
+  [#72](https://github.com/excavador-turing/bmcd/pull/72) (through #77) and
+  [#74](https://github.com/excavador-turing/bmcd/pull/74). His
+  [#73](https://github.com/excavador-turing/bmcd/pull/73) (refuse every state
+  change on GET, BMC-Firmware#109) waits for the release after this one, so
+  the clients move first.
+- **tpi:** [#23](https://github.com/excavador-turing/tpi/pull/23),
+  [#21](https://github.com/excavador-turing/tpi/pull/21) (carried on as
+  [#27](https://github.com/excavador-turing/tpi/pull/27)),
+  [#22](https://github.com/excavador-turing/tpi/pull/22) (as
+  [#29](https://github.com/excavador-turing/tpi/pull/29)),
+  [#24](https://github.com/excavador-turing/tpi/pull/24) (as
+  [#30](https://github.com/excavador-turing/tpi/pull/30)),
+  [#25](https://github.com/excavador-turing/tpi/pull/25) (as
+  [#28](https://github.com/excavador-turing/tpi/pull/28)) and
+  [#26](https://github.com/excavador-turing/tpi/pull/26) (as
+  [#31](https://github.com/excavador-turing/tpi/pull/31)).
+- **BMC-UI:** [#62](https://github.com/excavador-turing/BMC-UI/pull/62),
+  [#63](https://github.com/excavador-turing/BMC-UI/pull/63) (landed as
+  [#66](https://github.com/excavador-turing/BMC-UI/pull/66)),
+  [#64](https://github.com/excavador-turing/BMC-UI/pull/64) (landed as
+  [#67](https://github.com/excavador-turing/BMC-UI/pull/67)) and
+  [#65](https://github.com/excavador-turing/BMC-UI/pull/65).
+- **BMC-Firmware:** [#108](https://github.com/excavador-turing/BMC-Firmware/pull/108).
+
+### Breaking changes
+
+- **tpi 2.0.0 checks the board's certificate** (tpi#21, #27). A self-signed
+  board is refused until you tell tpi which certificate is yours, once per
+  board: run any command, compare the fingerprint it prints with the board's
+  own (BMC-UI, Security, Certificates, or `openssl x509 -in
+  /etc/ssl/certs/bmcd_cert.pem -noout -fingerprint -sha256` on the serial
+  console), then run once with `--pin <fingerprint>` (or `TPI_PIN`). `--insecure`
+  (or `TPI_INSECURE=1`) skips the check, for a lab. On the board itself,
+  `tpi` still skips the check for `127.0.0.1` and `::1`, and only for those:
+  `--host localhost` is a name, not a loopback address, and is verified like
+  any other host. Use `--host 127.0.0.1` or no `--host`.
+- **Scripts on the board need the local token** (bmcd 2.48.0, bmcd#72/#77).
+  The loopback exemption is gone: a request from `127.0.0.1` with no credential
+  answers 401. At every start bmcd writes a 64-character token to
+  `/run/bmcd/local-token` (directory 0700, file 0600) and accepts it as a
+  Bearer token from a loopback peer only:
+  `Authorization: Bearer $(cat /run/bmcd/local-token)`. The on-board `tpi` does
+  this by itself for `127.0.0.1` and `::1` when no credentials are given. The
+  firmware's own scripts were checked: the promotion gate asks for the static
+  page at `https://127.0.0.1/` and for `/metrics` on port 9110, neither of which
+  is the API, and no script calls the API otherwise.
+- **A state change over GET needs a Bearer token** (bmcd#72 through #77). Every
+  `opt=set` type on `/api/bmc`, the upload cancel and the backup are POST now.
+  Their GET forms are served for one more release, with a Bearer token only, so
+  older `tpi` and BMC-UI keep working; with Basic or no credential they answer
+  405 with `Allow: POST`. Scripts should use `curl -X POST`. tpi 2.0.0 and
+  BMC-UI 4.8.0 send POST, and fall back to GET on a 405 from an older board.
+- **A firmware file name must be one safe path component** (bmcd#64). A `file`
+  outside `[A-Za-z0-9._-]`, or `.` or `..`, is refused with 400 for
+  `type=firmware`; a browser download named `tp2-bmc-firmware (1).tpu` has to be
+  renamed first.
+- **The login body is capped** (bmcd#65): over 4 KiB answers 413, and one that
+  is not complete within 5 seconds answers 408.
+- **Basic is refused on a browser's request, and a cross-site state change
+  answers 403** (bmcd#72 through #77). A request that carries `Origin`,
+  `Referer` or `Sec-Fetch-*` and authenticates with Basic is refused; a state
+  change whose `Sec-Fetch-Site` is `cross-site` or `same-site` is refused
+  whatever the credential.
+- **A password change ends every session, the caller's included** (bmcd#72).
+  BMC-UI tabs and cached `tpi` tokens sign in again. `POST /api/bmc/logout`
+  revokes just the token that sends it, and BMC-UI 4.8.0 uses it on logout.
+- **A backup no longer holds secrets** (bmcd#72). It leaves out `etc/shadow*`,
+  `etc/gshadow*`, every `.pem` or `*key*` under `etc/ssl`, and the SSH host
+  keys. A restore only writes what the archive holds, so the board it goes back
+  onto keeps its own password, certificate and host keys.
+- **HTTP/2 is gone** (bmcd#71 through #78). Browsers and `curl` are unaffected;
+  `curl --http2-prior-knowledge` fails.
+- **tpi caches its login token per board**, mode 0600, and sends it only back to
+  the board that issued it (tpi#22, #29). Log in once again after the update. A
+  failed `tpi flash` now exits 1 (tpi#24, #30).
+- **A flash starts about one second later** (bmcd#74). A node that was running
+  is held off for one second before it is switched on to flash; a node that had
+  not powered down in a fraction of a second never read the USB boot pin.
+
+### Changed
+
+- **bmcd 2.48.0** is a security release. A caller-chosen firmware name no
+  longer reaches a shell (`osupdate` runs with the path as one argument); login
+  no longer holds the one authentication lock while the body is read or the
+  password is hashed; the UI sends `frame-ancestors 'none'`, `nosniff` and
+  `X-Frame-Options: DENY`; the serial history leaves the unsound ring buffer.
+  A switch command no longer blocks a worker, and a client that goes away
+  mid-change no longer lets the next one interleave; a stopped firmware copy
+  deletes its staging directory; the shadow watcher no longer panics or stops;
+  a persistency value that cannot be read or written is an error the API
+  reports. (bmcd#64, #65, #66, #70 through #78.) The release profile change in
+  bmcd#78 does not reach the board: Buildroot overrides the cargo release
+  profile.
+- **tpi 2.0.0** verifies the board's certificate and remembers its key per host,
+  keeps the cached token private, aborts a non-ASCII password edit, sends state
+  changes as POST and uses the board's local token on loopback. It is built on
+  reqwest 0.13 with ring, and its releases carry a `SHA256SUMS`.
+- **BMC-UI 4.8.0**: the power switch waits for the board's answer, a change made
+  offline fails at once, logout revokes the token on the board, a failed node
+  flash or firmware upload no longer logs an unhandled promise, and the backup
+  is taken only if the answer is a gzip archive. Building needs Node 26.
+  (BMC-UI#62 through #65.)
+- **bmcd 2.48.0, tpi 2.0.0 and BMC-UI 4.8.0** are the pinned versions (the
+  latest of each).
+
+### Fixed
+
+- **The board keeps its TLS key when it renews its own certificate**
+  ([#108](https://github.com/excavador-turing/BMC-Firmware/pull/108), by
+  [@danste22](https://github.com/danste22); BMC-Firmware#90). A renewal 30 days
+  before expiry and a reissue after a rename both made a new key, so every
+  renewal would have broken the pin tpi 2.0.0 keeps. Both paths now sign the new
+  certificate with the key already on disk; a new key is made only when there is
+  none or the key is not the certificate's own. The SHA-256 of the certificate
+  changes, the key does not. A board whose key must be replaced needs
+  `/etc/ssl/certs/bmcd_key.pem` deleted before the generator runs.
+
 ## [v2.53.0] — 2026-11-21
 
 A small, careful release. The kernel now tells bmcd which nodes are powered

@@ -49,4 +49,12 @@ sha256  bc51e7246500b08bed73d68bdbad7db896dc7a4ae329a169c0f7cbebca4e6b71  tpi-70
 # Measured 2026-11-21: the PR build in CI's own container (run 44955559834),
 # against a placeholder line, reported got 25001bb9; this is that value.
 sha256  25001bb91dff52b22340237be5d218be430d20149797cbcbae810f6446fd128c  tpi-2a24029da605be38cf3c276a37c47310924dc092-cargo2.tar.gz
+# v1.11.1 -> v2.0.0 (61f83d19, tag v2.0.0). tpi checks the board's certificate
+# and remembers its key per host (a self-signed board needs --pin once), keeps
+# the cached token private, sends state changes as POST, and on the board sends
+# the daemon's local token to 127.0.0.1 and ::1. Built on reqwest 0.13 with
+# ring (tpi#21 through #31).
+#
+# Placeholder until CI's own container reports the got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  tpi-61f83d190b6ef670e23c2d376aa2de1b0ffd0f74-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE
