@@ -86,6 +86,17 @@ Three things change for whatever talks to a board. The details are under
   about four minutes longer. (#117)
   Refs [#93](https://github.com/excavador-turing/BMC-Firmware/issues/93).
 
+### Tested
+
+- On two Turing Pi 2 v2.5 boards, eight compute nodes, with v2.55.0-rc.1
+  (2026-11-24): the update over the network with `tpi-selfupdate`; a BMC reboot
+  adopts the live power state with no node power-cycled; the switch VLAN
+  configuration is unchanged; the power latch shadow is valid.
+- Every state change sent as GET answers 405 with `Allow: POST`, while the same
+  change sent as POST works.
+- Response times do not change with the smaller build: about 0.13 s per request
+  on the board, the same as with v2.54.0-rc.1.
+
 ## [v2.54.0] — 2026-11-24
 
 A security release, from a careful review of the BMC by Daniel Steinhauf
