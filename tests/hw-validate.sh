@@ -168,15 +168,23 @@ netdev_master() {
 }
 
 conduit_netdev() {
-	# eth0 on current images; sun8i-emac enumerates as end0 under some
-	# kernel/DT combinations. Override with UPLINK_CONDUIT.
-	for c in ${UPLINK_CONDUIT:-} eth0 end0; do
+	# RTL8370 CPU conduit. ip link shows the switch ports as ge0@dsa.
+	# UPLINK_CONDUIT overrides the name.
+	for c in ${UPLINK_CONDUIT:-} dsa; do
 		[ -n "$c" ] || continue
 		[ -d "/sys/class/net/$c" ] || continue
 		printf '%s\n' "$c"
 		return 0
 	done
 	return 1
+}
+
+stacked_on() {
+	upper=$1
+	lower=$2
+	[ -r "/sys/class/net/$upper/iflink" ] || return 1
+	[ -r "/sys/class/net/$lower/ifindex" ] || return 1
+	[ "$(cat "/sys/class/net/$upper/iflink" 2>/dev/null)" = "$(cat "/sys/class/net/$lower/ifindex" 2>/dev/null)" ]
 }
 
 conf_get() {
@@ -495,10 +503,22 @@ for p in br0 node1 node2 node3 node4 ge0 ge1; do
 done
 if conduit=$(conduit_netdev); then
 	state=$(cat "/sys/class/net/$conduit/operstate" 2>/dev/null || echo unknown)
-	info "G2 CPU conduit netdev: $conduit state=$state"
+	if stacked_on ge0 "$conduit"; then
+		pass "G2 conduit $conduit ($state), ge0 stacked on it"
+	elif [ -d /sys/class/net/ge0 ]; then
+		warn "G2 conduit $conduit ($state) is not ge0's lower device"
+	else
+		info "G2 CPU conduit netdev: $conduit state=$state"
+	fi
 else
-	warn "G2 no CPU conduit netdev found (tried eth0, end0; set UPLINK_CONDUIT)"
+	warn "G2 no CPU conduit netdev found (tried dsa; set UPLINK_CONDUIT)"
 fi
+for stray in eth0 end0; do
+	[ "$stray" = "${UPLINK_CONDUIT:-}" ] && continue
+	if [ -d "/sys/class/net/$stray" ]; then
+		warn "G2 $stray present (SoC MAC registered as its own NIC)"
+	fi
+done
 ip link show br0 2>/dev/null | grep -q UP && pass "G2 br0 UP" || warn "G2 br0 not UP"
 
 for p in node1 node2 node3 node4 ge0 ge1; do
@@ -519,7 +539,8 @@ for p in node1 node2 node3 node4 ge0 ge1; do
 	fi
 done
 
-for p in ge1 eth0 end0; do
+conduit=$(conduit_netdev || true)
+for p in ge1 $conduit; do
 	if ip link show "$p" >/dev/null 2>&1; then
 		speed=$(cat "/sys/class/net/$p/speed" 2>/dev/null || echo ?)
 		info "G4 $p speed=${speed}Mb/s"
@@ -544,7 +565,7 @@ if command -v bridge >/dev/null 2>&1; then
 		elif lag_fixup_unobservable; then
 			skip "G5 LAG bridge uplink fixup — no LAG event in the current dmesg buffer"
 		else
-			warn "G5 bond0 802.3ad ge0+ge1 but no LAG fixup in dmesg — node WAN may cap at ~100M via eth0; need the LAG bridge uplink patch"
+			warn "G5 bond0 802.3ad ge0+ge1 but no LAG fixup in dmesg — node WAN may cap at ~100M via dsa; need the LAG bridge uplink patch"
 		fi
 		if lag_vlan_transparent; then
 			pass "G5 LAG VLAN sync: members transparent (flat br0 path)"
@@ -593,7 +614,7 @@ fi
 
 section "G6 — bond uplink hairpin (needs powered node + traffic)"
 if has_bond0_lacp; then
-	conduit=$(conduit_netdev || echo eth0)
+	conduit=$(conduit_netdev || echo dsa)
 	conduit_speed=$(cat "/sys/class/net/$conduit/speed" 2>/dev/null || echo ?)
 	info "G6 $conduit (CPU port) speed=${conduit_speed}Mb/s — must not carry switched node WAN traffic"
 	if [ -r /var/run/tp2-uplink-test-eth0-delta ]; then
@@ -613,7 +634,7 @@ if has_bond0_lacp; then
 		fi
 	else
 		skip "G6 run: UPLINK_HAIRPIN_TEST=1 hw-validate.sh (node: iperf3 -c <gw> -t10 during wait)"
-		info "G6 expect node iperf ~900+ Mbit/s; ~88 Mbit/s = eth0 hairpin without 0004"
+		info "G6 expect node iperf ~900+ Mbit/s; ~88 Mbit/s = dsa hairpin without 0004"
 	fi
 else
 	skip "G6 no bond0 802.3ad — uplink hairpin test N/A (flat br0 uses ge0/ge1 on bridge)"
