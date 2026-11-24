@@ -272,5 +272,6 @@ sha256  286367e39f5ebab0637a7be942df3410c22f3340b81d64a6796948e7e4610383  bmcd-d
 # and sha2, crc and crc32fast are built at opt-level 3 (bmcd#86, suggested by
 # @danste22 in BMC-Firmware#93). No other code change from 2.49.0.
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-e7425d7aad8c907ed40823cb2d15c31d83e13088-cargo2.tar.gz
+# Measured 2026-11-24: the PR build in CI's own container (run 45456902913),
+# against a placeholder line, reported got 64d19ac6; this is that value.
+sha256  64d19ac6d3bccac62844efd87cfbc19a0af5d569f999bd859ad197405f1868a6  bmcd-e7425d7aad8c907ed40823cb2d15c31d83e13088-cargo2.tar.gz

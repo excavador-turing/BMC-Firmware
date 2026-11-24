@@ -62,6 +62,7 @@ sha256  3994e2435cab7c3ac05bc60c53c040a1a3f9eafe6499d7218f4c17eac5e40cc9  tpi-61
 # once, in src/cache.rs, instead of twice (tpi#33 by @danste22, for
 # BMC-Firmware#115). No change in behaviour.
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  tpi-b5d4f4a9f6acc1e557434c03b5f5728e857a64e5-cargo2.tar.gz
+# Measured 2026-11-24: the PR build in CI's own container (run 45456902913),
+# against a placeholder line, reported got 37be7788; this is that value.
+sha256  37be7788f879852fe5d0e84fad17c5f783ef69917b02423444a0fa4b2c1a3ace  tpi-b5d4f4a9f6acc1e557434c03b5f5728e857a64e5-cargo2.tar.gz
 sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENSE
