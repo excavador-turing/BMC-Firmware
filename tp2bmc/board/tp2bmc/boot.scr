@@ -5,7 +5,9 @@
 # bonding.max_bonds=0: built-in bonding would otherwise create a default
 # bond0 at boot, and ifupdown-ng's bond executor then skips creating it with
 # the configured mode, hash policy and members.
-setenv bootargs loglevel=4 cma=8M init=/sbin/preinit rootwait=5 bonding.max_bonds=0
+# rootfstype=erofs: both the NAND and SD roots are EROFS. Without it the
+# kernel probes every built-in filesystem on the root device first.
+setenv bootargs loglevel=4 cma=8M init=/sbin/preinit rootwait=5 bonding.max_bonds=0 rootfstype=erofs
 
 if test ${devtype} = mmc; then
 	setenv bootargs ${bootargs} root=PARTUUID=${distro_bootpart_uuid}
