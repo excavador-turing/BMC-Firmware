@@ -289,5 +289,6 @@ sha256  6c4dc88b0112a5673fec76533c70dff17386b26d14948420b8e7f3b14fe7975c  bmcd-2
 # handshake opened from another site (bmcd#93). No other code change from
 # 2.50.1.
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-16f6169cb606acd54229ae8f0cd1ab29408eb26a-cargo2.tar.gz
+# Measured 2026-11-24: the PR build in CI's own container (run 45493633169),
+# against a placeholder line, reported got bb65cc67; this is that value.
+sha256  bb65cc67a5d46afe44eace7684a33d65757dc36ce55558749ba20e027783a4a2  bmcd-16f6169cb606acd54229ae8f0cd1ab29408eb26a-cargo2.tar.gz
