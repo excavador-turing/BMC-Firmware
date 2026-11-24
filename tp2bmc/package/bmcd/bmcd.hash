@@ -275,3 +275,11 @@ sha256  286367e39f5ebab0637a7be942df3410c22f3340b81d64a6796948e7e4610383  bmcd-d
 # Measured 2026-11-24: the PR build in CI's own container (run 45456902913),
 # against a placeholder line, reported got 64d19ac6; this is that value.
 sha256  64d19ac6d3bccac62844efd87cfbc19a0af5d569f999bd859ad197405f1868a6  bmcd-e7425d7aad8c907ed40823cb2d15c31d83e13088-cargo2.tar.gz
+#
+# 2.50.1 (2937cbde, tag v2.50.1): a percent-encoded path no longer slips past
+# the GET and cross-site refusals (bmcd#90, BMC-Firmware#132), and `bmcd.bin` is
+# replaced durably (bmcd#89, BMC-Firmware#130), both reported by @adberger. No
+# other code change from 2.50.0.
+#
+# Placeholder until CI's own container reports the got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-2937cbde5e2a2deb19ffb36a7637f2089291412f-cargo2.tar.gz

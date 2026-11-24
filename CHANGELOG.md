@@ -13,14 +13,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [v2.56.0] — 2026-11-24
+v2.56.0 was never published; its changes ship in v2.57.0, together with the
+security fixes below.
 
-Pins **bmcd 2.50.0** (it was 2.49.0), **tpi 2.0.1** (2.0.0) and **BMC-UI
-4.8.1** (4.8.0). The kernel stays at 6.18.63. The RK1 flash path moves to
-`rockusb` 0.4, the hashing and checksum loops are built for speed, and the
-console node picker is readable under the pointer. There is nothing to do on a
-board or in a script: no behaviour a client relies on changes.
+Pins **bmcd 2.50.1** (v2.55.0 had 2.49.0), **tpi 2.0.1** (2.0.0) and **BMC-UI
+4.8.1** (4.8.0). The kernel stays at 6.18.63. Two security fixes in the daemon
+reported by adberger, the RK1 flash path moves to `rockusb` 0.4, the hashing and
+checksum loops are built for speed, and the console node picker is readable
+under the pointer. There is nothing to do on a board or in a script: no
+behaviour a client relies on changes.
 
+Thanks to adberger ([@adberger](https://github.com/adberger)) for
+[BMC-Firmware#132](https://github.com/excavador-turing/BMC-Firmware/issues/132)
+and
+[BMC-Firmware#130](https://github.com/excavador-turing/BMC-Firmware/issues/130),
+found with a deterministic simulation test of the board and by reading the code.
 Thanks to Daniel Steinhauf ([@danste22](https://github.com/danste22)) for
 bmcd [#85](https://github.com/excavador-turing/bmcd/pull/85) (his commit kept),
 for the `opt-level` suggestion in
@@ -31,7 +38,26 @@ kept, for [BMC-Firmware#115](https://github.com/excavador-turing/BMC-Firmware/is
 ### Upgrading
 
 Nothing changes for whatever talks to a board: scripts, `tpi` 2.0 and BMC-UI 4.8
-keep working as they did with v2.55.0.
+keep working as they did with v2.55.0. A client that percent-encodes the path of
+an API request (no client we know of does) now gets 400.
+
+### Security
+
+- **A percent-encoded path no longer slips past the GET and cross-site
+  refusals** (bmcd 2.50.1, bmcd#90, Refs #132, reported by adberger). The
+  daemon's refusal of a state change over GET or HEAD (405) and of a cross-site
+  one (403) read the raw request path, while the router matches the decoded
+  one, so spellings such as `/api/b%6dc` reached the same handlers without
+  either refusal. Authentication still applied; what was lost is the protection
+  for a credential the browser attaches by itself (a client certificate, a
+  trusted proxy's identity header). The policy now reads the path the router
+  matched, a request under `/api/bmc` with percent-encoding in its path is
+  refused with 400, and the `?opt=set` handler itself refuses GET and HEAD.
+- **`bmcd.bin` is replaced durably** (bmcd 2.50.1, bmcd#89, Refs #130, reported
+  by adberger). The store of the power state, USB mode and node information was
+  renamed into place without flushing its data, so a power cut on UBIFS could
+  leave bmcd starting on new, default storage. It is written through
+  `write_durably` now: data flushed before the rename, directory after.
 
 ### Changed
 
@@ -52,18 +78,21 @@ keep working as they did with v2.55.0.
 - **The token and certificate-pin file helpers exist once in `tpi`** (tpi 2.0.1,
   tpi#33, BMC-Firmware#115). A refactor by Daniel Steinhauf with no change in
   behaviour: the same files, paths and modes. #115 is closed once
-  this release is out.
+  the release that carries this is out.
 - **BMC-UI 4.8.1: the selected node stays readable on hover** (BMC-UI#69). In the
   node picker of the Console, Flash Node and USB pages, hovering the selected
   segment turned its text to the page colour, dark on dark in the light theme and
   light on light in the dark theme. It keeps its own colours now.
 
-### Tested
+### Tested so far
 
-- On two Turing Pi 2 v2.5 boards, eight compute nodes, with v2.56.0-rc.1
-  (2026-11-24): the update over the network; a BMC reboot adopts the live power
-  state with no node power-cycled; the switch VLAN configuration is unchanged;
-  the power latch shadow is valid.
+The hardware test of v2.57.0 follows the pre-release.
+
+- On two Turing Pi 2 v2.5 boards, eight compute nodes, with the pre-release of
+  the changes above that did not include the security fixes (2026-11-24): the
+  update over the network; a BMC reboot adopts the live power state with no node
+  power-cycled; the switch VLAN configuration is unchanged; the power latch
+  shadow is valid.
 - Every state change sent as GET still answers 405 with `Allow: POST`, while the
   same change sent as POST works.
 - Response times do not change: about 0.135 s per request on the board.
