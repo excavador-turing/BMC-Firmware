@@ -401,3 +401,14 @@ sha256  8c4ada802179e8a5c4c50c3052cc94abab29e02db4b03998197e218c85a47fbd  bmc-ui
 # cross-check. dist/LICENSE present, 65 archive entries; the archive is the
 # board build ("ttyNode" is in the built bundle, and so is the LACP switch).
 sha256  81d49a92b95abea556e30fa9a8ca9017336038d581c0d0f68df6de371229e86b  bmc-ui-v4.7.0.tar.gz
+#
+# v4.7.0 -> v4.8.0: the power switch waits for the board's answer, logout
+# revokes the token on the board, state changes go as POST, a failed flash or
+# upload logs no unhandled promise; building needs Node 26 (BMC-UI#62 through
+# #65, by @danste22).
+#
+# Measured 2026-11-24: 683927 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 64 archive entries; the archive is the
+# board build ("ttyNode" is in the built bundle, and so is the LACP switch).
+sha256  adc3465db0040cb40b8cacd3a3706b68eb501ccb2076bf97625ae673739f5f27  bmc-ui-v4.8.0.tar.gz

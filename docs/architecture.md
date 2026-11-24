@@ -73,11 +73,18 @@ gives the same property without a secret to mint, store, rotate or leak. TLS
 went with it: the board's certificate could never be verified, so it was a
 handshake per scrape for nothing. The network is the boundary.
 
-**The local listener becomes a Unix socket.** Today `/api/bmc` skips
-authentication for `127.0.0.1`, which is how the on-board `tpi` and the gate
-work — and also how any process on the board can power off a module. The
-replacement is a Unix socket authenticated by peer credentials, so the loopback
-bypass can be removed rather than narrowed. Planned, not shipped (SQU-165).
+**On-board callers use a local token, not a loopback exemption.** Until bmcd
+2.47.0 `/api/bmc` skipped authentication for `127.0.0.1`, which is how the
+on-board `tpi` and the gate worked, and also how any process on the board could
+power off a module. bmcd 2.48.0 removed the exemption. At every start the daemon
+writes a 64-character token to `/run/bmcd/local-token` (directory 0700, file
+0600) and accepts it as a Bearer token from a loopback peer only. The on-board
+`tpi` (built with the `localhost` feature) reads it for `127.0.0.1` and `::1`;
+`--host localhost` is a name and is not treated as loopback. The gate does not
+call the API: it asks for the static page at `https://127.0.0.1/` and for
+`/metrics` on port 9110. A new on-board script that needs the API uses `tpi`, or
+sends the token as a Bearer. A Unix socket with peer credentials stays an
+option, not a plan.
 
 **The LACP uplink is a bond that is asked for, never a default.** The switch
 can aggregate `ge0` and `ge1` in hardware, but only for a Linux bond: the
