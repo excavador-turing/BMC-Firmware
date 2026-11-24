@@ -14,4 +14,11 @@ TPI_DEPENDENCIES = host-pkgconf libopenssl
 TPI_CARGO_ENV := PKG_CONFIG_ALLOW_CROSS=1
 TPI_CARGO_INSTALL_OPTS = --features localhost,native-tls
 
+# The size of what was installed, in the build log: the only place a change to
+# the build profile shows up as a number before a board is flashed.
+define TPI_LOG_INSTALLED_SIZE
+	echo "installed size: $$(stat -c %s $(TARGET_DIR)/usr/bin/tpi) bytes, /usr/bin/tpi"
+endef
+TPI_POST_INSTALL_TARGET_HOOKS += TPI_LOG_INSTALLED_SIZE
+
 $(eval $(cargo-package))
