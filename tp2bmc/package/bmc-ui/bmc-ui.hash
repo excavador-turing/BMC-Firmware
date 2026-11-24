@@ -412,3 +412,12 @@ sha256  81d49a92b95abea556e30fa9a8ca9017336038d581c0d0f68df6de371229e86b  bmc-ui
 # cross-check. dist/LICENSE present, 64 archive entries; the archive is the
 # board build ("ttyNode" is in the built bundle, and so is the LACP switch).
 sha256  adc3465db0040cb40b8cacd3a3706b68eb501ccb2076bf97625ae673739f5f27  bmc-ui-v4.8.0.tar.gz
+#
+# v4.8.0 -> v4.8.1: the selected node in the Console, Flash Node and USB node
+# picker stays readable on hover (BMC-UI#69).
+#
+# Measured 2026-11-24: 683995 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 64 archive entries; the archive is the
+# board build ("ttyNode" is in the built bundle, and so is the LACP switch).
+sha256  81c8cdd3e73348d059ea1e05d58001ae89d681c38b481946d74611c71a8b6c36  bmc-ui-v4.8.1.tar.gz

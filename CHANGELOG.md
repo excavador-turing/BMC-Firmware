@@ -13,6 +13,44 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+Pins **bmcd 2.50.0** (it was 2.49.0), **tpi 2.0.1** (2.0.0) and **BMC-UI
+4.8.1** (4.8.0). The kernel stays at 6.18.63. The RK1 flash path moves to
+`rockusb` 0.4, the hashing and checksum loops are built for speed, and the
+console node picker is readable under the pointer. There is nothing to do on a
+board or in a script: no behaviour a client relies on changes.
+
+Thanks to Daniel Steinhauf ([@danste22](https://github.com/danste22)) for
+bmcd [#85](https://github.com/excavador-turing/bmcd/pull/85) (his commit kept),
+for the `opt-level` suggestion in
+[BMC-Firmware#93](https://github.com/excavador-turing/BMC-Firmware/issues/93),
+and for tpi [#33](https://github.com/excavador-turing/tpi/pull/33) (his commit
+kept, for [BMC-Firmware#115](https://github.com/excavador-turing/BMC-Firmware/issues/115)).
+
+### Changed
+
+- **The RK1 flash path uses `rockusb` 0.4** (bmcd 2.50.0, bmcd#85, step 3 of
+  BMC-Firmware#93). `rockusb` 0.2.0 to 0.4.0 is the library that puts an RK1
+  (RK3588) into USB download mode and loads its SPL loader before the eMMC is
+  written; the bytes it sends are the same. Written by Daniel Steinhauf, who
+  flashed an RK1 three times with it on a board. Its new crates (`maybe-async-cfg`
+  and the proc-macro crates it builds with, `strum` 0.28) all come from
+  crates.io and passed `cargo deny`. **A board that flashes an RK1 is what the
+  hardware test of this release looks at.**
+- **`sha2`, `crc` and `crc32fast` are built at `opt-level = 3`** (bmcd 2.50.0,
+  bmcd#86, suggested by Daniel Steinhauf in BMC-Firmware#93). The rest of bmcd
+  stays at `"z"`; these three run the per-byte loops of a flash (the SHA-256 of
+  the image, the CRC-64 of what is written to the node, the CRC-32 of the board
+  EEPROM) and cost a few KB. Since #117 the daemon is built to its own
+  `[profile.release]`, so this is what reaches the image.
+- **The token and certificate-pin file helpers exist once in `tpi`** (tpi 2.0.1,
+  tpi#33, BMC-Firmware#115). A refactor by Daniel Steinhauf with no change in
+  behaviour: the same files, paths and modes. #115 stays open
+  until the final release that carries this.
+- **BMC-UI 4.8.1: the selected node stays readable on hover** (BMC-UI#69). In the
+  node picker of the Console, Flash Node and USB pages, hovering the selected
+  segment turned its text to the page colour, dark on dark in the light theme and
+  light on light in the dark theme. It keeps its own colours now.
+
 ## [v2.55.0] — 2026-11-24
 
 Pins **bmcd 2.49.0** (it was 2.48.0); tpi stays at 2.0.0 and BMC-UI at 4.8.0.
