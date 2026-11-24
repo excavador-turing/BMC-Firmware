@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.55.0] — 2026-11-24
+
 Pins **bmcd 2.49.0** (it was 2.48.0); tpi stays at 2.0.0 and BMC-UI at 4.8.0.
 The kernel stays at 6.18.63. The daemon now refuses every state change over GET,
 and the daemon and tpi are built smaller. Read "Breaking changes" before you
@@ -26,6 +28,23 @@ authorship kept), and for the review that found the rest
 ([#93](https://github.com/excavador-turing/BMC-Firmware/issues/93),
 [#99](https://github.com/excavador-turing/BMC-Firmware/issues/99)).
 
+### Upgrading
+
+This is the release that ends v2.54.0's transition for state changes over GET.
+Three things change for whatever talks to a board. The details are under
+"Breaking changes".
+
+1. **Scripts and integrations that change state with GET must use POST**
+   (`curl -X POST`), with a Bearer token as before. A Bearer token no longer
+   saves a GET: it answers 405 with `Allow: POST`.
+2. **A workstation `tpi` must be 2.0 or newer.** Older `tpi` sends GET for a
+   state change and is refused. `tpi` 2.0.0 sends POST (and still needs its
+   one-time `--pin` for a self-signed board, see v2.54.0).
+3. **A web UI served separately from the board** (for example behind a reverse
+   proxy) **must be BMC-UI 4.8.0 or newer**. The one this firmware ships is
+   4.8.0. A custom `www` bundle that needs an inline script or an external host
+   has to be built to the new Content-Security-Policy.
+
 ### Breaking changes
 
 - **Every state change over GET is refused, whatever the credential** (bmcd
@@ -35,7 +54,8 @@ authorship kept), and for the review that found the rest
   those requests answer 405 with `Allow: POST`, with a Bearer token, with Basic
   or with none. A workstation `tpi` must be 2.0 or newer, a separately served
   BMC-UI must be 4.8.0 or newer (the BMC-UI this firmware ships is 4.8.0), and
-  scripts must use `curl -X POST`.
+  scripts must use `curl -X POST`. The backup, the cancel and the transfer are
+  routed on POST only, and the OpenAPI document no longer lists their GET forms.
 
 ### Security
 
@@ -65,6 +85,17 @@ authorship kept), and for the review that found the rest
   9.1 MB (-36.5 %), `/usr/bin/tpi` 5.0 MB to 2.8 MB (-44.0 %); the build takes
   about four minutes longer. (#117)
   Refs [#93](https://github.com/excavador-turing/BMC-Firmware/issues/93).
+
+### Tested
+
+- On two Turing Pi 2 v2.5 boards, eight compute nodes, with v2.55.0-rc.1
+  (2026-11-24): the update over the network with `tpi-selfupdate`; a BMC reboot
+  adopts the live power state with no node power-cycled; the switch VLAN
+  configuration is unchanged; the power latch shadow is valid.
+- Every state change sent as GET answers 405 with `Allow: POST`, while the same
+  change sent as POST works.
+- Response times do not change with the smaller build: about 0.13 s per request
+  on the board, the same as with v2.54.0-rc.1.
 
 ## [v2.54.0] — 2026-11-24
 
