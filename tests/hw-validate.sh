@@ -381,6 +381,21 @@ elif boot_log_present; then
 	pass "D3 no exFAT/F2FS fs noise in dmesg"
 fi
 
+# After pivot the EROFS lower is /mnt/rom. A probe of some other disk is not this check.
+root_blk=$(awk '$2=="/mnt/rom" { sub("^/dev/","",$1); print $1; exit }' /proc/mounts 2>/dev/null || true)
+if [ -z "$root_blk" ]; then
+	root_blk=$(awk '$3=="erofs" { sub("^/dev/","",$1); print $1; exit }' /proc/mounts 2>/dev/null || true)
+fi
+if [ -z "$root_blk" ]; then
+	skip "D4 root device unknown"
+elif dmesg 2>/dev/null | grep -E 'exFAT-fs|F2FS-fs' | grep -q "($root_blk)"; then
+	fail "D4 exFAT/F2FS probe on root device $root_blk"
+elif boot_log_present; then
+	pass "D4 no exFAT/F2FS probe on root device $root_blk"
+else
+	skip "D4 root probe — boot log gone"
+fi
+
 # GS0 is the USB console. Fail only when init is respawning it.
 if grep -q 'Id "GS0" respawning too fast' /var/log/messages 2>/dev/null; then
 	fail "D5 GS0 respawn spam in /var/log/messages"
