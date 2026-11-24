@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v2.54.0] — 2026-11-24
+
 A security release, from a careful review of the BMC by Daniel Steinhauf
 ([@danste22](https://github.com/danste22)). It pins **bmcd 2.48.0**,
 **tpi 2.0.0** and **BMC-UI 4.8.0** (they were 2.47.0, 1.11.1 and 4.7.0), and the
@@ -57,6 +59,22 @@ the replacement pull requests that carried his commits (his authorship is kept):
   [#67](https://github.com/excavador-turing/BMC-UI/pull/67)) and
   [#65](https://github.com/excavador-turing/BMC-UI/pull/65).
 - **BMC-Firmware:** [#108](https://github.com/excavador-turing/BMC-Firmware/pull/108).
+
+### Upgrading
+
+Four things change for whatever talks to a board. The details are under
+"Breaking changes".
+
+1. **Workstation `tpi` 2.0.0 verifies certificates.** Pin a self-signed board
+   once with `tpi --host <board> --pin <sha256>` (or `TPI_PIN`), or use
+   `--insecure`.
+2. **Scripts that change state with GET and Basic auth must switch to POST or a
+   Bearer token.** GET with a Bearer token still works in this release only.
+3. **A web UI served separately from the board** (for example behind a reverse
+   proxy) **must be BMC-UI 4.8.0 or newer**, because state changes now need
+   POST.
+4. **On-board scripts reach the API with `/run/bmcd/local-token`**
+   (`Authorization: Bearer $(cat /run/bmcd/local-token)`).
 
 ### Breaking changes
 
@@ -150,6 +168,13 @@ the replacement pull requests that carried his commits (his authorship is kept):
   none or the key is not the certificate's own. The SHA-256 of the certificate
   changes, the key does not. A board whose key must be replaced needs
   `/etc/ssl/certs/bmcd_key.pem` deleted before the generator runs.
+
+### Tested
+
+- On both of our v2.5 boards with v2.54.0-rc.1: the over-the-air update; a BMC
+  reboot adopts the live power state with no node reset; the on-board `tpi`
+  works without a password; the API refuses unauthenticated loopback calls; the
+  TLS key is unchanged across a reboot; the fleet UI works through a gateway.
 
 ## [v2.53.0] — 2026-11-21
 
