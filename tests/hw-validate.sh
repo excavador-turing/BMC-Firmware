@@ -367,6 +367,14 @@ elif boot_log_present; then
 	pass "D1 no #249 sunxi_ccu No max_rate spam"
 fi
 
+if dmesg 2>/dev/null | grep -F 'Fixed dependency cycle' | grep -qE 'mixer@|tcon-top@|lcd-controller@'; then
+	fail "D2 DE display dependency-cycle flood still present"
+elif boot_log_present; then
+	pass "D2 no mixer/tcon/lcd dependency-cycle flood"
+fi
+dmesg 2>/dev/null | grep -F 'Fixed dependency cycle' | grep -q 'rtc@7090000' \
+	&& info "D2 CCU-RTC cycles present (expected noise)" || true
+
 if dmesg 2>/dev/null | grep -qE 'exFAT-fs|F2FS-fs'; then
 	warn "D3 exFAT/F2FS messages in dmesg (review if BMC root card)"
 elif boot_log_present; then

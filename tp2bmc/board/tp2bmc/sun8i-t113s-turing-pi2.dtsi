@@ -534,3 +534,30 @@
 &wdt {
 	status = "okay";
 };
+
+/*
+ * No panel on this BMC. These overrides are for the kernel DTB in the FIT.
+ * U-Boot preprocesses this file with __ASSEMBLY__ set, so they stay out of
+ * the U-Boot DTB. de and dsi are already disabled in the SoC dtsi.
+ */
+#ifndef IS_UBOOT
+&mixer0 {
+	status = "disabled";
+};
+
+&mixer1 {
+	status = "disabled";
+};
+
+&tcon_top {
+	status = "disabled";
+};
+
+&tcon_lcd0 {
+	status = "disabled";
+};
+
+&tcon_tv0 {
+	status = "disabled";
+};
+#endif
