@@ -301,5 +301,6 @@ sha256  bb65cc67a5d46afe44eace7684a33d65757dc36ce55558749ba20e027783a4a2  bmcd-1
 # power on" time restarts when the BMC reboots and powers the nodes back on
 # (bmcd#98).
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-639aafb2964720d0ec7b4764f04e0f88184bbccf-cargo2.tar.gz
+# Measured 2026-11-25: the PR build in CI's own container (run 45523818013),
+# against a placeholder line, reported got ab895608; this is that value.
+sha256  ab8956083837d9fd849603b212fd8c5c75d66b7b357ce6ff34d816584d4e30bc  bmcd-639aafb2964720d0ec7b4764f04e0f88184bbccf-cargo2.tar.gz
