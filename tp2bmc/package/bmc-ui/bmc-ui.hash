@@ -421,3 +421,15 @@ sha256  adc3465db0040cb40b8cacd3a3706b68eb501ccb2076bf97625ae673739f5f27  bmc-ui
 # cross-check. dist/LICENSE present, 64 archive entries; the archive is the
 # board build ("ttyNode" is in the built bundle, and so is the LACP switch).
 sha256  81c8cdd3e73348d059ea1e05d58001ae89d681c38b481946d74611c71a8b6c36  bmc-ui-v4.8.1.tar.gz
+#
+# v4.8.1 -> v4.9.1. 4.9.0: "Cancel staged update" on the Firmware page (needs
+# bmcd 2.51.0), a time limit on every request, the serial console shows its last
+# line (BMC-UI#71, #72, #74). 4.9.1: the Console says when its output looks like
+# the wrong speed, and the install dialog no longer allows a second install
+# (BMC-UI#75, #76).
+#
+# Measured 2026-11-25: 688595 bytes, downloaded from the release and summed
+# from those bytes, agreeing with the release's own SHA256SUMS as a
+# cross-check. dist/LICENSE present, 67 archive entries; the archive is the
+# board build ("ttyNode" is in the built bundle, and so is the LACP switch).
+sha256  65654b4b5aa89d8508b7779aba45a1212f68d4b7e175a63afb4a79df210e5279  bmc-ui-v4.9.1.tar.gz
