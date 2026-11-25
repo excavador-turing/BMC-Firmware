@@ -1,6 +1,6 @@
 # Production apply order of the out-of-tree kernel patches (Linux 6.18.63).
 # Buildroot does NOT read this file: BR2_LINUX_KERNEL_PATCH in
-# tp2bmc/configs/tp2bmc_defconfig lists the same six directories in the same
+# tp2bmc/configs/tp2bmc_defconfig lists the same directories in the same
 # order, and each directory's *.patch files are applied in name order.
 #
 # Series taken from excavador-turing/BMC-Firmware#79 (Daniel Steinhauf,
@@ -36,3 +36,4 @@ tp2/power/0003-gpio-latch-export-the-shadow-word-and-the-boot-cookie.patch
 tp2/tpi-smi-mux/0001-dt-bindings-i2c-add-turing-i2c-smi-arbiter.patch
 tp2/tpi-smi-mux/0002-i2c-add-turing-i2c-smi-arbiter-for-shared-TWI-SMI-pi.patch
 tp2/tpi-smi-mux/0003-net-dsa-realtek-smi-bracket-SMI-ops-with-shared-bus-.patch
+tp2/rockusb/0001-usb-storage-add-rockusb-driver.patch

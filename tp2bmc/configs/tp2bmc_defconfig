@@ -67,7 +67,7 @@ BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_18=y
 # tests/toolchain-fragment.sh checks that statement against THIS file. A
 # default cannot be checked; a line can. No change to what is built.
 BR2_GCC_VERSION_13_X=y
-BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/i2c $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/pwm $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/net-dsa $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/gpio $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/power $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/tpi-smi-mux"
+BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/i2c $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/pwm $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/net-dsa $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/gpio $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/power $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/tpi-smi-mux $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/rockusb"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/linux_defconfig"
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
@@ -84,7 +84,7 @@ BR2_TARGET_ROOTFS_EROFS_LZ4HC=y
 BR2_TARGET_ROOTFS_TAR_GZIP=y
 BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_MDEV=y
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/overlay"
-BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/post_build.sh"
+BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/post_build.sh $(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/post_build_nomodprobe.sh"
 BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/post_image.sh"
 
 # Bootloader
@@ -153,6 +153,5 @@ BR2_PACKAGE_SSHPASS=y
 BR2_PACKAGE_BMCD=y
 BR2_PACKAGE_BMC_INSTALLER=y
 BR2_PACKAGE_BMC_UI=y
-BR2_PACKAGE_ROCKUSB=y
 BR2_PACKAGE_TPI=y
 BR2_PACKAGE_RASPBERRYPI_TARGET_USBBOOT=y
