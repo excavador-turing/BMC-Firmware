@@ -70,6 +70,10 @@ BR2_GCC_VERSION_13_X=y
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/i2c $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/generic/pwm $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/net-dsa $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/gpio $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/power $(BR2_EXTERNAL_TP2BMC_PATH)/patches/linux/tp2/tpi-smi-mux"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/linux_defconfig"
+# linux_defconfig selects XZ. Buildroot's kernel fixup then overwrites
+# that choice with this one, and an unnamed choice is gzip, so the
+# image stays gzip unless this line is here.
+BR2_LINUX_KERNEL_XZ=y
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
 BR2_LINUX_KERNEL_CUSTOM_DTS_PATH="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/sun8i-t113s-turing-pi2.dtsi $(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/sun8i-t113s-turing-pi2-v2.4.dts $(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/sun8i-t113s-turing-pi2-v2.5.1.dts $(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/sun8i-t113s-turing-pi2-v2.5.dts $(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/sun8i-t113s-turing-pi2-locked.dts"
 BR2_LINUX_KERNEL_DTB_KEEP_DIRNAME=y
@@ -84,7 +88,7 @@ BR2_TARGET_ROOTFS_EROFS_LZ4HC=y
 BR2_TARGET_ROOTFS_TAR_GZIP=y
 BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_MDEV=y
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/overlay"
-BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/post_build.sh"
+BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/post_build.sh $(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/post_build_swap.sh"
 BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_TP2BMC_PATH)/board/tp2bmc/post_image.sh"
 
 # Bootloader
