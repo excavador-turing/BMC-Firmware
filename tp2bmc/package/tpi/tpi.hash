@@ -71,5 +71,6 @@ sha256  a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9  LICENS
 # and then installs (tpi#36); the AUR workflow is removed and the install
 # instructions point at this fork (tpi#35).
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  tpi-e8f31fa80db4fe9424f179dc52f4d860baff8ea7-cargo2.tar.gz
+# Measured 2026-11-25: the PR build in CI's own container (run 45523818013),
+# against a placeholder line, reported got 46c4eb8b; this is that value.
+sha256  46c4eb8bfcfc2ce7d2f6b3d15729c2a442e6af283d0531e4c7a465d97c9cb0a1  tpi-e8f31fa80db4fe9424f179dc52f4d860baff8ea7-cargo2.tar.gz
