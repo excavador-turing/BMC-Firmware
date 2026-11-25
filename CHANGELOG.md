@@ -13,6 +13,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **A node in mass-storage mode gets a stable `/dev/disk/by-tpi/nodeN` link**
+  ([#145](https://github.com/excavador-turing/BMC-Firmware/pull/145), landed as
+  [#148](https://github.com/excavador-turing/BMC-Firmware/pull/148), Refs #140).
+  A node attached with `tpi advanced msd -n N` showed up as `/dev/sdX`, a name
+  that changes between attaches. The new `mdev-tpi-msd-symlink` helper maps a
+  whole-disk `sd[a-z]` on hub port `1-1.N` or `2-1.N` to
+  `/dev/disk/by-tpi/nodeN` and removes the link when the disk or the hub port
+  goes away. Written by Daniel Steinhauf
+  ([@danste22](https://github.com/danste22)), who ran it on node 1 of one board;
+  we will check nodes 2 to 4 on ours.
+
+### Changed
+
+- **The kernel no longer probes the unused display pipeline**
+  ([#143](https://github.com/excavador-turing/BMC-Firmware/pull/143), landed as
+  [#146](https://github.com/excavador-turing/BMC-Firmware/pull/146), Refs #138).
+  The BMC has no panel, but the display mixers and timing controllers were
+  enabled in the kernel's device tree and printed `Fixed dependency cycle(s)`
+  at boot. Five nodes are now disabled for the kernel; U-Boot's device tree is
+  unchanged. Written by Daniel Steinhauf
+  ([@danste22](https://github.com/danste22)).
+- **The kernel mounts the EROFS root without probing every filesystem first**
+  ([#144](https://github.com/excavador-turing/BMC-Firmware/pull/144), landed as
+  [#147](https://github.com/excavador-turing/BMC-Firmware/pull/147), Refs #139).
+  `boot.scr` passed `root=` without `rootfstype`, so the kernel tried each
+  built-in filesystem and logged exFAT and F2FS errors against the root device.
+  It now passes `rootfstype=erofs`; the NAND and the SD root are both EROFS,
+  and an F2FS or exFAT card still mounts. Written by Daniel Steinhauf
+  ([@danste22](https://github.com/danste22)); an SD-card boot is still to be
+  confirmed.
+
+### Tests
+
+- `tests/hw-validate.sh` is a script to run on a flashed board (it is not
+  installed in the image). It compares `br0` with the EEPROM MAC, fails the USB
+  getty check only when the getty is respawning, and takes `dsa` as the CPU
+  conduit
+  ([#142](https://github.com/excavador-turing/BMC-Firmware/pull/142), by Daniel
+  Steinhauf, [@danste22](https://github.com/danste22)). The three changes above
+  each add a check to it.
+
 ## [v2.57.0] — 2026-11-25
 
 v2.56.0 was never published; its changes ship in v2.57.0, together with the
@@ -77,8 +120,9 @@ an API request (no client we know of does) now gets 400.
   BMC-Firmware#93). `rockusb` 0.2.0 to 0.4.0 is the library that puts an RK1
   (RK3588) into USB download mode and loads its SPL loader before the eMMC is
   written; the bytes it sends are the same. Written by Daniel Steinhauf, who
-  flashed an RK1 three times with it on a board (we have no RK1 ourselves). Its
-  new crates (`maybe-async-cfg` and the proc-macro crates it builds with,
+  flashed an RK1 three times with it on a board (our own RK1s all run a live
+  cluster, so we did not reflash one for this). Its new crates
+  (`maybe-async-cfg` and the proc-macro crates it builds with,
   `strum` 0.28) all come from crates.io and passed `cargo deny`. The RK1 flash
   path is tested by him, not by us.
 - **`sha2`, `crc` and `crc32fast` are built at `opt-level = 3`** (bmcd 2.50.0,
@@ -117,8 +161,8 @@ an API request (no client we know of does) now gets 400.
 - Response times did not change with the earlier v2.56.0 pre-release: about
   0.135 s per request on the board.
 - The RK1 flash path (`rockusb` 0.4) was tested by Daniel Steinhauf
-  ([@danste22](https://github.com/danste22)), three flashes on an RK1. We have
-  no RK1, so we did not test it.
+  ([@danste22](https://github.com/danste22)), three flashes on an RK1. Our eight
+  RK1s all run a live cluster, so we did not reflash one to test it.
 - The speed of a node flash's checksums was not measured by us. The three
   checksum crates are built at full speed; everything else is unchanged.
 
