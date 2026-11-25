@@ -292,3 +292,14 @@ sha256  6c4dc88b0112a5673fec76533c70dff17386b26d14948420b8e7f3b14fe7975c  bmcd-2
 # Measured 2026-11-24: the PR build in CI's own container (run 45493633169),
 # against a placeholder line, reported got bb65cc67; this is that value.
 sha256  bb65cc67a5d46afe44eace7684a33d65757dc36ce55558749ba20e027783a4a2  bmcd-16f6169cb606acd54229ae8f0cd1ab29408eb26a-cargo2.tar.gz
+#
+# 2.51.2 (639aafb2, tag v2.51.2), from 2.50.2. 2.51.0: the update-safety API
+# (firmware_unstage, one staging lock, force=1 means cancel-then-install) and the
+# power fixes (a node that was running is switched back on after a flash, reset
+# goes through the power path; bmcd#88, bmcd#92). 2.51.1: the web serial console
+# stays open when the browser falls behind the UART (bmcd#96). 2.51.2: the "last
+# power on" time restarts when the BMC reboots and powers the nodes back on
+# (bmcd#98).
+#
+# Placeholder until CI's own container reports the got line.
+sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-639aafb2964720d0ec7b4764f04e0f88184bbccf-cargo2.tar.gz
