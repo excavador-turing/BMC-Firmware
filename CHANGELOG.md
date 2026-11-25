@@ -13,6 +13,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+**Update safety.** Five reports against the update path: an interrupted
+staging could promote an image the gate should reject, two installs could race,
+`firmware_install` offered `force=1` and then refused it, a power cut left a
+staged version on the page for ever, and there was no way to cancel a staged
+update short of a shell. Thanks to Adrian Berger
+([@adberger](https://github.com/adberger)), whose deterministic simulation of a
+board under power cuts, reboots and concurrent installs found #126, #127, #128
+and #131, each with a reproduction; and to Daniel Steinhauf
+([@danste22](https://github.com/danste22)), who asked for the cancel in #124.
+This is the firmware's half; the daemon's, `tpi`'s and the interface's are in
+bmcd, tpi and BMC-UI, and ship together with it in v2.58.0.
+
+**Not yet tested with real power cuts**, which a simulation cannot replace: the
+window in #126 depends on how long the NAND takes to write. It ships in firmware
+v2.58.0, with bmcd 2.51.x and tpi 2.1.0; `tpi firmware unstage` needs bmcd 2.51.0
+or newer, and the new bmcd needs the new scripts.
+
 ### Added
 
 - **A node in mass-storage mode gets a stable `/dev/disk/by-tpi/nodeN` link**
@@ -25,9 +42,87 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   goes away. Written by Daniel Steinhauf
   ([@danste22](https://github.com/danste22)), who ran it on node 1 of one board;
   we will check nodes 2 to 4 on ours.
+- **`/sbin/osunstage` cancels a staged update**
+  ([#124](https://github.com/excavador-turing/BMC-Firmware/issues/124), Daniel
+  Steinhauf). Under the staging lock it clears `nextboot` first (the commit
+  point of a cancel), then removes both notes and what an interrupted stager
+  left in the staging directories. It leaves the `rootfs_new` volume, which
+  nothing boots without `nextboot` and the next staging removes, and the images
+  parked on the SD card. With nothing staged it says so and succeeds. Refused
+  with exit status 4 while a tentative boot is being judged, and 75 while a stager
+  holds the lock. bmcd runs it for `POST opt=set&type=firmware_unstage`, `tpi
+  firmware unstage` calls that, and the Firmware page has a "Cancel staged
+  update" button.
+
+### Fixed
+
+- **Every note the promotion gate reads is written, and synced, before
+  `nextboot` is armed** ([#126](https://github.com/excavador-turing/BMC-Firmware/issues/126),
+  Adrian Berger). `osupdate` armed `nextboot` first and the notes after. A power
+  cut or a reboot from another client in that window produced a tentative boot
+  with neither note, the gate logged "no staged note; version check skipped" and
+  "no gateway answered before the update; gateway check skipped", and an image
+  whose switch registers its ports and carries no frame was made permanent.
+  `osupdate IMAGE [NOTE]` now takes the staged-version note from the stager
+  (`tpi-selfupdate` and bmcd write it before they call it), writes the gateway
+  note, writes both through a rename, syncs, and arms `nextboot` as its last
+  step. If anything fails before that, the notes are removed again.
+- **`S99postupdate` rejects a tentative boot with no staged note** (#126). A
+  staged note that says the gateway note was written first
+  (`GATE_NOTES=1`, written by the new `osupdate`) and finds none is rejected
+  too. A staged note from an older stager does not carry the mark, so the first
+  update *from* an older firmware keeps the old reading of a missing gateway
+  note, which is "recorded nothing" on a board with no default route; and a board
+  with no overlay directory, which cannot hold a note, is not refused.
+- **`stage-gateway-note` tries five times before it records `none`** (#126). A
+  network blip during one 2 s ping recorded `GATEWAY_PING=none` right after a
+  download through the same gateway had worked, and the gate then skipped its
+  network check for that image. It also always leaves a note now: a board with no
+  default route records `GATEWAY_PING=none` and an empty gateway, so a *missing*
+  note is only ever an interrupted staging.
+- **Installs are serialised** ([#127](https://github.com/excavador-turing/BMC-Firmware/issues/127),
+  Adrian Berger). One `flock` on `/run/firmware-stage.lock`, held for the whole
+  of an upload through bmcd, of `firmware_install`, of `tpi-selfupdate` and of
+  `osupdate` run by hand. A second stager is told `an update is being staged;
+  try again when it has finished` and nothing is touched (bmcd answers 409).
+  The lock is taken before the "already staged" question, which is only a true
+  answer while no other stager is between "started" and "armed", and before
+  anything is downloaded.
+- **`tpi-selfupdate` no longer says "power-cycle the board" for a busy volume**
+  (#127). `ubirmvol: error 16 (Device or resource busy)` now says the volume is
+  busy, that nothing was changed, and not to power-cycle for it; a power cycle
+  hard-cuts all four compute modules. The advice stays for the write errors that
+  switch UBI read-only.
+- **A power cut during the first boot of an update no longer leaves a staged
+  version on the page for ever**
+  ([#131](https://github.com/excavador-turing/BMC-Firmware/issues/131), Adrian
+  Berger). U-Boot deletes `nextboot` before it boots the staged volume, so a cut
+  before the gate decided left the old image running with the notes still on the
+  overlay. On a boot that is not tentative, with `nextboot` unset, `S99postupdate`
+  now removes the notes and logs `tentative boot did not complete; staged vX
+  discarded` to `postupdate.log`. It leaves them alone when `nextboot` cannot be
+  read, and when a stager holds the lock (it has written its notes and not armed
+  yet).
+- **`tpi-selfupdate` says what to do with an update that is already staged**
+  ([#128](https://github.com/excavador-turing/BMC-Firmware/issues/128), Adrian
+  Berger): reboot to take it, or `tpi firmware unstage`, instead of the
+  `fw_setenv nextboot` it used to ask people to type.
 
 ### Changed
 
+- **`force=1` means "cancel what is staged, then stage this"**, on both the upload
+  and `firmware_install`
+  ([#128](https://github.com/excavador-turing/BMC-Firmware/issues/128), Adrian
+  Berger). `firmware_install` answered 409 "pass force=1 to replace it" and then
+  refused `force=1`: bmcd skipped its own check and ran `tpi-selfupdate`, which
+  has no force option. The upload path honoured it by writing over the staged
+  volume with `nextboot` still pointing at it. Both now unstage first, under the
+  lock. If the install that follows fails, nothing is staged and the board boots
+  what it runs. The 409 names the three ways out: reboot, unstage, `force=1`.
+- **A firmware transfer is refused while another transfer runs**, instead of
+  replacing it (#127, in bmcd).
+- **The promotion history counts "tentative boot; checking" lines**, not any line
+  with "tentative boot" in it, so the new discard line is not an attempt (bmcd).
 - **The kernel no longer probes the unused display pipeline**
   ([#143](https://github.com/excavador-turing/BMC-Firmware/pull/143), landed as
   [#146](https://github.com/excavador-turing/BMC-Firmware/pull/146), Refs #138).
@@ -47,6 +142,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   confirmed.
 
 ### Tests
+
+`tests/osupdate.sh` (the order, with a trace of every tool and what was on disk
+when `nextboot` was armed; the lock), `tests/osunstage.sh`,
+`tests/selfupdate-failure.sh` (the note is handed over before `osupdate` runs;
+the lock; EBUSY) and `tests/gate.sh` (notes missing, notes stale, the lock held,
+`start()` end to end, the stager's retries). The CI mutation step has a mutation
+for each of these, so a suite that cannot say no fails.
 
 - `tests/hw-validate.sh` is a script to run on a flashed board (it is not
   installed in the image). It compares `br0` with the EEPROM MAC, fails the USB

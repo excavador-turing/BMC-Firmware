@@ -50,6 +50,8 @@ jobs:
           dash tests/version.sh
           dash tests/listing.sh
           dash tests/selfupdate-failure.sh
+          dash tests/osupdate.sh
+          dash tests/osunstage.sh
 
       - name: contract tests (busybox ash, as on the board)
         run: |
@@ -57,6 +59,8 @@ jobs:
           busybox ash tests/version.sh
           busybox ash tests/listing.sh
           busybox ash tests/selfupdate-failure.sh
+          busybox ash tests/osupdate.sh
+          busybox ash tests/osunstage.sh
 
       # The gate is only as good as its ability to say no. If a mutation that
       # removes a rejection still passes the suite, the suite is decorative.
@@ -99,6 +103,16 @@ jobs:
                  'the gateway is never required to answer'
           mutate 's|if ! gateway_reachable; then|if false; then|' \
                  'the gate never asks about the gateway'
+          mutate 's|\tif \[ ! -f "$STAGED_NOTE" \]; then|\tif false; then|' \
+                 'a tentative boot with no staged note is accepted'
+          mutate 's|&& \[ ! -f "$GATEWAY_NOTE" \]; then|\&\& false; then|' \
+                 'a staged note that promised a gateway note is accepted without it'
+          mutate 's|if ! notes_present; then|if false; then|' \
+                 'the gate never asks whether its notes are there'
+          mutate 's|if \[ "$(nextboot_state)" != unset \]; then|if true; then|' \
+                 'stale notes are never discarded on a normal boot'
+          mutate 's|if \[ "$(nextboot_state)" != unset \]; then|if false; then|' \
+                 'notes are discarded even while nextboot is armed'
 
           # The stager is the other half of the safeguard: a gate that asks is
           # worthless if the note it reads always says "answered", or never
@@ -149,6 +163,59 @@ jobs:
           done
           cp /tmp/updater.orig "$updater"
 
+          # The staging order and the lock. Each mutation undoes one thing
+          # the osupdate and tpi-selfupdate suites exist to hold.
+          osupdate=tp2bmc/board/tp2bmc/overlay/sbin/osupdate
+          cp "$osupdate" /tmp/osupdate.orig
+          trap 'cp /tmp/gate.orig "$gate"; cp /tmp/updater.orig "$updater"; cp /tmp/stager.orig "$stager"; cp /tmp/osupdate.orig "$osupdate"' EXIT
+          for m in 's|^\t"$SYNC_BIN"$|\ttrue|' \
+                   's|^\tGATEWAY_NOTE=$GATEWAY_NOTE "$GATEWAY_NOTE_BIN" \|\| true$|\ttrue|' \
+                   's|^\ttake_stage_lock$|\ttrue|' \
+                   's|^\tif nextboot_armed; then$|\tif false; then|' \
+                   's|^\tif \[ "$ARMED" -ne 1 \]; then$|\tif false; then|'; do
+            cp /tmp/osupdate.orig "$osupdate"
+            sed -i "$m" "$osupdate"
+            if cmp -s /tmp/osupdate.orig "$osupdate"; then
+              echo "MUTATION DID NOT APPLY: $m"
+              fails=$((fails + 1))
+            elif dash tests/osupdate.sh >/dev/null 2>&1; then
+              echo "NOT CAUGHT: osupdate mutation $m"
+              fails=$((fails + 1))
+            else
+              echo "caught: osupdate mutation $m"
+            fi
+          done
+          cp /tmp/osupdate.orig "$osupdate"
+
+          # And the arming order itself: nextboot armed before the notes.
+          sed -i -e '/^\tfw_setenv nextboot "$NEXTBOOT"$/d' \
+                 -e 's|^\tdrop_notes$|\tfw_setenv nextboot "$NEXTBOOT"\n\tdrop_notes|' "$osupdate"
+          if dash tests/osupdate.sh >/dev/null 2>&1; then
+            echo "NOT CAUGHT: nextboot armed before the notes"
+            fails=$((fails + 1))
+          else
+            echo "caught: nextboot armed before the notes"
+          fi
+          cp /tmp/osupdate.orig "$osupdate"
+
+          # The lock in the other stager, and the busy advice.
+          for m in 's|^take_stage_lock$|true|' \
+                   's|^\tflock -n 9 \|\| die .*$|\ttrue|' \
+                   's|error 16 (Device or resource busy)|error 0|'; do
+            cp /tmp/updater.orig "$updater"
+            sed -i "$m" "$updater"
+            if cmp -s /tmp/updater.orig "$updater"; then
+              echo "MUTATION DID NOT APPLY: $m"
+              fails=$((fails + 1))
+            elif dash tests/selfupdate-failure.sh >/dev/null 2>&1; then
+              echo "NOT CAUGHT: tpi-selfupdate mutation $m"
+              fails=$((fails + 1))
+            else
+              echo "caught: tpi-selfupdate mutation $m"
+            fi
+          done
+          cp /tmp/updater.orig "$updater"
+
           [ "$fails" -eq 0 ]
 
   shell:
@@ -187,6 +254,8 @@ jobs:
             tests/pins-are-current.sh \
             tests/toolchain-fragment.sh \
             tests/selfupdate-failure.sh \
+            tests/osupdate.sh \
+            tests/osunstage.sh \
             tp2bmc/package/bmcd/generate_self_signedx509.sh \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S00sysrq \
             tp2bmc/board/tp2bmc/overlay/usr/sbin/mdnsd-guard \
@@ -195,6 +264,7 @@ jobs:
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/osupdate \
+            tp2bmc/board/tp2bmc/overlay/sbin/osunstage \
             tp2bmc/board/tp2bmc/overlay/sbin/stage-gateway-note \
             tp2bmc/board/tp2bmc/overlay/usr/bin/mdev-tpi-msd-symlink
 

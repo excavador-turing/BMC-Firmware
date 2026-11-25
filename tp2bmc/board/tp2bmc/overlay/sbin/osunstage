@@ -1,0 +1,106 @@
+#!/bin/sh -eu
+
+# Cancel a staged firmware update: the board keeps running what it runs, and
+# a reboot no longer takes the staged image.
+#
+# Usage: osunstage
+#
+# What it does, in this order:
+# 1) Takes the staging lock (see /sbin/osupdate). A stager that is still
+#    writing holds it, and cancelling under it would pull the volume away from
+#    a running ubiupdatevol: exit status 75, nothing touched.
+# 2) Clears `nextboot`. That is the commit point of a cancel, as arming it is
+#    the commit point of a staging: once it is gone the next boot is an
+#    ordinary one, whatever happens next.
+# 3) Removes the notes the gate reads (staged-firmware, staged-gateway), and
+#    what an interrupted stager left in the staging directories.
+#
+# What it leaves alone: the rootfs_new volume. Nothing boots it without
+# nextboot, the next staging removes it, and removing a UBI volume is a flash
+# operation with its own failure modes that a cancel has no reason to risk.
+# The SD card's parked images (`/mnt/sdcard/firmware`) are never touched.
+#
+# Safe to run when nothing is staged: it says so and exits 0. A cut between 2
+# and 3 leaves notes without nextboot, which S99postupdate discards at the
+# next boot.
+#
+# Refused (exit status 4) while a tentative boot is being judged: the new
+# image is up, the gate is waiting on it, and removing the staged note under
+# the gate would make it reject an image that is working. Wait for the verdict.
+#
+# bmcd runs this for `opt=set&type=firmware_unstage`, holding the lock itself
+# and exporting STAGE_LOCK_HELD=1, as it does for tpi-selfupdate.
+#
+# Exit status: 0 done (or nothing to do), 1 failed, 4 a tentative boot is
+# being judged, 75 a stager holds the lock.
+
+STAGE_LOCK=${STAGE_LOCK:-/run/firmware-stage.lock}
+STAGED_NOTE=${STAGED_NOTE:-/mnt/overlay/staged-firmware}
+GATEWAY_NOTE=${GATEWAY_NOTE:-/mnt/overlay/staged-gateway}
+PROC_CMDLINE=${PROC_CMDLINE:-/proc/cmdline}
+
+# The directories a stager may have left files in. The names are the ones
+# tpi-selfupdate (`.tp2-bmc-firmware-ota-*`) and bmcd's upload worker
+# (`os_upgrade`) use; whatever is there while the lock is ours is stale.
+STAGING_DIRS=${STAGING_DIRS:-/mnt/sdcard /mnt/overlay /tmp}
+
+EX_TENTATIVE=4
+EX_BUSY=75
+
+log() { echo "osunstage: $*" >&2; }
+
+take_stage_lock() {
+	if [ "${STAGE_LOCK_HELD:-}" = 1 ]; then
+		return 0
+	fi
+	if ! command -v flock >/dev/null 2>&1; then
+		log "no flock on this board; refusing to run without the staging lock"
+		exit 1
+	fi
+	if [ ! -d "$(dirname "$STAGE_LOCK")" ]; then
+		log "$(dirname "$STAGE_LOCK") does not exist; cannot take the staging lock"
+		exit 1
+	fi
+	exec 9>"$STAGE_LOCK"
+	if ! flock -n 9; then
+		log "an update is being staged; try again when it has finished"
+		exit "$EX_BUSY"
+	fi
+	STAGE_LOCK_HELD=1
+	export STAGE_LOCK_HELD
+}
+
+note_version() {
+	sed -n 's/^VERSION=//p' "$STAGED_NOTE" 2>/dev/null | head -1 | tr -d '\r'
+}
+
+take_stage_lock
+
+# A tentative boot is in progress when the kernel was started for one and the
+# gate has not yet decided: it removes the staged note when it does.
+if grep -q 'postupdate' "$PROC_CMDLINE" 2>/dev/null && [ -f "$STAGED_NOTE" ]; then
+	log "the new firmware is being checked; wait for the verdict before cancelling"
+	exit "$EX_TENTATIVE"
+fi
+
+armed=$(fw_printenv -n nextboot 2>/dev/null || true)
+version=$(note_version)
+
+if [ -z "$armed" ] && [ ! -e "$STAGED_NOTE" ] && [ ! -e "$GATEWAY_NOTE" ]; then
+	log "nothing is staged"
+	exit 0
+fi
+
+if [ -n "$armed" ]; then
+	fw_setenv nextboot
+fi
+rm -f "$STAGED_NOTE" "$STAGED_NOTE.new" "$GATEWAY_NOTE" "$GATEWAY_NOTE.new"
+
+for dir in $STAGING_DIRS; do
+	[ -d "$dir" ] || continue
+	rm -rf "$dir/os_upgrade"
+	rm -f "$dir"/.tp2-bmc-firmware-ota-*
+done
+
+sync
+log "unstaged ${version:-the staged update}; the next boot starts the running firmware"

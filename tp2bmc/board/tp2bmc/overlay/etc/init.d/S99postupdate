@@ -43,6 +43,28 @@
 #
 # A false rollback costs one extra BMC reboot. That does not power-cycle the
 # compute nodes, so the cost of being wrong is small and the direction is safe.
+#
+# MISSING NOTES ARE A REJECTION. The stagers write every note this gate reads
+# -- and sync it -- before they arm nextboot (/sbin/osupdate, step 6), so a
+# tentative boot with no staged note can only be an interrupted staging or a
+# note removed behind its back, and an image nothing vouches for is not made
+# permanent. This used to be the other way round: "no staged note; version
+# check skipped", and the same for the gateway note, which let an update that
+# was cut or rebooted in the window between "nextboot armed" and "notes
+# written" promote an image whose network was dead (BMC-Firmware#126). Two
+# leniencies remain, each for a stager this gate cannot ask to change: a board
+# with no overlay mounted cannot hold a note at all, and a staged note from
+# before this change does not carry GATE_NOTES=1, so a missing gateway note
+# is still read as "that stager recorded nothing".
+#
+# THE OTHER HALF, a normal boot. U-Boot deletes nextboot before it boots the
+# staged volume. When power is lost during that tentative boot, before this
+# script decides, the next boot is an ordinary one on the old image with
+# nextboot unset -- and the notes of an update that will never boot are still
+# on the overlay, where the firmware page shows a staged version for ever
+# (BMC-Firmware#131). So on a boot that is not tentative, with nextboot unset,
+# the notes are discarded and the decision is logged. A stager that is writing
+# at that moment holds the staging lock, and its notes are left alone.
 
 UBIDEV=/dev/ubi0
 ROOTFS_PRIMARY=rootfs
@@ -66,6 +88,10 @@ STAGED_NOTE=/mnt/overlay/staged-firmware
 # still ran. A file of its own, because bmcd writes STAGED_NOTE itself, and
 # replaces it whole, on the upload path. Removed with the staged note.
 GATEWAY_NOTE=/mnt/overlay/staged-gateway
+
+# The staging lock every stager holds (see /sbin/osupdate). Held by a stager
+# that is mid-write, which has notes on disk and has not armed nextboot yet.
+STAGE_LOCK=/run/firmware-stage.lock
 
 # What the rollback volume holds, written here at promotion because this is
 # the only moment anything knows: the volume itself is never mounted.
@@ -93,6 +119,12 @@ HEALTH_INTERVAL=3
 GATEWAY_TIMEOUT=60
 GATEWAY_INTERVAL=3
 PING_BIN=ping
+
+# The tool that reads the U-Boot environment, and the kernel command line,
+# where a tentative boot says "postupdate". Variables, like the paths above,
+# so tests/gate.sh can stub them.
+FW_PRINTENV_BIN=fw_printenv
+PROC_CMDLINE=/proc/cmdline
 
 # The network interfaces the DSA switch driver creates, one per compute node.
 # If the driver fails to probe, these do not appear at all.
@@ -325,6 +357,8 @@ release_matches() {
 	staged=$(note_version)
 
 	if [ -z "$staged" ]; then
+		# A missing note was refused by notes_present, which runs first; this
+		# only sees one on a board with no overlay to hold it.
 		if [ -f "$STAGED_NOTE" ]; then log "staged note carries no version; version check skipped"
 		else log "no staged note; version check skipped"; fi
 	elif ! is_versioned "$staged"; then
@@ -355,6 +389,40 @@ release_matches() {
 }
 
 #
+# notes_present
+#
+# The first thing the gate asks: is everything it is about to read there? The
+# stagers write the notes before they arm nextboot, so a tentative boot with
+# none is an interrupted staging, and judging the image without them would
+# skip exactly the checks that need them. Refused, with the reason in the log.
+#
+# Two things are not refused, both logged: a board with no overlay directory
+# (it cannot hold a note, and could not before), and a gateway note that is
+# missing under a staged note from a stager that never promised one -- the
+# staged note carries GATE_NOTES=1 only when the gateway note was written
+# before it.
+#
+notes_present() {
+	notes_dir=$(dirname "$STAGED_NOTE")
+	if [ ! -d "$notes_dir" ]; then
+		log "no $notes_dir; the staged notes cannot exist, so the note check is skipped"
+		return 0
+	fi
+
+	if [ ! -f "$STAGED_NOTE" ]; then
+		log "FAILED: no staged note on a tentative boot; staging did not finish before the reboot"
+		return 1
+	fi
+
+	if grep -qx 'GATE_NOTES=1' "$STAGED_NOTE" 2>/dev/null && [ ! -f "$GATEWAY_NOTE" ]; then
+		log "FAILED: the staged note says the gateway note was written first, and there is none"
+		return 1
+	fi
+
+	return 0
+}
+
+#
 # health_ok
 #
 # The gate. Waits for the daemon, checks the switch and its uplinks, the EEPROM
@@ -362,6 +430,10 @@ release_matches() {
 # serves metrics, and that a gateway which answered before still answers.
 #
 health_ok() {
+	if ! notes_present; then
+		return 1
+	fi
+
 	waited=0
 	answered=0
 
@@ -520,15 +592,85 @@ drop_stale_notes() {
 	fi
 }
 
+#
+# nextboot_state
+#
+# armed, unset or unknown. `fw_printenv -n` exits non-zero both for a variable
+# that is not set and for an environment it cannot read; only the first says
+# "not defined". Unknown is never treated as unset: the caller then keeps
+# what it has.
+#
+nextboot_state() {
+	out=$("$FW_PRINTENV_BIN" -n nextboot 2>&1) && rc=0 || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		if [ -n "$out" ]; then echo armed; else echo unset; fi
+		return 0
+	fi
+	case "$out" in
+		*"not defined"*) echo unset ;;
+		*) echo unknown ;;
+	esac
+}
+
+#
+# drop_unarmed_notes
+#
+# A boot that is not tentative, with nextboot unset: whatever staged notes
+# there are describe an update that is not going to boot. Either the staging
+# was cut before it armed nextboot, or the tentative boot was cut before the
+# gate decided (U-Boot has already deleted nextboot by then) and the board came
+# back on the old image. Either way the firmware page would show a staged
+# version for ever. Remove the notes and say so.
+#
+# Left alone when a stager holds the staging lock: it has written its notes
+# and not armed nextboot yet, and is about to. If the notes went, the update
+# would still arm and then fail its gate for a missing note, safe but
+# pointless. Left alone too when nextboot cannot be read.
+#
+# Never fatal.
+#
+drop_unarmed_notes() {
+	if [ ! -e "$STAGED_NOTE" ] && [ ! -e "$GATEWAY_NOTE" ]; then
+		return 0
+	fi
+	if [ "$(nextboot_state)" != unset ]; then
+		return 0
+	fi
+
+	staged=$(note_version)
+	had_staged=0
+	if [ -e "$STAGED_NOTE" ]; then had_staged=1; fi
+
+	if [ -w "$(dirname "$STAGE_LOCK")" ] && command -v flock >/dev/null 2>&1; then
+		if ! (
+			exec 9>"$STAGE_LOCK" && flock -n 9 \
+				&& rm -f "$STAGED_NOTE" "$STAGED_NOTE.new" "$GATEWAY_NOTE" "$GATEWAY_NOTE.new"
+		) 2>/dev/null; then
+			log "a stager holds the staging lock; its notes are left in place"
+			return 0
+		fi
+	else
+		rm -f "$STAGED_NOTE" "$STAGED_NOTE.new" "$GATEWAY_NOTE" "$GATEWAY_NOTE.new" 2>/dev/null || true
+	fi
+
+	if [ "$had_staged" -eq 1 ]; then
+		log "tentative boot did not complete; staged ${staged:-update} discarded (nextboot is not armed)"
+	else
+		log "staging did not finish; the stale gateway note is discarded (nextboot is not armed)"
+	fi
+}
+
 start() {
 	drop_stale_notes
 
-	if ! grep -q 'postupdate' /proc/cmdline; then
+	if ! grep -q 'postupdate' "$PROC_CMDLINE"; then
+		drop_unarmed_notes
 		return 0
 	fi
 
 	# Nothing to promote: this boot is already on the primary volume.
 	if [ "$(ubi_block_name)" = "$ROOTFS_PRIMARY" ]; then
+		drop_unarmed_notes
 		return 0
 	fi
 
