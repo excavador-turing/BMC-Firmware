@@ -22,7 +22,10 @@ CONFIG_SMP=y
 CONFIG_SCHED_MC=y
 CONFIG_HAVE_ARM_ARCH_TIMER=y
 CONFIG_ARM_PSCI=y
-CONFIG_OABI_COMPAT=y
+# ARM selects HAVE_ARCH_SECCOMP_FILTER only when AEABI && !OABI_COMPAT.
+# On 6.18.63 SECCOMP_FILTER is then def_bool y if SECCOMP and NET are on.
+# That dependency does not include BPF_SYSCALL, so the bpf() syscall stays off.
+# CONFIG_OABI_COMPAT is not set
 # CONFIG_ARM_MODULE_PLTS is not set
 # CONFIG_ATAGS is not set
 CONFIG_CMDLINE="loglevel=8 initcall_debug=1 console=ttyS0 init=/init"
