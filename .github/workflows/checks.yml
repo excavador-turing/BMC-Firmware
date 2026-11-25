@@ -195,7 +195,8 @@ jobs:
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S99postupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/tpi-selfupdate \
             tp2bmc/board/tp2bmc/overlay/sbin/osupdate \
-            tp2bmc/board/tp2bmc/overlay/sbin/stage-gateway-note
+            tp2bmc/board/tp2bmc/overlay/sbin/stage-gateway-note \
+            tp2bmc/board/tp2bmc/overlay/usr/bin/mdev-tpi-msd-symlink
 
   # A firmware release ships the LATEST bmcd, BMC-UI and tpi. Standing rule,
   # owner's, 2026-09-11. It is a check rather than a habit because every one of
