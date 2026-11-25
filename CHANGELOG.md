@@ -25,6 +25,9 @@ and #131, each with a reproduction; and to Daniel Steinhauf
 This is the firmware's half; the daemon's, `tpi`'s and the interface's are in
 bmcd, tpi and BMC-UI, and ship together with it in v2.58.0.
 
+Pins **bmcd 2.51.2** (v2.57.0 had 2.50.2), **tpi 2.1.0** (2.0.1) and **BMC-UI
+4.9.1** (4.8.1). The kernel stays at 6.18.63.
+
 **Not yet tested with real power cuts**, which a simulation cannot replace: the
 window in #126 depends on how long the NAND takes to write. It ships in firmware
 v2.58.0, with bmcd 2.51.x and tpi 2.1.0; `tpi firmware unstage` needs bmcd 2.51.0
@@ -53,6 +56,25 @@ or newer, and the new bmcd needs the new scripts.
   holds the lock. bmcd runs it for `POST opt=set&type=firmware_unstage`, `tpi
   firmware unstage` calls that, and the Firmware page has a "Cancel staged
   update" button.
+- **`firmware_unstage` in the daemon, `tpi firmware unstage`, and "Cancel staged
+  update" on the Firmware page** (bmcd 2.51.0 and bmcd#92, tpi 2.1.0 and tpi#36,
+  BMC-UI 4.9.0 and BMC-UI#74; BMC-Firmware#124, asked for by Daniel Steinhauf,
+  [@danste22](https://github.com/danste22)). `POST opt=set&type=firmware_unstage`
+  (also `POST /api/bmc/firmware/unstage`) runs `osunstage`. The command names what
+  it cancelled, says so when nothing was staged (not an error), and says when it
+  removed the note of an update that was never armed. The page asks for a
+  confirmation that names the version and what stays. `tpi` and the page need
+  bmcd 2.51.0 or newer on the board; an older one is told so.
+- **One staging lock in the daemon**, shared with the firmware's scripts (bmcd
+  2.51.0, bmcd#92, BMC-Firmware#127): a second stager gets a 409 `an update is
+  being staged; try again when it has finished`, before any byte is sent.
+- **The Console says when its output looks like the wrong speed, and shows each
+  node's speed** (BMC-UI 4.9.1, BMC-UI#75). A module whose console runs faster than
+  the node's stored speed shows replacement characters and control bytes, and
+  nothing on the page said why. When a high share of the last 4 KiB is unreadable,
+  a notice says "This looks like the wrong console speed. RK1 uses 1500000, CM4
+  and most others 115200.", names the speed the node is set to, and links to Power
+  Control. Reported by DingoDogz on Discord.
 
 ### Fixed
 
@@ -107,6 +129,38 @@ or newer, and the new bmcd needs the new scripts.
   ([#128](https://github.com/excavador-turing/BMC-Firmware/issues/128), Adrian
   Berger): reboot to take it, or `tpi firmware unstage`, instead of the
   `fw_setenv nextboot` it used to ask people to type.
+- **The web serial console stays open when the browser falls behind the UART**
+  (bmcd 2.51.1, bmcd#96). At 1500000 baud it ended with `close code 1011: channel
+  lagged by 2`: the read fan-out held 8 chunks. A client that lags now stays
+  attached and the stream carries a line where the output was lost; the fan-out
+  holds 256 chunks, 2 MiB at most per node. Reported by DingoDogz on Discord, from
+  an RK1 running Talos.
+- **The "last power on" time restarts when the BMC reboots and powers the nodes
+  back on** (bmcd 2.51.2, bmcd#98). On a v2.4 board a BMC reboot cuts the power of
+  the nodes and the daemon switches them back on at start, but left the time of
+  the last switch from the UI or the API, so the page showed a stale one. A cold
+  boot stamps every node it powers on; a restart of the daemon under running nodes
+  keeps the stamps. Reported by DingoDogz on Discord, from a v2.4 board.
+- **A node that was running is switched back on after a flash**, and `type=reset`
+  goes through the same path as a power request, so the state the API reports and
+  the rails agree (bmcd 2.51.0, bmcd#88, BMC-Firmware#122 and #129; #122 reported
+  by Daniel Steinhauf, the power-state problem found by Adrian Berger's
+  simulation). See Changed for what a client may notice.
+- **Every request of the web interface has a limit, so a lost board shows within
+  seconds** (BMC-UI 4.9.0, BMC-UI#71, BMC-Firmware#121). Reads time out after 8
+  seconds, state changes after 15, long operations after 2 minutes; a change that
+  got no answer says "The board did not answer. The change may or may not have
+  been applied", and the page never reloads itself during an upload, install,
+  flash or backup. Found by Daniel Steinhauf in Safari 26.6.2.
+- **The serial console shows its last line** (BMC-UI 4.9.0, BMC-UI#72,
+  BMC-Firmware#125). The terminal was fitted one row too tall, so the line with the
+  cursor ran under the clipped edge. Found by Daniel Steinhauf in Safari.
+- **The install dialog no longer allows a second install, and closes when you
+  confirm** (BMC-UI 4.9.1, BMC-UI#76). It stayed open until the board answered and
+  "Continue" stayed enabled, so pressing it twice started a second install while
+  the first was still writing the spare slot. Progress, a failure that stays until
+  dismissed and the "Staged" notice with "Reboot to apply" show on the page.
+  Reported by DingoDogz on Discord.
 
 ### Changed
 
@@ -140,6 +194,18 @@ or newer, and the new bmcd needs the new scripts.
   and an F2FS or exFAT card still mounts. Written by Daniel Steinhauf
   ([@danste22](https://github.com/danste22)); an SD-card boot is still to be
   confirmed.
+- **A reset of a node that is off is refused with a 409**, where it used to power
+  the node on, and **a node that was running is switched back on after a flash**
+  (bmcd 2.51.0, bmcd#88). **Behaviour change:** a client that used `type=reset` to
+  switch a node on must use `type=power`, and anyone who relied on a flashed node
+  staying off must switch it off before flashing.
+- **`tpi firmware install --force` cancels what is staged, then installs**
+  (tpi 2.1.0, tpi#36, BMC-Firmware#128, found by Adrian Berger). The flag is
+  unchanged; its help now says what it means.
+- **tpi's AUR workflow is removed and its install instructions point at this
+  fork** (tpi 2.1.0, tpi#35, BMC-Firmware#123, found by Daniel Steinhauf). The
+  workflow never ran, could not have published, and would have built the wrong
+  thing.
 
 ### Tests
 
