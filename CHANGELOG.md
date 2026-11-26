@@ -91,17 +91,20 @@ or newer, and the new bmcd needs the new scripts.
   `Turing Pi 2 (v2.4)` the helper now takes the node from the USB mux itself:
   bmcd holds the four select lines (`PG0`..`PG3` of `gpiochip0`) as outputs, and
   the kernel lists a claimed line with its level in `/sys/kernel/debug/gpio`.
-  Exactly one enable line low is a route, and the select line of that mux says
-  which of its two nodes. It needs no token and no change in bmcd. When the lines
+  The image did not mount debugfs, so a new `S00debugfs` mounts it at boot (the
+  helper mounts it too if it is missing), and the helper reads the header
+  `gpiochip0: 224 GPIOs, ...` this kernel prints. Exactly one enable line low is
+  a route, and the select line of that mux says which of its two nodes. It needs
+  no token and no change in bmcd. When the lines
   cannot be read or make no sense, there is no link, not a guess. The link goes
   when the disk does, as on v2.5, and the USB remove of `1-1` or `2-1` also
   sweeps one whose disk is gone. v2.5 and v2.5.1 behave as before: the hub port
   names the node and the mux is not read. The new `tests/mdev-tpi-msd-symlink.sh`
   runs the helper against a scratch tree for both layouts (all four nodes on
   both root ports, removal, the mux moving between nodes, unreadable states) and
-  runs in CI under dash and busybox ash. **Not yet checked on the board for
-  nodes 2 to 4**, nor for the order of the select lines against the wiring, which
-  the table follows from bmcd's pin controller.
+  runs in CI under dash and busybox ash, with debugfs lines copied from the
+  board. The line levels for nodes 1 to 4 were read on the v2.4 board and match
+  the table; the link itself is not yet checked there with the new image.
 
 - **v2.58.0-rc.1 could not be installed from stock upstream firmware: the gate
   rejected the missing note** (Refs #126). Found on our own v2.4 board during a

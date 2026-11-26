@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# Mount debugfs. The kernel has CONFIG_DEBUG_FS, but nothing on this image
+# mounted it, so /sys/kernel/debug/gpio did not exist.
+#
+# mdev-tpi-msd-symlink reads the level of the USB mux lines there to tell which
+# node a disk on a v2.4 board belongs to (v2.4 has no hub; the BMC routes one
+# node at a time onto the root port). The helper mounts it itself when it is
+# missing; this is the same mount, done once at boot so it is not left to the
+# first disk.
+
+case "$1" in
+	start|"")
+		printf 'Mounting debugfs: '
+		if mountpoint -q /sys/kernel/debug 2>/dev/null; then
+			echo "already mounted"
+		elif mount -t debugfs none /sys/kernel/debug >/dev/null 2>&1; then
+			echo "OK"
+		else
+			# Only a convenience for tools; never worth failing the boot over.
+			echo "FAIL"
+		fi
+		;;
+	stop)
+		;;
+	restart|reload)
+		"$0" start
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart}"
+		exit 1
+		;;
+esac
+exit 0

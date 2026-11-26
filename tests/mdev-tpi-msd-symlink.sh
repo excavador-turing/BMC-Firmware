@@ -27,7 +27,20 @@ trap 'rm -rf "$work"' EXIT INT TERM
 TPI_ROOT="$work/root"
 by="$TPI_ROOT/dev/disk/by-tpi"
 
+# A stand-in for mount(8) that "mounts" debugfs by writing the file from
+# $STUB_DEBUGFS_GPIO, so the helper's own mount can be tested.
+mkdir -p "$work/bin"
+cat > "$work/bin/mount" <<'STUB'
+#!/bin/sh
+[ -n "${STUB_DEBUGFS_GPIO:-}" ] || exit 1
+[ "$1" = -t ] && [ "$2" = debugfs ] || exit 1
+cp "$STUB_DEBUGFS_GPIO" "$4/gpio"
+STUB
+chmod +x "$work/bin/mount"
+PATH="$work/bin:$PATH"
+
 reset() {
+	unset STUB_DEBUGFS_GPIO
 	rm -rf "$TPI_ROOT"
 	mkdir -p "$TPI_ROOT/proc/device-tree" "$TPI_ROOT/sys/kernel/debug" \
 		"$TPI_ROOT/sys/class/block" "$TPI_ROOT/sys/block" "$TPI_ROOT/dev"
@@ -71,6 +84,27 @@ route_to() {
 	3) gpio_dump "$b" lo hi hi lo ;;
 	4) gpio_dump "$b" hi hi hi lo ;;
 	esac
+}
+
+# hw_route NODE: debugfs exactly as read on a v2.4 board with node N in msd mode
+# (v2.58.0-rc.2, 2026-11-26): no first GPIO in the header, consumer "?".
+hw_route() {
+	case "$1" in
+	1) v="hi lo lo hi" ;;
+	2) v="hi hi lo hi" ;;
+	3) v="lo hi hi lo" ;;
+	4) v="hi hi hi lo" ;;
+	esac
+	set -- $v
+	cat > "$TPI_ROOT/sys/kernel/debug/gpio" <<HW
+gpiochip0: 224 GPIOs, parent: platform/2000000.pinctrl, 2000000.pinctrl:
+ gpio-96  (                    |nodes               ) in  lo ACTIVE LOW
+ gpio-107 (                    |nodes               ) in  lo ACTIVE LOW
+ gpio-192 (                    |?                   ) out $1 
+ gpio-193 (                    |?                   ) out $2 
+ gpio-194 (                    |?                   ) out $3 
+ gpio-195 (                    |?                   ) out $4 
+HW
 }
 
 # disk NAME PORT: a block device whose device sits below the USB path PORT, as
@@ -151,6 +185,35 @@ reset; board v2.4
 route_to 2
 disk sdb 2-1; add sdb
 expect_link 2 /dev/sdb "the link follows the device name"
+
+echo "3b. v2.4, debugfs as the board prints it"
+for n in 1 2 3 4; do
+	reset; board v2.4
+	hw_route "$n"
+	disk sda 2-1; add sda
+	expect_link "$n" /dev/sda "header '224 GPIOs', mux on node $n: node$n"
+done
+reset; board v2.4
+hw_route 1
+sed -i 's/gpio-19\([2-5]\) /gpio-4\1 /; s/224 GPIOs/32 GPIOs/' "$TPI_ROOT/sys/kernel/debug/gpio"
+disk sda 2-1; add sda
+expect_none "a line number past the chip's count is not read as offset 192"
+# A shell that runs applets before looking at PATH never reaches the stub.
+if [ "$(sh -c 'command -v mount')" = "$work/bin/mount" ]; then
+	reset; board v2.4
+	hw_route 3
+	mv "$TPI_ROOT/sys/kernel/debug/gpio" "$work/gpio.fixture"
+	STUB_DEBUGFS_GPIO="$work/gpio.fixture"
+	export STUB_DEBUGFS_GPIO
+	disk sda 2-1; add sda
+	expect_link 3 /dev/sda "debugfs not mounted: the helper mounts it and reads the mux"
+	unset STUB_DEBUGFS_GPIO
+else
+	printf '  skip debugfs not mounted: this shell runs the mount applet, not the stub\n'
+fi
+reset; board v2.4
+disk sda 2-1; add sda
+expect_none "debugfs not mounted and the mount fails: no link"
 
 echo "4. v2.4, the mux state cannot be told: no link rather than a wrong one"
 reset; board v2.4

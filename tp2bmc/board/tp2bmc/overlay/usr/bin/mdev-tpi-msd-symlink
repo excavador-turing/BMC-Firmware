@@ -48,20 +48,36 @@ board_is_hubless() {
 # by bmcd, both muxes on or off) is "unknown", and then no link is better than a
 # wrong one.
 #
-# /sys/kernel/debug/gpio prints, for a claimed line, the chip's global number:
-#   gpiochip0: GPIOs 512-767, parent: platform/..., ...:
-#    gpio-704 (                    |gpiod               ) out hi
-# so the offset is that number minus the chip's first GPIO.
+# /sys/kernel/debug/gpio prints, for a claimed line, the chip's global number,
+# so the offset is that number minus the chip's first GPIO. The header says it
+# one of two ways, depending on the kernel:
+#   gpiochip0: GPIOs 512-767, parent: platform/..., ...:     (first GPIO given)
+#   gpiochip0: 224 GPIOs, parent: platform/2000000.pinctrl, 2000000.pinctrl:
+#    gpio-192 (                    |?                   ) out hi
+# The second gives no first GPIO. This chip's lines are numbered from 0 there
+# (measured on a v2.4 board: the line of offset 192 is gpio-192), so the count
+# is the limit: a number at or above it would mean a base that is not 0, and
+# then the helper says "unknown" rather than read the wrong lines.
 usb_mux_node() {
 	f="${root}/sys/kernel/debug/gpio"
+	# The image does not mount debugfs by itself on every build; S00debugfs does
+	# at boot, and this is the same mount if it is not there yet.
+	[ -r "$f" ] || mount -t debugfs none "${root}/sys/kernel/debug" >/dev/null 2>&1
 	[ -r "$f" ] || return 1
-	chip=0 base='' sel2='' sel1='' oe1='' oe2=''
+	chip=0 base='' limit='' sel2='' sel1='' oe1='' oe2=''
 	while IFS= read -r line; do
 		case "$line" in
 		"gpiochip0: GPIOs "*)
 			chip=1
 			rest=${line#"gpiochip0: GPIOs "}
 			base=${rest%%[-,]*}
+			continue
+			;;
+		"gpiochip0: "[0-9]*" GPIOs"*)
+			chip=1
+			rest=${line#"gpiochip0: "}
+			limit=${rest%% *}
+			base=0
 			continue
 			;;
 		gpiochip*)
@@ -86,6 +102,12 @@ usb_mux_node() {
 		hi | lo) ;;
 		*) continue ;;
 		esac
+		case "$limit" in
+		*[!0-9]*) return 1 ;;
+		esac
+		if [ -n "$limit" ] && [ "$num" -ge "$limit" ]; then
+			return 1
+		fi
 		case $((num - base)) in
 		192) sel2=$state ;;
 		193) sel1=$state ;;
