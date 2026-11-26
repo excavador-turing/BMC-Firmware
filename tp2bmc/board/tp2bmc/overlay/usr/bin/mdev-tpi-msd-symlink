@@ -2,8 +2,19 @@
 # BusyBox mdev: stable symlinks for Turing Pi 2 node MSD (#225).
 # Whole-disk sd[a-z] on internal hub ports 1-1.N (usb1) or 2-1.N (usb2).
 # Includes RockUSB (ff) and standard UMS (08) on those ports — not other USB buses.
+#
+# v2.4 has no hub: the BMC multiplexes ONE node at a time onto the root port,
+# so the disk sits directly on 1-1 or 2-1 and its path does not say which node
+# it is. There the node is the one the USB mux routes to. bmcd holds the four
+# mux select lines (PG0..PG3 on gpiochip0) as outputs, and the kernel lists
+# claimed lines with their level in debugfs, so the helper reads the mux from
+# there. It needs no token and no state file from bmcd.
+#
+# TPI_ROOT is a prefix for every system path below; it is empty on the board and
+# set only by tests/mdev-tpi-msd-symlink.sh.
 
-dir=/dev/disk/by-tpi
+root=${TPI_ROOT:-}
+dir=${root}/dev/disk/by-tpi
 
 # RockUSB teardown often skips block mdev remove; drop symlinks whose block device is gone.
 cleanup_stale_by_tpi_links() {
@@ -13,11 +24,119 @@ cleanup_stale_by_tpi_links() {
 		target=$(readlink "$link" 2>/dev/null) || continue
 		bname=${target#/dev/}
 		[ -n "$bname" ] || continue
-		[ -d "/sys/block/${bname}" ] || rm -f "$link"
+		[ -d "${root}/sys/block/${bname}" ] || rm -f "$link"
 	done
 }
 
-# USB disconnect on internal hub child ports (EHCI 1-1.N or 2-1.N).
+# v2.4 (no onboard hub), told by the device tree model: "Turing Pi 2 (v2.4)".
+board_is_hubless() {
+	[ -r "${root}/proc/device-tree/model" ] || return 1
+	model=$(tr -d '\000' <"${root}/proc/device-tree/model") || return 1
+	case "$model" in
+	*"(v2.4)"*) return 0 ;;
+	esac
+	return 1
+}
+
+# Print the node (1-4) the USB mux routes to, or fail when that cannot be told.
+#
+# bmcd drives four lines of gpiochip0 (the pinctrl, "pio"): PG0 SEL2, PG1 SEL1,
+# PG2 OE1 and PG3 OE2, which are offsets 192..195. A mux is enabled by its OE
+# low and picks one of its two nodes by SEL: mux 1 serves nodes 1 (SEL1 low) and
+# 2 (SEL1 high), mux 2 serves nodes 3 (SEL2 low) and 4 (SEL2 high). Exactly one
+# OE low is a valid route; anything else (debugfs missing, lines not yet claimed
+# by bmcd, both muxes on or off) is "unknown", and then no link is better than a
+# wrong one.
+#
+# /sys/kernel/debug/gpio prints, for a claimed line, the chip's global number,
+# so the offset is that number minus the chip's first GPIO. The header says it
+# one of two ways, depending on the kernel:
+#   gpiochip0: GPIOs 512-767, parent: platform/..., ...:     (first GPIO given)
+#   gpiochip0: 224 GPIOs, parent: platform/2000000.pinctrl, 2000000.pinctrl:
+#    gpio-192 (                    |?                   ) out hi
+# The second gives no first GPIO. This chip's lines are numbered from 0 there
+# (measured on a v2.4 board: the line of offset 192 is gpio-192), so the count
+# is the limit: a number at or above it would mean a base that is not 0, and
+# then the helper says "unknown" rather than read the wrong lines.
+usb_mux_node() {
+	f="${root}/sys/kernel/debug/gpio"
+	# The image does not mount debugfs by itself on every build; S00debugfs does
+	# at boot, and this is the same mount if it is not there yet.
+	[ -r "$f" ] || mount -t debugfs none "${root}/sys/kernel/debug" >/dev/null 2>&1
+	[ -r "$f" ] || return 1
+	chip=0 base='' limit='' sel2='' sel1='' oe1='' oe2=''
+	while IFS= read -r line; do
+		case "$line" in
+		"gpiochip0: GPIOs "*)
+			chip=1
+			rest=${line#"gpiochip0: GPIOs "}
+			base=${rest%%[-,]*}
+			continue
+			;;
+		"gpiochip0: "[0-9]*" GPIOs"*)
+			chip=1
+			rest=${line#"gpiochip0: "}
+			limit=${rest%% *}
+			base=0
+			continue
+			;;
+		gpiochip*)
+			chip=0
+			continue
+			;;
+		esac
+		[ "$chip" = 1 ] || continue
+		case "$base" in
+		'' | *[!0-9]*) return 1 ;;
+		esac
+		# " gpio-704 (name|consumer) out hi": the number, then what follows ") ".
+		case "$line" in
+		*" gpio-"[0-9]*" ("*") out "*) ;;
+		*) continue ;;
+		esac
+		num=${line#*gpio-}
+		num=${num%%[!0-9]*}
+		state=${line##*) out }
+		state=${state%% *}
+		case "$state" in
+		hi | lo) ;;
+		*) continue ;;
+		esac
+		case "$limit" in
+		*[!0-9]*) return 1 ;;
+		esac
+		if [ -n "$limit" ] && [ "$num" -ge "$limit" ]; then
+			return 1
+		fi
+		case $((num - base)) in
+		192) sel2=$state ;;
+		193) sel1=$state ;;
+		194) oe1=$state ;;
+		195) oe2=$state ;;
+		esac
+	done <"$f"
+
+	case "${oe1}/${oe2}" in
+	lo/hi)
+		case "$sel1" in
+		lo) echo 1 ;;
+		hi) echo 2 ;;
+		*) return 1 ;;
+		esac
+		;;
+	hi/lo)
+		case "$sel2" in
+		lo) echo 3 ;;
+		hi) echo 4 ;;
+		*) return 1 ;;
+		esac
+		;;
+	*) return 1 ;;
+	esac
+}
+
+# USB disconnect on internal hub child ports (EHCI 1-1.N or 2-1.N), or on the
+# root port 1-1 / 2-1 of a board without a hub.
 if [ "${SUBSYSTEM:-}" = usb ]; then
 	case "${ACTION:-}" in
 	remove)
@@ -25,6 +144,9 @@ if [ "${SUBSYSTEM:-}" = usb ]; then
 		case "$base" in
 		1-1.1 | 1-1.2 | 1-1.3 | 1-1.4 | 2-1.1 | 2-1.2 | 2-1.3 | 2-1.4)
 			cleanup_stale_by_tpi_links
+			;;
+		1-1 | 2-1)
+			board_is_hubless && cleanup_stale_by_tpi_links
 			;;
 		esac
 		;;
@@ -55,7 +177,7 @@ esac
 
 cleanup_stale_by_tpi_links
 
-dev=$(readlink -f "/sys/class/block/${MDEV}/device" 2>/dev/null) || exit 0
+dev=$(readlink -f "${root}/sys/class/block/${MDEV}/device" 2>/dev/null) || exit 0
 
 # Internal hub: node N on root hub port 1.N — Linux names the path either
 # usb1/1-1/1-1.N (some boots / PHY) or usb2/2-1/2-1.N (EHCI on this BMC).
@@ -71,6 +193,12 @@ case "$dev" in
 */1-1.3/* | */1-1.3:* | */2-1.3/* | */2-1.3:*) n=3 ;;
 */1-1.2/* | */1-1.2:* | */2-1.2/* | */2-1.2:*) n=2 ;;
 */1-1.1/* | */1-1.1:* | */2-1.1/* | */2-1.1:*) n=1 ;;
+# No hub: the disk is on the root port itself, 1-1 or 2-1 (a hub child path
+# has a ".N" and is matched above). Only v2.4 is built like that.
+*/usb1/1-1/1-1:* | */usb2/2-1/2-1:*)
+	board_is_hubless || exit 0
+	n=$(usb_mux_node) || exit 0
+	;;
 *) exit 0 ;;
 esac
 

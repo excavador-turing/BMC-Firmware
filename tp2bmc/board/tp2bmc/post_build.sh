@@ -70,13 +70,15 @@ if [ -f "${mconf}" ]; then
 	sed -i '/# mdev-tpi-msd-symlink (#225)/d' "${mconf}"
 	sed -i '/# mdev-tpi-msd-usb (#225)/d' "${mconf}"
 	sed -i '/sd\[a-z\].*mdev-tpi-msd-symlink/d' "${mconf}"
-	sed -i '/[12]-1\\.[1-4].*mdev-tpi-msd-symlink/d' "${mconf}"
+	sed -i '/^[12]-1.*mdev-tpi-msd-symlink/d' "${mconf}"
 	if ! grep -q '\*/usr/bin/mdev-tpi-msd-symlink' "${mconf}"; then
 		printf '\n# mdev-tpi-msd-symlink (#225)\nsd[a-z]\troot:disk\t660\t*/usr/bin/%s\n' \
 			"${mdev_script}" >>"${mconf}"
 		printf '# mdev-tpi-msd-usb (#225) — stale by-tpi on hub port disconnect\n' >>"${mconf}"
 		# root:root — there is no "usb" group in Buildroot; root:usb breaks mdev -s.
-		printf '1-1\\.[1-4](:.*)?\troot:root\t660\t*/usr/bin/%s\n' "${mdev_script}" >>"${mconf}"
-		printf '2-1\\.[1-4](:.*)?\troot:root\t660\t*/usr/bin/%s\n' "${mdev_script}" >>"${mconf}"
+		# 1-1 and 2-1 alone are the root port of a board without a hub (v2.4);
+		# the helper ignores them elsewhere.
+		printf '1-1(\\.[1-4])?(:.*)?\troot:root\t660\t*/usr/bin/%s\n' "${mdev_script}" >>"${mconf}"
+		printf '2-1(\\.[1-4])?(:.*)?\troot:root\t660\t*/usr/bin/%s\n' "${mdev_script}" >>"${mconf}"
 	fi
 fi
