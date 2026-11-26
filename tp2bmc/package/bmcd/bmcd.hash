@@ -309,5 +309,6 @@ sha256  ab8956083837d9fd849603b212fd8c5c75d66b7b357ce6ff34d816584d4e30bc  bmcd-6
 # the boot clock, so a step of the wall clock (chronyd after a BMC reboot, NTP, or
 # `date` by hand) no longer inflates or cuts it short (bmcd#100).
 #
-# Placeholder until CI's own container reports the got line.
-sha256  0000000000000000000000000000000000000000000000000000000000000000  bmcd-14b6ee35d00d8ad4c0665e8b9ef6e6b86d4d6280-cargo2.tar.gz
+# Measured 2026-11-26: the PR build in CI's own container (run 45860840386),
+# against a placeholder line, reported got f4c3de2e; this is that value.
+sha256  f4c3de2ea94ff5662ef810728905a21d53b36198bd662933ee8bbff6bface754  bmcd-14b6ee35d00d8ad4c0665e8b9ef6e6b86d4d6280-cargo2.tar.gz
