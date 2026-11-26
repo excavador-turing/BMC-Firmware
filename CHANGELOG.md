@@ -78,6 +78,29 @@ or newer, and the new bmcd needs the new scripts.
 
 ### Fixed
 
+- **v2.58.0-rc.1 could not be installed from stock upstream firmware: the gate
+  rejected the missing note** (Refs #126). Found on our own v2.4 board during a
+  migration test, with stock v2.1.0 (bmcd 2.3.4) installing the release through
+  its web interface. The stock installer writes `rootfs_new` and arms `nextboot`
+  and has never heard of our notes, so the tentative boot found no staged note,
+  logged `FAILED: no staged note on a tentative boot`, and the board rolled back
+  to stock. The rule was right for an interrupted fork staging and wrong for
+  any stager of another firmware, a third one this gate cannot ask to change.
+  v2.57.0 and earlier had no such rule, so the migration worked until now.
+  The gate now records, on every normal boot of this firmware and at every
+  promotion, which UBI volume is running (`/mnt/overlay/running-image`: the
+  volume id and `data_bytes` of the volume named `rootfs`). On a tentative boot
+  with no staged note it compares that marker with the volume it replaces. A
+  match means the old image was this firmware and the missing note is still a
+  rejection, as in #126. No marker, or a marker for a volume that is gone (a
+  board that went from this fork to stock and back), means the old image never
+  recorded one: the boot is accepted, the log says why, and the version and
+  gateway comparisons are skipped as they were before #126. Everything else the
+  gate asks (bmcd, switch ports, uplinks, EEPROM, RTC, `/metrics`) still applies.
+  The first update from a fork older than this marker (v2.57.0 and earlier) is
+  read the same way, since those images wrote none; the update after that is
+  protected again. `tests/gate.sh` covers both directions.
+
 - **Every note the promotion gate reads is written, and synced, before
   `nextboot` is armed** ([#126](https://github.com/excavador-turing/BMC-Firmware/issues/126),
   Adrian Berger). `osupdate` armed `nextboot` first and the notes after. A power

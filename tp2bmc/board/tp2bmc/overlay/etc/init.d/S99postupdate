@@ -57,6 +57,51 @@
 # before this change does not carry GATE_NOTES=1, so a missing gateway note
 # is still read as "that stager recorded nothing".
 #
+# A third stager this gate cannot change is any stager of ANOTHER firmware.
+# The installer of stock upstream firmware (the web interface, `opt=set&
+# type=firmware`) writes rootfs_new and arms nextboot and has never heard of
+# our notes, so the first boot of this fork on a board that ran stock has no
+# staged note and never will. Rejecting it makes the fork impossible to
+# install on a stock board (found on a v2.4 board, 2026-11-26, with v2.58.0-rc.1).
+# The rule is therefore "no note is a rejection when the image being replaced
+# is this firmware", which needs the gate to know what the old image was.
+#
+# How it knows. On every normal boot of this firmware (and at every promotion)
+# it records a marker on /mnt/overlay, which both images mount: the identity
+# of the UBI volume named "rootfs", that is, the image running now. On the
+# tentative boot the volume named "rootfs" is still the image being replaced,
+# so the gate compares the marker with that volume. A match says that the old
+# image ran this firmware and then, if the note is missing, it is an
+# interrupted staging and a rejection. No marker, or a marker for another
+# volume, says that the old image never recorded one: stock, any other
+# firmware, or a fork older than this marker. That boot is accepted, with the
+# reason logged, and the notes are read the old lenient way (no note means no
+# version comparison and no gateway comparison; bmcd still has to answer, the
+# switch has to be there, and /metrics has to serve).
+#
+# The identity is the volume's id and its data_bytes from sysfs, e.g.
+# "ubi0_3:23990272": a static volume's exact size is the size of the image
+# written into it, and a volume that is replaced is a new volume. Together they
+# change whenever the image at "rootfs" changes, which is what makes the marker
+# safe to leave behind: a board that goes from this fork to stock and back
+# carries a marker for a volume that no longer exists, and is read as "another
+# firmware", not as this one. A marker that merely said "the fork ran here
+# once" would reject exactly that board. Nothing is read from the old image.
+#
+# Roads not taken. (1) Reading /etc/os-release from the old volume would be a
+# direct answer, but needs a second ubiblock attached and a squashfs mounted
+# in the boot script of an image that is being judged, with nothing to say
+# what to do when the attach fails; a marker is a file read. (2) Using
+# postupdate.log as the signal: a failed attempt leaves it behind, and it is
+# written by the rejected image too. (3) Only the existence of a marker file:
+# stale after a stop at stock, see above.
+#
+# What this does not cover, and says so: the first update FROM a fork older
+# than this marker (v2.57.0 and earlier) is read as "another firmware", because
+# those images wrote no marker. They never had the rule either, so nothing is
+# lost against them; the first boot of this firmware writes the marker and every
+# update after it is protected as before.
+#
 # THE OTHER HALF, a normal boot. U-Boot deletes nextboot before it boots the
 # staged volume. When power is lost during that tentative boot, before this
 # script decides, the next boot is an ordinary one on the old image with
@@ -92,6 +137,17 @@ GATEWAY_NOTE=/mnt/overlay/staged-gateway
 # The staging lock every stager holds (see /sbin/osupdate). Held by a stager
 # that is mid-write, which has notes on disk and has not armed nextboot yet.
 STAGE_LOCK=/run/firmware-stage.lock
+
+# Which image was running the last time THIS firmware booted normally or
+# promoted itself: IMAGE=<volume id>:<data_bytes> of the volume named "rootfs",
+# plus the version for a human reader. Read on a tentative boot to decide
+# whether the image being replaced was this firmware. Written by
+# record_running_image; nothing else, and no other firmware, writes it.
+RUNNING_IMAGE_NOTE=/mnt/overlay/running-image
+
+# Where the kernel lists UBI volumes. A variable so tests/gate.sh can point it
+# at a scratch directory.
+UBI_SYS=/sys/class/ubi
 
 # What the rollback volume holds, written here at promotion because this is
 # the only moment anything knows: the volume itself is never mounted.
@@ -389,6 +445,89 @@ release_matches() {
 }
 
 #
+# volume_identity NAME
+#
+# "<volume id>:<data_bytes>" of the UBI volume with that name, from sysfs, or
+# nothing (and status 1) when there is no such volume or its size cannot be
+# read. See the top of this file for why this pair.
+#
+volume_identity() {
+	for entry in "$UBI_SYS/$(basename "$UBIDEV")"/ubi*; do
+		[ -f "$entry/name" ] || continue
+		if grep -Fxq "$1" "$entry/name" 2>/dev/null; then
+			bytes=$(cat "$entry/data_bytes" 2>/dev/null) || bytes=""
+			[ -n "$bytes" ] || return 1
+			printf '%s:%s' "$(basename "$entry")" "$bytes"
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+#
+# record_running_image
+#
+# Says, for the next tentative boot, that the image now at the volume named
+# "rootfs" is this firmware. Called on a normal boot and right after a
+# promotion; does nothing when the running image is not the one named "rootfs"
+# (a tentative boot that has not been promoted must never vouch for itself, so
+# a rejected image leaves the marker of the image it was rejected in favour of).
+# Rewritten only when it changes, so a boot does not wear the flash. Never
+# fatal.
+#
+record_running_image() {
+	[ "$(ubi_block_name)" = "$ROOTFS_PRIMARY" ] || return 0
+	[ -d "$(dirname "$RUNNING_IMAGE_NOTE")" ] || return 0
+
+	now=$(volume_identity "$ROOTFS_PRIMARY") || now=""
+	if [ -z "$now" ]; then
+		log "could not read the identity of the $ROOTFS_PRIMARY volume; the running image is not recorded"
+		return 0
+	fi
+	if [ "$(sed -n 's/^IMAGE=//p' "$RUNNING_IMAGE_NOTE" 2>/dev/null | head -1)" = "$now" ]; then
+		return 0
+	fi
+
+	version=$(sed -n 's/^VERSION=//p' "$OS_RELEASE" 2>/dev/null | tr -d '"' | head -1)
+	{
+		printf 'IMAGE=%s\n' "$now"
+		printf 'VERSION=%s\n' "$version"
+	} >"$RUNNING_IMAGE_NOTE.new" 2>/dev/null \
+		&& mv -f "$RUNNING_IMAGE_NOTE.new" "$RUNNING_IMAGE_NOTE" 2>/dev/null \
+		&& log "recorded the running image $now (${version:-no version}) for the next update" \
+		|| log "could not write $RUNNING_IMAGE_NOTE"
+	return 0
+}
+
+#
+# previous_image_is_this_firmware
+#
+# True when the volume named "rootfs" -- the image a tentative boot replaces --
+# is the one this firmware last recorded. Sets $previous_why for the log when
+# it is not. Errs towards "yes": a marker that exists but cannot be compared
+# (the volume's size unreadable) keeps the rejection, because the cost of a
+# false "no" is promoting an unvouched image, and of a false "yes" one reboot.
+#
+previous_image_is_this_firmware() {
+	recorded=$(sed -n 's/^IMAGE=//p' "$RUNNING_IMAGE_NOTE" 2>/dev/null | head -1 | tr -d '\r')
+	if [ -z "$recorded" ]; then
+		previous_why="it recorded no marker"
+		return 1
+	fi
+
+	now=$(volume_identity "$ROOTFS_PRIMARY") || now=""
+	if [ -z "$now" ]; then
+		return 0
+	fi
+	if [ "$recorded" != "$now" ]; then
+		previous_why="the marker is for $recorded and $ROOTFS_PRIMARY is $now"
+		return 1
+	fi
+	return 0
+}
+
+#
 # notes_present
 #
 # The first thing the gate asks: is everything it is about to read there? The
@@ -396,11 +535,12 @@ release_matches() {
 # none is an interrupted staging, and judging the image without them would
 # skip exactly the checks that need them. Refused, with the reason in the log.
 #
-# Two things are not refused, both logged: a board with no overlay directory
-# (it cannot hold a note, and could not before), and a gateway note that is
+# Three things are not refused, all logged: a board with no overlay directory
+# (it cannot hold a note, and could not before), a gateway note that is
 # missing under a staged note from a stager that never promised one -- the
 # staged note carries GATE_NOTES=1 only when the gateway note was written
-# before it.
+# before it -- and no staged note at all when the image being replaced was not
+# this firmware, whose installer writes none (see the top of this file).
 #
 notes_present() {
 	notes_dir=$(dirname "$STAGED_NOTE")
@@ -410,8 +550,13 @@ notes_present() {
 	fi
 
 	if [ ! -f "$STAGED_NOTE" ]; then
-		log "FAILED: no staged note on a tentative boot; staging did not finish before the reboot"
-		return 1
+		if previous_image_is_this_firmware; then
+			log "FAILED: no staged note on a tentative boot; staging did not finish before the reboot"
+			return 1
+		fi
+		# Not an interrupted staging: a stager that has no notes to write.
+		log "no staged note, and the image being replaced is not this firmware ($previous_why); installed by another firmware's installer, note check skipped"
+		return 0
 	fi
 
 	if grep -qx 'GATE_NOTES=1' "$STAGED_NOTE" 2>/dev/null && [ ! -f "$GATEWAY_NOTE" ]; then
@@ -530,7 +675,7 @@ ubi_block_name() {
 ubi_exists() {
 	NAME=$1
 
-	for entry in /sys/class/ubi/$(basename "$UBIDEV")/ubi*; do
+	for entry in "$UBI_SYS/$(basename "$UBIDEV")"/ubi*; do
 		if [ ! -f $entry/name ]; then continue; fi
 		if grep -Fxq "$NAME" $entry/name >/dev/null; then
 			return 0
@@ -572,6 +717,11 @@ postupdate() {
 
 	# Promoted: what the note describes is now what is running.
 	clear_staged_note
+
+	# And it is this firmware, now at the volume named "rootfs". Recorded now
+	# rather than at the next boot: an update staged before that reboot must
+	# find the marker of the image it replaces.
+	record_running_image
 }
 
 #
@@ -665,12 +815,14 @@ start() {
 
 	if ! grep -q 'postupdate' "$PROC_CMDLINE"; then
 		drop_unarmed_notes
+		record_running_image
 		return 0
 	fi
 
 	# Nothing to promote: this boot is already on the primary volume.
 	if [ "$(ubi_block_name)" = "$ROOTFS_PRIMARY" ]; then
 		drop_unarmed_notes
+		record_running_image
 		return 0
 	fi
 

@@ -172,6 +172,15 @@ ssh root@BMC "cat /mnt/overlay/postupdate.log"
 ssh root@BMC "sed -n 's/^VERSION=//p' /etc/os-release"   # what is running now
 ```
 
+**Installing this firmware over stock upstream firmware** (or any other
+firmware) is meant to work through the stock web interface. Stock
+installers write the new volume and arm `nextboot` but none of the notes this
+gate otherwise requires, so a tentative boot with no staged note is accepted
+when the image it replaces never recorded itself as this firmware
+(`/mnt/overlay/running-image`), and the log says so. The checks that need no
+note still apply, and a board running this firmware that loses its notes
+mid-staging is still rolled back.
+
 To cancel a staged update before rebooting:
 
 ```sh

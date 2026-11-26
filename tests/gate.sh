@@ -60,6 +60,13 @@ GATEWAY_TIMEOUT=2
 # shellcheck disable=SC2034
 GATEWAY_INTERVAL=1
 
+# The marker the gate reads to tell "an interrupted fork staging" from "another
+# firmware's installer", and the sysfs directory that says which volume is which.
+RUNNING_IMAGE_NOTE="$WORK/running-image"
+# Read by the sourced gate, which shellcheck cannot see.
+# shellcheck disable=SC2034
+UBI_SYS="$WORK/sys-ubi"
+
 # The stager writes what the gate reads, so the harness runs it too, against
 # stubs of `ip` and `ping` and a scratch note.
 STAGER=${STAGER:-tp2bmc/board/tp2bmc/overlay/sbin/stage-gateway-note}
@@ -158,6 +165,29 @@ assert() {
 	else
 		printf 'FAIL  %s\n' "$name"; FAIL=$((FAIL + 1))
 	fi
+}
+
+# Assertions about what the gate logged, on the check that ran last.
+wrote() { grep -q "$1" "$LOGFILE"; }
+no_failure_logged() { ! grep -q FAILED "$LOGFILE"; }
+
+# Scratch stand-in for /sys/class/ubi/ubi0: ubi_vol NAME ID BYTES makes volume
+# ubi0_ID. The "rootfs" volume is the image a tentative boot replaces.
+ubi_reset() { rm -rf "$UBI_SYS"; mkdir -p "$UBI_SYS/ubi0"; }
+ubi_vol() {
+	mkdir -p "$UBI_SYS/ubi0/ubi0_$2"
+	printf '%s\n' "$1" >"$UBI_SYS/ubi0/ubi0_$2/name"
+	printf '%s\n' "$3" >"$UBI_SYS/ubi0/ubi0_$2/data_bytes"
+}
+# The old image is this firmware: it recorded itself at volume ubi0_1.
+fork_was_running() {
+	ubi_reset; ubi_vol rootfs 1 23990272; ubi_vol rootfs_new 2 24000000
+	printf 'IMAGE=ubi0_1:23990272\nVERSION=v2.57.0\n' >"$RUNNING_IMAGE_NOTE"
+}
+# The old image is stock firmware: same volumes, and no marker anywhere.
+stock_was_running() {
+	ubi_reset; ubi_vol rootfs 1 23990272; ubi_vol rootfs_new 2 24000000
+	rm -f "$RUNNING_IMAGE_NOTE"
 }
 
 running_is() { printf 'ID=tp2bmc\nVERSION=%s\n' "$1" >"$OS_RELEASE"; }
@@ -383,8 +413,48 @@ note_says 'VERSION=v2.8.0'
 no_gateway_note
 check 'staged note present' 0 '' notes_present
 
+fork_was_running
 no_note
 check 'no staged note on a tentative boot: rejected' 1 'FAILED: no staged note on a tentative boot' notes_present
+
+# --- ... unless the image being replaced is not this firmware ----------------
+# Found on hardware 2026-11-26: the stock installer writes rootfs_new and arms
+# nextboot and writes none of our notes, so the first boot of this fork on a
+# stock board has no staged note and never will. That is not an interrupted
+# staging, and rejecting it made the fork impossible to install.
+stock_was_running
+no_note
+check 'stock firmware was running (no marker): accepted, and says why' 0 'is not this firmware (it recorded no marker)' notes_present
+assert 'and the log does not call it a failure' no_failure_logged
+
+# A marker left by an earlier stay of this firmware, on a board that has since
+# been through stock: the volume it names is gone, so it vouches for nothing.
+fork_was_running; ubi_reset; ubi_vol rootfs 3 11111111; ubi_vol rootfs_new 2 24000000
+no_note
+check 'a stale marker (fork, then stock, now installing the fork again): accepted' 0 'the marker is for ubi0_1:23990272 and rootfs is ubi0_3:11111111' notes_present
+
+# Same volume id, different image: the id alone would have vouched for it.
+fork_was_running; ubi_reset; ubi_vol rootfs 1 11111111; ubi_vol rootfs_new 2 24000000
+no_note
+check 'a stale marker with a reused volume id: accepted' 0 'is not this firmware' notes_present
+
+# The marker matches: the old image was this firmware, so no note is the
+# interrupted staging #126 is about, however many other things look alike.
+fork_was_running
+no_note
+check 'fork to fork, no staged note: still rejected' 1 'FAILED: no staged note on a tentative boot' notes_present
+
+# A marker that exists but cannot be compared is not read as "another firmware".
+fork_was_running; rm -f "$UBI_SYS/ubi0/ubi0_1/data_bytes"
+no_note
+check 'a marker and an unreadable volume size: rejected (errs towards the gate)' 1 'FAILED: no staged note on a tentative boot' notes_present
+
+# postupdate.log is no signal: a failed attempt leaves it behind.
+stock_was_running
+no_note
+printf 'Wed postupdate: FAILED: no staged note on a tentative boot\n' >"$LOGFILE"
+check 'a log from an earlier failed attempt does not make it a fork' 0 'is not this firmware' notes_present
+fork_was_running
 
 saved_note=$STAGED_NOTE
 STAGED_NOTE="$WORK/no-overlay/staged-firmware"
@@ -412,6 +482,20 @@ no_note
 check 'the whole gate, no staged note: rejected before anything is asked' 1 'FAILED: no staged note on a tentative boot' health_ok
 note_says 'VERSION=v2.8.0'
 check 'the whole gate, staged note present: promoted' 0 'version matches the staged note' health_ok
+
+# The migration, end to end: nothing staged, nothing recorded, and every check
+# that does not need a note still runs.
+stock_was_running
+no_note; no_gateway_note
+check 'the whole gate, from stock: promoted, version and gateway checks skipped' 0 'gateway check skipped' health_ok
+assert 'and it said the version check was skipped' wrote 'no staged note; version check skipped'
+stub_curl empty
+check 'the whole gate, from stock, /metrics broken: still rejected' 1 'FAILED: /metrics did not answer' health_ok
+stub_curl ok
+fork_was_running
+no_note; no_gateway_note
+check 'the whole gate, fork to fork with no note: rejected' 1 'FAILED: no staged note on a tentative boot' health_ok
+note_says 'VERSION=v2.8.0'
 
 # --- a boot that is not tentative: stale notes are discarded --------------
 # U-Boot deletes nextboot before it boots the staged volume. A power cut
@@ -478,7 +562,6 @@ run_start() {
 	: >"$LOGFILE"
 	start >/dev/null 2>&1
 }
-wrote() { grep -q "$1" "$LOGFILE"; }
 good_image() {
 	bmcd_answers() { return 0; }
 	running_is v2.57.0
@@ -516,6 +599,75 @@ GATE_NOTES=1'
 no_gateway_note
 run_start
 assert 'a tentative boot that lost its gateway note: rolled back' [ "$ROLLED$PROMOTED" = 10 ]
+
+# The migration through the whole decision tree: the image being replaced is
+# stock, nothing was staged by our stager, and the board is healthy.
+stock_was_running
+no_note; no_gateway_note
+run_start
+assert 'a tentative boot from stock, no notes: promoted' [ "$ROLLED$PROMOTED" = 01 ]
+assert 'and the log says it was accepted as another firmware, not failed' wrote 'is not this firmware'
+assert 'and it was not logged as a failure' no_failure_logged
+
+# ... and the same boot after a fork-to-fork staging that was cut.
+fork_was_running
+run_start
+assert 'a tentative boot from this firmware, no notes: rolled back' [ "$ROLLED$PROMOTED" = 10 ]
+
+# But a broken image from stock is rejected like any other: the leniency is
+# about notes, never about health.
+stock_was_running
+stub_curl empty
+run_start
+assert 'a tentative boot from stock with broken /metrics: rolled back' [ "$ROLLED$PROMOTED" = 10 ]
+stub_curl ok
+
+# --- the marker: written by a normal boot, never by a tentative one --------
+# What makes the cases above possible. A normal boot of this firmware records
+# the image at "rootfs"; a tentative boot on rootfs_new must not, or a rejected
+# image would vouch for itself.
+echo 'quiet splash' >"$PROC_CMDLINE"; STUB_BLOCK=rootfs
+stock_was_running; no_note; no_gateway_note; stub_printenv unset
+run_start
+assert 'a normal boot records the running image' grep -qx 'IMAGE=ubi0_1:23990272' "$RUNNING_IMAGE_NOTE"
+assert 'and the version, for a human' grep -qx 'VERSION=v2.57.0' "$RUNNING_IMAGE_NOTE"
+assert 'and says so in the log' wrote 'recorded the running image ubi0_1:23990272'
+run_start
+assert 'a second normal boot rewrites nothing and logs nothing' [ ! -s "$LOGFILE" ]
+
+# The image at "rootfs" changes (a stock install, the SD card installer): the
+# next normal boot of this firmware records the new one.
+ubi_reset; ubi_vol rootfs 3 11111111
+run_start
+assert 'a changed image is recorded again' grep -qx 'IMAGE=ubi0_3:11111111' "$RUNNING_IMAGE_NOTE"
+
+# A tentative boot, promoted or rejected, on rootfs_new: not recorded by start().
+stock_was_running
+echo 'quiet postupdate' >"$PROC_CMDLINE"; STUB_BLOCK=rootfs_new
+no_note; no_gateway_note
+printf 'IMAGE=ubi0_9:9\n' >"$RUNNING_IMAGE_NOTE"
+run_start
+assert 'a tentative boot does not touch the marker (the image has not earned it)' grep -qx 'IMAGE=ubi0_9:9' "$RUNNING_IMAGE_NOTE"
+
+# ... until it is promoted. postupdate() is stubbed above, so its last step,
+# the record, is exercised directly: after the rename the running volume is
+# named rootfs, and an update staged before the next reboot must find it.
+STUB_BLOCK=rootfs
+ubi_reset; ubi_vol rootfs 2 24000000; ubi_vol rootfs_prev 1 23990272
+: >"$LOGFILE"
+record_running_image >/dev/null
+assert 'a promotion records the image that is now rootfs' grep -qx 'IMAGE=ubi0_2:24000000' "$RUNNING_IMAGE_NOTE"
+
+# No overlay, or a volume whose size cannot be read: nothing written, nothing fatal.
+rm -f "$RUNNING_IMAGE_NOTE"; rm -f "$UBI_SYS/ubi0/ubi0_2/data_bytes"
+record_running_image >/dev/null
+assert 'an unreadable volume size records nothing' [ ! -e "$RUNNING_IMAGE_NOTE" ]
+saved_marker=$RUNNING_IMAGE_NOTE
+RUNNING_IMAGE_NOTE="$WORK/no-overlay/running-image"
+record_running_image >/dev/null
+assert 'no overlay: nothing written, and it returned' [ ! -e "$RUNNING_IMAGE_NOTE" ]
+RUNNING_IMAGE_NOTE=$saved_marker
+fork_was_running
 
 # --- the stager ----------------------------------------------------------
 stager() { GATEWAY_NOTE="$GATEWAY_NOTE" IP_BIN="$WORK/ip" PING_BIN="$PING_BIN" GATEWAY_SLEEP=0 sh "$STAGER" >/dev/null 2>&1; }
