@@ -52,6 +52,7 @@ jobs:
           dash tests/selfupdate-failure.sh
           dash tests/osupdate.sh
           dash tests/osunstage.sh
+          dash tests/mdev-tpi-msd-symlink.sh
 
       - name: contract tests (busybox ash, as on the board)
         run: |
@@ -61,6 +62,7 @@ jobs:
           busybox ash tests/selfupdate-failure.sh
           busybox ash tests/osupdate.sh
           busybox ash tests/osunstage.sh
+          busybox ash tests/mdev-tpi-msd-symlink.sh
 
       # The gate is only as good as its ability to say no. If a mutation that
       # removes a rejection still passes the suite, the suite is decorative.
@@ -256,6 +258,7 @@ jobs:
             tests/selfupdate-failure.sh \
             tests/osupdate.sh \
             tests/osunstage.sh \
+            tests/mdev-tpi-msd-symlink.sh \
             tp2bmc/package/bmcd/generate_self_signedx509.sh \
             tp2bmc/board/tp2bmc/overlay/etc/init.d/S00sysrq \
             tp2bmc/board/tp2bmc/overlay/usr/sbin/mdnsd-guard \
