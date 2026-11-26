@@ -25,7 +25,7 @@ and #131, each with a reproduction; and to Daniel Steinhauf
 This is the firmware's half; the daemon's, `tpi`'s and the interface's are in
 bmcd, tpi and BMC-UI, and ship together with it in v2.58.0.
 
-Pins **bmcd 2.51.2** (v2.57.0 had 2.50.2), **tpi 2.1.0** (2.0.1) and **BMC-UI
+Pins **bmcd 2.51.3** (v2.57.0 had 2.50.2), **tpi 2.1.0** (2.0.1) and **BMC-UI
 4.9.1** (4.8.1). The kernel stays at 6.18.63.
 
 **Not yet tested with real power cuts**, which a simulation cannot replace: the
@@ -164,6 +164,15 @@ or newer, and the new bmcd needs the new scripts.
   the last switch from the UI or the API, so the page showed a stale one. A cold
   boot stamps every node it powers on; a restart of the daemon under running nodes
   keeps the stamps. Reported by DingoDogz on Discord, from a v2.4 board.
+- **A node's power-on time is no longer inflated, or cut short, by a step of the
+  clock** (bmcd 2.51.3, bmcd#100). The time was the difference of two readings of
+  the wall clock, and a v2.4 board has no battery: after a BMC reboot the kernel
+  starts from a stale time and chronyd steps the clock about two minutes later.
+  On our own v2.4 board (firmware v2.58.0-rc.2, bmcd 2.51.2) chronyd stepped it by
+  130.4 s and node 1 reported 139 s and then 153 s after about 30 to 45 s on. The
+  stamp now also records the boot clock, which a step of the wall clock does not
+  move, and the time within one boot is its difference. The original report was
+  DingoDogz's, on Discord.
 - **A node that was running is switched back on after a flash**, and `type=reset`
   goes through the same path as a power request, so the state the API reports and
   the rails agree (bmcd 2.51.0, bmcd#88, BMC-Firmware#122 and #129; #122 reported
