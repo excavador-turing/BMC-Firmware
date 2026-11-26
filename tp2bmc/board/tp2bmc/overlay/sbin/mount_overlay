@@ -21,8 +21,9 @@ overlay_size() {
 
 # setup_mmc DEVPATH
 #
-# Set up the overlay partition (resizing the GPT to fill whole SD)
-# Called only when this has not yet been done
+# Append the overlay partition. genimage leaves the backup GPT off the
+# image (gpt-no-backup), so move that header to the end of the card
+# first. Called only when the overlay partition does not yet exist.
 #
 # The DEVPATH parameter is the path to the MMC block device itself
 # (e.g. `/dev/mmcblk0`)
@@ -32,22 +33,21 @@ overlay_size() {
 setup_mmc() {
 	DEVPATH=$1
 
-	# Select a suitable partition number
+	# Select a suitable partition number. sfdisk --append uses the same
+	# first free slot.
 	partno=1
 	while [ -e "${DEVPATH}p${partno}" ]; do
 		partno=$((partno+1))
 	done
 
-	# Create the partition
-	sgdisk \
-		--move-second-header \
-		--new="$partno:0:0" \
-		--typecode="$partno:8300" \
-		--change-name="$partno:$MMC_PARTLABEL" \
-		"$DEVPATH"
-
-	# Reload the GPT
-	partprobe "$DEVPATH"
+	# The type and the name are what blkid later matches: PARTLABEL=overlay.
+	# Root is a partition on this disk, so the kernel will not replace the
+	# whole table. --no-reread skips sfdisk's "disk in use" refusal.
+	# --no-tell-kernel skips the BLKRRPART that fails for the same reason.
+	# partx adds only the new slot. partprobe cannot.
+	sfdisk --no-reread --no-tell-kernel --relocate gpt-bak-std "$DEVPATH"
+	printf '%s\n' 'type=linux,name=overlay' | sfdisk --no-reread --no-tell-kernel --append "$DEVPATH"
+	partx --add --nr "${partno}:${partno}" "$DEVPATH"
 	MMC_PARTPATH=${DEVPATH}p${partno}
 	if [ ! -e "$MMC_PARTPATH" ]; then
 		echo $0: $MMC_PARTPATH did not appear

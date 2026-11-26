@@ -2,3 +2,6 @@ CONFIG_FEATURE_ADDUSER_TO_GROUP=y
 CONFIG_CHPASSWD=y
 CONFIG_FEATURE_DEL_USER_FROM_GROUP=y
 CONFIG_UDHCPC6=y
+# sfdisk lists and writes the GPT. The util-linux fdisk binary is
+# removed after install. This stops BusyBox from putting the applet back.
+# CONFIG_FDISK is not set
