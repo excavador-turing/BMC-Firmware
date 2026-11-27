@@ -9,7 +9,6 @@ si1::sysinit:/bin/mount -o remount,rw /
 si2::sysinit:/bin/mkdir -p /dev/pts /dev/shm
 si3::sysinit:/bin/mount -a
 si4::sysinit:/bin/mkdir -p /run/lock/subsys
-si5::sysinit:/sbin/swapon -a
 si6::sysinit:/bin/ln -sf /proc/self/fd /dev/fd 2>/dev/null
 si7::sysinit:/bin/ln -sf /proc/self/fd/0 /dev/stdin 2>/dev/null
 si8::sysinit:/bin/ln -sf /proc/self/fd/1 /dev/stdout 2>/dev/null
@@ -24,7 +23,6 @@ S0::respawn:/bin/login -f root
 
 # Stuff to do before rebooting
 shd0:06:wait:/etc/init.d/rcK
-shd1:06:wait:/sbin/swapoff -a
 shd2:06:wait:/bin/umount -a -r
 
 # The usual halt or reboot actions
