@@ -27,11 +27,25 @@ start() {
 
 	load_unload load
 
+	# One-way until reboot, so this has to follow the load. rockusb is the
+	# only entry in /etc/modules.
+	if ! echo 1 > /proc/sys/kernel/modules_disabled; then
+		echo ' failed'
+		exit 1
+	fi
+
 	echo ' OK'
 }
 
 stop() {
 	printf 'Stopping %s: ' "$MODULES"
+
+	# Unloading after the lock would leave rockusb gone until reboot:
+	# start cannot modprobe again. Shutdown does not need the unload.
+	if [ "$(cat /proc/sys/kernel/modules_disabled 2>/dev/null || true)" = 1 ]; then
+		echo 'locked until reboot'
+		return 0
+	fi
 
 	load_unload unload
 
